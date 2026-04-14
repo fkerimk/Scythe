@@ -28,8 +28,6 @@ internal static class Window {
         DrawTextEx(Fonts.RlMontserratRegular, fpsText, pos, 26, 1, Colors.Primary);
     }
 
-    private static void CenterWindow() => SetWindowPosition((Screen.Width - GetScreenWidth()) / 2, (Screen.Height - GetScreenHeight()) / 2);
-
     public static void Show(int width = 1600, int height = 900, bool maximize = false, bool fullscreen = false, bool borderless = true, string title = "SCYTHE", bool isSplash = false, params ConfigFlags[] flags) {
 
         // Close old window
@@ -42,7 +40,6 @@ internal static class Window {
         InitWindow(width, height, title);
         SetWindowMonitor(0);
         SetExitKey(KeyboardKey.Null);
-        CenterWindow();
 
         // Fullscreen & maximizing 
         if (fullscreen) {
@@ -51,7 +48,6 @@ internal static class Window {
 
                 Flags.Add(ConfigFlags.UndecoratedWindow);
                 SetWindowSize(GetMonitorWidth(GetCurrentMonitor()), GetMonitorHeight(GetCurrentMonitor()));
-                CenterWindow();
 
             } else if (!IsWindowFullscreen()) ToggleFullscreen();
 

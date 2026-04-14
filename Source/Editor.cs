@@ -19,7 +19,6 @@ internal static unsafe class Editor {
     public static LevelBrowser LevelBrowser = null!;
     public static ProjectBrowser ProjectBrowser = null!;
     public static ObjectBrowser ObjectBrowser = null!;
-    public static ScriptEditor ScriptEditor = null!;
     public static MusicPlayer MusicPlayer = null!;
     public static Preview Preview = null!;
     public static RuntimeRender RuntimeRender = null!;
@@ -27,9 +26,7 @@ internal static unsafe class Editor {
 
     private static Level? _editorLevelRef;
 
-    public static bool IsScriptEditorFocused => ScriptEditor.IsFocused;
-
-    public static void OpenScript(string path) => ScriptEditor.Open(path);
+    public static void OpenScript(string path) => throw new NotImplementedException(Ansi.ErrorMessage("Script editor"));
 
     public static void OpenLevel(string path) {
 
@@ -58,7 +55,6 @@ internal static unsafe class Editor {
         LevelBrowser = new LevelBrowser();
         ProjectBrowser = new ProjectBrowser();
         ObjectBrowser = new ObjectBrowser();
-        ScriptEditor = new ScriptEditor();
         MusicPlayer = new MusicPlayer();
         Preview = new Preview();
         RuntimeRender = new RuntimeRender();
@@ -77,7 +73,6 @@ internal static unsafe class Editor {
 
         ViewSettings.Load();
         MusicPlayer.Load();
-        ScriptEditor.Load();
         ProjectBrowser.Load();
 
         Core.Load();
@@ -88,7 +83,7 @@ internal static unsafe class Editor {
 
             if (WindowShouldClose() || _scheduledQuit) {
 
-                if (Core.IsAnyLevelDirty || ScriptEditor.IsAnyTabDirty) {
+                if (Core.IsAnyLevelDirty) {
 
                     _showExitModal = true;
                     _scheduledQuit = false;
@@ -114,7 +109,6 @@ internal static unsafe class Editor {
                 EditorRender.Draw();
                 ProjectBrowser.Draw();
                 Preview.Draw();
-                ScriptEditor.Draw();
 
                 PopFont();
                 Style.Pop();
@@ -252,7 +246,6 @@ internal static unsafe class Editor {
             LevelBrowser.Draw();
             ObjectBrowser.Draw();
             ProjectBrowser.Draw();
-            ScriptEditor.Draw();
             MusicPlayer.Draw();
             Preview.Draw();
 
@@ -276,7 +269,6 @@ internal static unsafe class Editor {
 
         ViewSettings.Save();
         MusicPlayer.Save();
-        ScriptEditor.Save();
         ProjectBrowser.Save();
         EditorRender.Save();
 
@@ -317,7 +309,6 @@ internal static unsafe class Editor {
             if (Button("Save All & Exit", new Vector2(160, 40))) {
 
                 Core.SaveAllDirtyLevels();
-                ScriptEditor.SaveAllDirtyTabs();
                 _scheduledQuit = true;
                 _showExitModal = false;
                 CloseCurrentPopup();

@@ -14,7 +14,7 @@ internal static class Shortcuts {
         }
 
         // Ignore other shortcuts if playing or if text inputs are active
-        if (Core.IsPlaying || Editor.IsScriptEditorFocused) return;
+        if (Core.IsPlaying) return;
 
         if (IsKeyDown(KeyboardKey.LeftControl)) {
 
