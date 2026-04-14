@@ -105,7 +105,7 @@ internal class Light(Obj obj) : Component(obj) {
 
         if (Core.IsPlaying) return;
 
-        if ((!OldConfig.Runtime.DrawLights || CommandLine.Editor) && (!OldConfig.Editor.DrawLights || !CommandLine.Editor)) return;
+        if ((!OldConfig.Runtime.DrawLights || !CommandLine.Runtime) && (!OldConfig.Editor.DrawLights || CommandLine.Runtime)) return;
 
         Raylib.DrawSphereWires(_pos, 0.1f, 8, 8, Enabled ? Raylib.ColorAlpha(ScytheColor, 0.8f) : Raylib.ColorAlpha(ScytheColor, 0.2f));
     }

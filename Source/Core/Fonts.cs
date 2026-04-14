@@ -20,7 +20,7 @@ internal static class Fonts {
 
     public static unsafe void Init() {
 
-        if (CommandLine.Editor) {
+        if (!CommandLine.Runtime) {
 
             _iconRanges = GCHandle.Alloc(new ushort[] { 0xE000, 0xF8FF, 0 }, GCHandleType.Pinned).AddrOfPinnedObject();
 

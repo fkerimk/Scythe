@@ -130,7 +130,7 @@ internal class Script(Obj obj) : Component(obj) {
 
     public override bool Load() {
 
-        if (CommandLine.Editor && !Core.IsPlaying) return true;
+        if (!CommandLine.Runtime && !Core.IsPlaying) return true;
 
         var asset = AssetManager.Get<ScriptAsset>(Path);
 
@@ -146,7 +146,7 @@ internal class Script(Obj obj) : Component(obj) {
 
     public override void Logic() {
 
-        if ((CommandLine.Editor && !Core.IsPlaying) || LuaLoop == null || LuaLoop.IsNil()) return;
+        if ((!CommandLine.Runtime && !Core.IsPlaying) || LuaLoop == null || LuaLoop.IsNil()) return;
 
         SafeExec.LuaCall(() => LuaScript.Call(LuaLoop, Raylib.GetFrameTime()));
     }

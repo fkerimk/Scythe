@@ -3,7 +3,7 @@
 CommandLine.Init();
 NativeResolver.Init();
 
-if (CommandLine.Editor && !LspInstaller.CheckLspFiles()) CommandLine.NoSplash = false;
+if (!CommandLine.Runtime && !LspInstaller.CheckLspFiles()) CommandLine.NoSplash = false;
 
 if (!CommandLine.NoSplash) Splash.Show();
 
@@ -23,7 +23,7 @@ if (!string.IsNullOrEmpty(ScytheConfig.Current.Project)) {
 
     Script.Register();
 
-    if (CommandLine.Editor)
+    if (!CommandLine.Runtime)
         Editor.Show();
     else
         Runtime.Show();

@@ -85,7 +85,7 @@ internal class Rigidbody(Obj obj) : Component(obj) {
 
     public override bool Load() {
 
-        if (CommandLine.Editor && !Core.IsPlaying) return true;
+        if (!CommandLine.Runtime && !Core.IsPlaying) return true;
 
         Body = Physics.World.CreateRigidBody();
         Body.Tag = this;
@@ -165,7 +165,7 @@ internal class Rigidbody(Obj obj) : Component(obj) {
 
     public override void Logic() {
 
-        if ((CommandLine.Editor && !Core.IsPlaying) || Body == null) return;
+        if ((!CommandLine.Runtime && !Core.IsPlaying) || Body == null) return;
 
         // Check for manual transform changes (Script or Teleport)
         if (Obj.Transform.Pos != _lastSyncedPos) {

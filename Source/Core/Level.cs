@@ -133,7 +133,7 @@ internal class Level {
                 }
 
                 // Load camera
-                if (CommandLine.Editor && rawData["EditorCamera"] is JObject cameraJson) {
+                if (!CommandLine.Runtime && rawData["EditorCamera"] is JObject cameraJson) {
 
                     EditorCamera = cameraJson.ToObject<CameraData>();
 
@@ -154,7 +154,7 @@ internal class Level {
 
     public string ToSnapshot() {
 
-        if (CommandLine.Editor) {
+        if (!CommandLine.Runtime) {
 
             EditorCamera = new CameraData { Position = FreeCam.Pos, Rotation = FreeCam.Rot };
         }

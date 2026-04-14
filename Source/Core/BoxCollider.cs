@@ -26,7 +26,7 @@ internal class BoxCollider(Obj obj) : Component(obj) {
 
     public override void Render3D() {
 
-        if (!IsSelected || !CommandLine.Editor) return;
+        if (!IsSelected || CommandLine.Runtime) return;
 
         var colorVisible = Color.Lime;
         var colorHidden = Raylib.ColorAlpha(Color.Lime, 0.15f);

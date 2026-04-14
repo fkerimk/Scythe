@@ -36,7 +36,7 @@ internal class Camera(Obj obj) : Component(obj) {
 
     public override void Render3D() {
 
-        if (!CommandLine.Editor || Core.IsPlaying || Core.IsPreviewRender) return;
+        if (CommandLine.Runtime || Core.IsPlaying || Core.IsPreviewRender) return;
 
         Cam.Raylib.DrawCameraFrustum(Raylib.ColorAlpha(Color.White, IsSelected ? 1 : 0.3f), Fov, NearClip, FarClip);
     }

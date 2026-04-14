@@ -17,7 +17,7 @@ internal static class Splash {
 
         _art = LoadTexture(splashPath);
 
-        if (CommandLine.Editor) LspInstaller.Start();
+        if (!CommandLine.Runtime) LspInstaller.Start();
 
         while (!WindowShouldClose()) {
 
@@ -29,7 +29,7 @@ internal static class Splash {
 
             _time += GetFrameTime();
 
-            if (CommandLine.Editor && !LspInstaller.IsDone) {
+            if (!CommandLine.Runtime && !LspInstaller.IsDone) {
 
                 DrawRectangle(0, GetScreenHeight() - 40, GetScreenWidth(), 40, new Color(0, 0, 0, 200));
 

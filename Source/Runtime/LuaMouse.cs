@@ -12,7 +12,7 @@ internal class LuaMouse {
     public static void Loop() {
 
         // Handle ESC to unlock
-        if (CommandLine.Editor && IsLocked && IsKeyPressed(KeyboardKey.Escape)) {
+        if (!CommandLine.Runtime && IsLocked && IsKeyPressed(KeyboardKey.Escape)) {
             IsLocked = false;
         }
 
@@ -35,7 +35,7 @@ internal class LuaMouse {
             if (!IsCursorHidden()) DisableCursor();
 
             // Force center into viewport to prevent escaping
-            if (CommandLine.Editor) {
+            if (!CommandLine.Runtime) {
 
                 var center = Editor.RuntimeRender.ScreenPos + Editor.RuntimeRender.TexSize / 2f;
                 SetMousePosition((int)center.X, (int)center.Y);

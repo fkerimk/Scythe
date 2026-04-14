@@ -50,14 +50,14 @@ internal static class Core {
 
         if (pbr != null) {
 
-            SetShaderValue(pbr.Shader, pbr.GetLoc("use_tex_albedo"), CommandLine.Editor ? OldConfig.Editor.PbrAlbedo : OldConfig.Runtime.PbrAlbedo, ShaderUniformDataType.Int);
-            SetShaderValue(pbr.Shader, pbr.GetLoc("use_tex_normal"), CommandLine.Editor ? OldConfig.Editor.PbrNormal : OldConfig.Runtime.PbrNormal, ShaderUniformDataType.Int);
-            SetShaderValue(pbr.Shader, pbr.GetLoc("use_tex_mra"), CommandLine.Editor ? OldConfig.Editor.PbrMra : OldConfig.Runtime.PbrMra, ShaderUniformDataType.Int);
-            SetShaderValue(pbr.Shader, pbr.GetLoc("use_tex_emissive"), CommandLine.Editor ? OldConfig.Editor.PbrEmissive : OldConfig.Runtime.PbrEmissive, ShaderUniformDataType.Int);
+            SetShaderValue(pbr.Shader, pbr.GetLoc("use_tex_albedo"), !CommandLine.Runtime ? OldConfig.Editor.PbrAlbedo : OldConfig.Runtime.PbrAlbedo, ShaderUniformDataType.Int);
+            SetShaderValue(pbr.Shader, pbr.GetLoc("use_tex_normal"), !CommandLine.Runtime ? OldConfig.Editor.PbrNormal : OldConfig.Runtime.PbrNormal, ShaderUniformDataType.Int);
+            SetShaderValue(pbr.Shader, pbr.GetLoc("use_tex_mra"), !CommandLine.Runtime ? OldConfig.Editor.PbrMra : OldConfig.Runtime.PbrMra, ShaderUniformDataType.Int);
+            SetShaderValue(pbr.Shader, pbr.GetLoc("use_tex_emissive"), !CommandLine.Runtime ? OldConfig.Editor.PbrEmissive : OldConfig.Runtime.PbrEmissive, ShaderUniformDataType.Int);
         }
 
         // Level & camera
-        if (!CommandLine.Editor) {
+        if (CommandLine.Runtime) {
 
             IsPlaying = true;
             OpenLevel("Main");
@@ -199,13 +199,13 @@ internal static class Core {
 
         GameCamera = RootCamera(ActiveLevel.Root);
 
-        if (!CommandLine.Editor || IsPlaying)
+        if (CommandLine.Runtime || IsPlaying)
             ActiveCamera = GameCamera;
 
         else
             ActiveCamera = new Camera3D();
 
-        if (!CommandLine.Editor) return;
+        if (CommandLine.Runtime) return;
 
         if (ActiveLevel.EditorCamera != null) {
 
@@ -276,7 +276,7 @@ internal static class Core {
         Lights.Clear();
         TransparentRenderQueue.Clear();
 
-        if (IsPlaying || !CommandLine.Editor) Physics.Update();
+        if (IsPlaying || CommandLine.Runtime) Physics.Update();
 
         // Behavior & Logic (Scripts, Physics Sync) This pass determines WHERE objects want to be in this frame.
         RunLogic(ActiveLevel.Root);
@@ -319,7 +319,7 @@ internal static class Core {
         }
 
         // Visual State Sync
-        if (IsPlaying || !CommandLine.Editor) {
+        if (IsPlaying || CommandLine.Runtime) {
 
             // Runtime: Instant sync for zero lag (Physics etc.)
             obj.VisualWorldMatrix = obj.WorldMatrix;
@@ -502,7 +502,7 @@ internal static class Core {
         Logic();
         ShadowPass();
 
-        if (!CommandLine.Editor) {
+        if (CommandLine.Runtime) {
 
             if (_mainRt.Texture.Width != GetScreenWidth() || _mainRt.Texture.Height != GetScreenHeight()) {
 

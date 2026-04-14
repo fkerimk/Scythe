@@ -281,7 +281,7 @@ internal class Transform(Obj obj) : Component(obj) {
 
     public override void Render3D() {
 
-        if (!CommandLine.Editor || Core.ActiveCamera == null || Core.IsPreviewRender) return;
+        if (CommandLine.Runtime || Core.ActiveCamera == null || Core.IsPreviewRender) return;
 
         // Only draw gizmo for the "main" selected object to avoid clutter
         if (Obj != LevelBrowser.SelectedObject) return;
@@ -316,7 +316,7 @@ internal class Transform(Obj obj) : Component(obj) {
 
     public override void Render2D() {
 
-        if (!CommandLine.Editor || !Editor.EditorRender.IsHovered) return;
+        if (CommandLine.Runtime || !Editor.EditorRender.IsHovered) return;
 
         _canUseShortcuts = false;
 
