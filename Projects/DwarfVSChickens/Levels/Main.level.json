@@ -38,7 +38,7 @@
             "Looping": true
           },
           "Script": {
-            "Path": "Scripts/Player.lua"
+            "Path": "Scripts/Player.cs"
           },
           "Rigidbody": {
             "Friction": 0.0,
@@ -216,13 +216,13 @@
   },
   "EditorCamera": {
     "Position": {
-      "X": -2.061951,
-      "Y": 1.7919356,
-      "Z": 3.336801
+      "X": 0.5079426,
+      "Y": 0.6331831,
+      "Z": 1.8128799
     },
     "Rotation": {
-      "X": -0.27384126,
-      "Y": 33.85716
+      "X": -0.078841165,
+      "Y": 34.895134
     }
   }
 }

@@ -237,52 +237,7 @@ internal class LevelBrowser : Viewport {
 
                     EndMenu();
                 }
-
-                /*
-                if (ImGui.BeginMenu("Scripts")) {
-
-                    var modelPaths = Directory.GetFiles(PathUtil.ModRelative("Scripts"), "*.*", SearchOption.AllDirectories);
-
-                    foreach (var modelPath in modelPaths) {
-
-                        if (Path.GetExtension(modelPath) != ".lua") continue;
-
-                        var pre = PathUtil.ModRelative("Scripts") + "\\";
-                        var path = modelPath[pre.Length..^4].Replace('\\', '/');
-                        var name = Path.GetFileName(path);
-
-                        if (!ImGui.MenuItem(path)) continue;
-
-                        var parentObj = Core.ActiveLevel.RecordedBuildObject(name, obj, null);
-                        var script = Core.ActiveLevel.BuildObject("Script", parentObj, "Script").Components["script"] as Script;
-                        Core.ActiveLevel.BuildObject("Transform", parentObj, "Transform");
-                        script?.Path = path;
-                        SelectObject(parentObj);
-                    }
-
-                    ImGui.EndMenu();
-                }
-
-                ImGui.Separator();
-
-                if (ImGui.BeginMenu("Types")) {
-
-                    foreach (var type in types) {
-
-                        if (!ImGui.MenuItem(type.Name)) continue;
-
-                        var builtObject = Core.ActiveLevel.RecordedBuildObject(type.Name, obj, type.Name);
-
-                        //if (builtObject is { Components: Animation animation, Parent.Components: Model model })
-                        //    animation.Path = model.Path;
-
-                        SelectObject(builtObject);
-                    }
-
-                    ImGui.EndMenu();
-                }
-                */
-
+                
                 EndMenu();
             }
 

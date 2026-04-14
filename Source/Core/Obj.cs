@@ -1,6 +1,5 @@
 ﻿using System.Numerics;
 using Raylib_cs;
-using MoonSharp.Interpreter;
 using Newtonsoft.Json;
 
 [JsonObject(MemberSerialization.OptIn)]
@@ -208,7 +207,6 @@ internal class Obj {
         return path.ToArray();
     }
 
-    [MoonSharpHidden]
     public Obj? Find(params string[] names) {
 
         if (names.Length == 0) return this;
@@ -226,16 +224,12 @@ internal class Obj {
         return current;
     }
 
-    [MoonSharpHidden]
     public Component? FindComponent(params string[] names) {
 
         var obj = Find(names[..^1]);
 
         return obj?.Components.GetValueOrDefault(names[^1]);
     }
-
-    public Obj? Find(Table t) => Find(t.Values.Select(v => v.String).ToArray());
-    public Component? FindComponent(Table t) => FindComponent(t.Values.Select(v => v.String).ToArray());
 
     public Component MakeComponent(string name) {
 

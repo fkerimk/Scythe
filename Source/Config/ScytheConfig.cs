@@ -3,7 +3,6 @@
 internal class ScytheConfig {
 
     [JsonIgnore] public static ScytheConfig Current = new();
-
     public string Project = null!;
 }
 

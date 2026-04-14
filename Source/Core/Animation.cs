@@ -1,9 +1,7 @@
 ﻿using System.Numerics;
-using MoonSharp.Interpreter;
 using Newtonsoft.Json;
 using Raylib_cs;
 
-[MoonSharpUserData]
 internal class Animation(Obj obj) : Component(obj) {
 
     public override string LabelIcon => Icons.FaPlayCircle;

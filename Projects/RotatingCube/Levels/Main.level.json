@@ -23,7 +23,6 @@
         },
         "Components": {
           "Light": {
-            "Enabled": true,
             "Type": 0,
             "ScytheColor": {
               "R": 255,
@@ -32,7 +31,6 @@
             },
             "Intensity": 5.0,
             "Range": 10.0,
-            "Shadows": true,
             "ShadowStrength": 1.0
           }
         }
@@ -60,12 +58,10 @@
               "A": 100
             },
             "IsTransparent": true,
-            "AlphaCutoff": 0.5,
-            "CastShadows": true,
-            "ReceiveShadows": true
+            "AlphaCutoff": 0.5
           },
           "Script": {
-            "Path": "RotatingCube"
+            "Path": "Scripts/RotatingCube.cs"
           }
         }
       },
@@ -95,7 +91,11 @@
           }
         },
         "Components": {
-          "Camera": {}
+          "Camera": {
+            "Fov": 60.0,
+            "NearClip": 0.01,
+            "FarClip": 1000.0
+          }
         }
       },
       "Ground": {
@@ -123,9 +123,7 @@
               "B": 255,
               "A": 255
             },
-            "AlphaCutoff": 0.5,
-            "CastShadows": true,
-            "ReceiveShadows": true
+            "AlphaCutoff": 0.5
           }
         }
       }

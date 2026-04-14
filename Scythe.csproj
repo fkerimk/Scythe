@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
         
@@ -28,11 +28,21 @@
         <PackageReference Include="Raylib-cs" Version="7.0.2" />
         <PackageReference Include="rlImgui-cs" Version="3.2.0" />
         <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
-        <PackageReference Include="MoonSharp" Version="2.0.0" />
         <PackageReference Include="Jitter2" Version="2.7.8" />
         <PackageReference Include="NLayer" Version="1.16.0" />
         <PackageReference Include="AssimpNet" Version="4.1.0" />
 
+    </ItemGroup>
+
+    <ItemGroup>
+        <Compile Remove="Projects\**" />
+        <None Include="Projects\**" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+            <_Parameter1>Scripts</_Parameter1>
+        </AssemblyAttribute>
     </ItemGroup>
     
 </Project>

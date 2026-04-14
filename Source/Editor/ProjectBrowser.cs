@@ -1114,7 +1114,7 @@ internal class ProjectBrowser : Viewport {
     // Helpers
     private static bool IsLevel(string path) => path.EndsWith(".level.json", StringComparison.OrdinalIgnoreCase);
     private static bool IsMaterial(string path) => path.EndsWith(".material.json", StringComparison.OrdinalIgnoreCase);
-    private static bool IsScript(string path) => path.EndsWith(".lua", StringComparison.OrdinalIgnoreCase);
+    private static bool IsScript(string path) => path.EndsWith(".cs", StringComparison.OrdinalIgnoreCase);
 
     private static bool IsModel(string path) {
 

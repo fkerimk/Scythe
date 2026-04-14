@@ -66,9 +66,9 @@ internal class RuntimeRender : Viewport {
 
                 if (IsMouseClicked(ImGuiMouseButton.Left) || IsMouseClicked(ImGuiMouseButton.Right)) {
 
-                    if (Core.IsPlaying && !LuaMouse.IsLocked) {
+                    if (Core.IsPlaying && !IsCursorHidden()) {
 
-                        LuaMouse.IsLocked = true;
+                        DisableCursor();
 
                         // Center mouse in viewport on click
                         var imgCenter = ScreenPos + contentAvail / 2f;

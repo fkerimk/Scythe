@@ -1,25 +1,33 @@
+using System.Reflection;
+
 internal class ScriptAsset : Asset {
 
-    public string Content = "";
+    public Assembly? Assembly;
+    public Type? ScriptType;
 
     public override bool Load() {
-
+        
         if (!System.IO.File.Exists(File)) return false;
 
-        try {
+        ScriptCompiler.CompileProject(); 
+        AssignFromAssembly();
+        return true;
+    }
 
-            Content = System.IO.File.ReadAllText(File);
-            IsLoaded = true;
-
-            return true;
-        } catch {
-            return false;
-        }
+    public void AssignFromAssembly() {
+        
+        if (ScriptCompiler.ProjectAssembly == null) return;
+        
+        Assembly = ScriptCompiler.ProjectAssembly;
+        var typeName = Path.GetFileNameWithoutExtension(File);
+        ScriptType = Assembly.GetTypes().FirstOrDefault(t => t.Name == typeName && typeof(ScytheScript).IsAssignableFrom(t) && !t.IsAbstract);
+        IsLoaded = true;
     }
 
     public override void Unload() {
-
-        Content = "";
+        
+        Assembly = null;
+        ScriptType = null;
         IsLoaded = false;
     }
 }

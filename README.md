@@ -27,9 +27,7 @@ This project uses:
 
 - [C# bindings](https://github.com/raylib-cs/raylib-cs?tab=Zlib-1-ov-file#readme) of [Raylib](https://github.com/raysan5/raylib?tab=Zlib-1-ov-file#readme) and [C# bindings](https://github.com/raylib-extras/rlImGui-cs?tab=Zlib-1-ov-file#readme) of [rlImGui](https://github.com/raylib-extras/rlImGui?tab=Zlib-1-ov-file#readme), all licensed under zlib/libpng.
 
-- [ImGui](https://github.com/ocornut/imgui?tab=MIT-1-ov-file#readme), [Newtonsoft.Json](https://github.com/JamesNK/Newtonsoft.Json?tab=MIT-1-ov-file#readme), [LuaLS (lua-language-server)](https://github.com/LuaLS/lua-language-server?tab=MIT-1-ov-file#readme), [Jitter Physics 2 *(Jitter2)*](https://github.com/notgiven688/jitterphysics2?tab=MIT-1-ov-file#readme), [NLayer](https://github.com/naudio/NLayer?tab=MIT-1-ov-file#readme) and [AssimpNet](https://bitbucket.org/Starnick/assimpnet/src/master/License.txt) all licensed under MIT.
-
-- [MoonSharp](https://github.com/moonsharp-devs/moonsharp/?tab=License-1-ov-file#readme) licensed under the BSD 3-Clause.
+- [ImGui](https://github.com/ocornut/imgui?tab=MIT-1-ov-file#readme), [Newtonsoft.Json](https://github.com/JamesNK/Newtonsoft.Json?tab=MIT-1-ov-file#readme), [Jitter Physics 2 *(Jitter2)*](https://github.com/notgiven688/jitterphysics2?tab=MIT-1-ov-file#readme), [NLayer](https://github.com/naudio/NLayer?tab=MIT-1-ov-file#readme) and [AssimpNet](https://bitbucket.org/Starnick/assimpnet/src/master/License.txt) all licensed under MIT.
 
 ## 🧱 Architecture Overview
 
@@ -70,12 +68,6 @@ This project uses:
 ### Editor
 
 - **Docking UI:** ImGui-based interface with freely dockable windows.
-- **Advanced Script Editor:**
-    - Lua Language Server Protocol *(LSP)* support.
-    - Code completion *(IntelliSense)*.
-    - Error diagnostics.
-    - Tabbed multi-file editing.
-    - Syntax highlighting.
 - **Level Browser:** Hierarchical object management with a layered structure.
 - **Object Browser:** Real-time panel for editing object properties.
 - **Undo / Redo System:** Action history tracking across editor operations.
@@ -83,7 +75,9 @@ This project uses:
 
 ### Scripting
 
-- **Lua Integration:** Fast and easy modding/scripting via MoonSharp.
+- **C# Scripting:** Write game logic in high-performance C# with full access to engine components.
+  - High-performance C# script execution.
+  - Automatic script compilation.
 - **Dynamic Input:** Simple management of mouse and keyboard input for both the editor and scripting layers.
 
 ## ❌ What this is not
@@ -106,11 +100,12 @@ dotnet build
 ## 🏹 Running
 
 ```ps
-dotnet run -- editor
+dotnet run
 ```
 
-- Opens the editor
-- Press F5 to run the play mode
+- Opens the project launcher
+- Open/Create a project
+- Press F5 to enter play mode
 
 ## 🙏 Attributions
 

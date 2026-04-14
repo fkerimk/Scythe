@@ -47,7 +47,11 @@ internal static class AssetManager {
 
     private static void HandleFileChange(string file) {
 
-        UnloadAsset(file);
+        var path = file.Replace('\\', '/').ToLowerInvariant();
+        var toReload = Assets.Where(kvp => kvp.Value.File.Replace('\\', '/').ToLowerInvariant() == path).ToList();
+
+        foreach (var kvp in toReload) kvp.Value.Unload();
+
         ImportFile(file);
     }
 
@@ -60,7 +64,7 @@ internal static class AssetManager {
         switch (ext) {
 
             case ".fbx" or ".obj" or ".gltf":                     ImportModel(file); break;
-            case ".lua":                                          ImportScript(file); break;
+            case ".cs":                                           ImportScript(file); break;
             case ".vs" or ".fs":                                  ImportShader(file); break;
             case ".png" or ".jpg" or ".jpeg" or ".tga" or ".bmp": ImportTexture(file); break;
 
@@ -253,6 +257,8 @@ internal static class AssetManager {
                    .OrderBy(n => n.Item1)
                    .ToList();
     }
+
+    public static IEnumerable<T> GetAll<T>() where T : Asset => !TypeCache.TryGetValue(typeof(T), out var list) ? [] : list.Cast<T>();
 
     public static void UnloadAll() {
 

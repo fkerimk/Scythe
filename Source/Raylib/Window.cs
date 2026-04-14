@@ -1,4 +1,4 @@
-﻿using Raylib_cs;
+using Raylib_cs;
 using static Raylib_cs.Raylib;
 
 internal static class Window {
@@ -28,40 +28,43 @@ internal static class Window {
         DrawTextEx(Fonts.RlMontserratRegular, fpsText, pos, 26, 1, Colors.Primary);
     }
 
-    public static void Show(int width = 1600, int height = 900, bool maximize = false, bool fullscreen = false, bool borderless = true, string title = "SCYTHE", bool isSplash = false, params ConfigFlags[] flags) {
+    public static void Show(int width = -1, int height = -1, bool maximize = false, bool fullscreen = false, bool borderless = true, string title = "SCYTHE", bool isSplash = false, params ConfigFlags[] flags) {
 
-        // Close old window
-        if (IsWindowReady()) CloseWindow();
+        if (!IsWindowReady()) {
+            // Hard defaults for first init if not specified
+            if (width == -1) width = 1600;
+            if (height == -1) height = 900;
 
-        // Flags
-        Flags.Set(flags);
+            // Flags
+            Flags.Set(flags);
 
-        // New window     
-        InitWindow(width, height, title);
-        SetWindowMonitor(0);
-        SetExitKey(KeyboardKey.Null);
+            // New window     
+            InitWindow(width, height, title);
+            SetWindowMonitor(0);
+            SetExitKey(KeyboardKey.Null);
+
+            // Window icon
+            if (PathUtil.GetPath("Images/Icon.png", out var iconPath)) {
+                var img = LoadImage(iconPath);
+                SetWindowIcon(img);
+                UnloadImage(img);
+            }
+
+            // Initialize Audio
+            if (!IsAudioDeviceReady()) InitAudioDevice();
+        } else {
+            SetWindowTitle(title);
+            if (width > 0 && height > 0 && !IsWindowMaximized()) SetWindowSize(width, height);
+        }
 
         // Fullscreen & maximizing 
         if (fullscreen) {
-
             if (borderless) {
-
                 Flags.Add(ConfigFlags.UndecoratedWindow);
                 SetWindowSize(GetMonitorWidth(GetCurrentMonitor()), GetMonitorHeight(GetCurrentMonitor()));
-
             } else if (!IsWindowFullscreen()) ToggleFullscreen();
-
-        } else if (maximize) MaximizeWindow();
-
-        // Window icon
-        if (PathUtil.GetPath("Images/Icon.png", out var iconPath)) {
-
-            var img = LoadImage(iconPath);
-            SetWindowIcon(img);
-            UnloadImage(img);
+        } else if (maximize) {
+            if (!IsWindowMaximized()) MaximizeWindow();
         }
-
-        // Initialize Audio
-        if (!IsAudioDeviceReady()) InitAudioDevice();
     }
 }

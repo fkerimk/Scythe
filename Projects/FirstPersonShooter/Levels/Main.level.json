@@ -87,7 +87,7 @@
                                 "Looping": true
                               },
                               "Script": {
-                                "Path": "Scripts/PistolAnimation.lua"
+                                "Path": "Scripts/PistolAnimation.cs"
                               }
                             }
                           }
@@ -125,7 +125,7 @@
                     },
                     "Components": {
                       "Script": {
-                        "Path": "Scripts/HeadBob.lua"
+                        "Path": "Scripts/HeadBob.cs"
                       }
                     }
                   }
@@ -143,7 +143,7 @@
                 },
                 "Components": {
                   "Script": {
-                    "Path": "Scripts/PlayerRotation.lua"
+                    "Path": "Scripts/PlayerRotation.cs"
                   }
                 }
               }
@@ -199,7 +199,7 @@
             }
           },
           "Script": {
-            "Path": "Scripts/PlayerMovement.lua"
+            "Path": "Scripts/PlayerMovement.cs"
           }
         }
       },
@@ -296,13 +296,13 @@
   },
   "EditorCamera": {
     "Position": {
-      "X": -5.309746,
-      "Y": 3.9286942,
-      "Z": -4.23073
+      "X": -3.5630102,
+      "Y": 4.4863987,
+      "Z": -2.744988
     },
     "Rotation": {
-      "X": -0.38183454,
-      "Y": 0.80879694
+      "X": -0.47783425,
+      "Y": 1.0157979
     }
   }
 }

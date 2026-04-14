@@ -1,4 +1,4 @@
-﻿using System.Numerics;
+using System.Numerics;
 using System.Runtime.InteropServices;
 using ImGuiNET;
 using Raylib_cs;
@@ -22,6 +22,7 @@ internal static unsafe class Editor {
     public static MusicPlayer MusicPlayer = null!;
     public static Preview Preview = null!;
     public static RuntimeRender RuntimeRender = null!;
+    public static BackgroundTasks BackgroundTasks = null!;
     // ReSharper restore MemberCanBePrivate.Global
 
     private static Level? _editorLevelRef;
@@ -58,6 +59,7 @@ internal static unsafe class Editor {
         MusicPlayer = new MusicPlayer();
         Preview = new Preview();
         RuntimeRender = new RuntimeRender();
+        BackgroundTasks = new BackgroundTasks();
 
         PathUtil.ValidateFile("Layouts/User.ini", out var layoutPath);
 
@@ -140,7 +142,7 @@ internal static unsafe class Editor {
             GetIO().MouseDoubleClickTime = 0.2f;
 
             // Handle Editor UI Lock when playing with mouse locked
-            if (LuaMouse.IsLocked) {
+            if (IsCursorHidden()) {
                 GetIO().ConfigFlags |= ImGuiConfigFlags.NoMouse;
                 GetIO().ConfigFlags |= ImGuiConfigFlags.NoKeyboard;
             } else {
@@ -248,6 +250,7 @@ internal static unsafe class Editor {
             ProjectBrowser.Draw();
             MusicPlayer.Draw();
             Preview.Draw();
+            BackgroundTasks.Draw();
 
             Picking.Update();
 
@@ -274,7 +277,6 @@ internal static unsafe class Editor {
 
         Shutdown();
         Core.Quit();
-        CloseWindow();
     }
 
     public static void Quit() => _scheduledQuit = true;
@@ -349,8 +351,7 @@ internal static unsafe class Editor {
             var snapshot = Core.ActiveLevel.ToSnapshot();
 
             Core.IsPlaying = true;
-            LuaMouse.IsLocked = true;
-            LuaTime.Reset();
+            DisableCursor();
             RuntimeRender.IsOpen = true;
             RuntimeRender.ShouldFocus = true;
 
@@ -368,7 +369,6 @@ internal static unsafe class Editor {
         } else {
             // Stop play mode
             Core.IsPlaying = false;
-            LuaMouse.IsLocked = false;
             EnableCursor();
             ShowCursor();
 

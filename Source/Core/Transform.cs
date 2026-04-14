@@ -1,10 +1,8 @@
-﻿using System.Numerics;
-using MoonSharp.Interpreter;
+using System.Numerics;
 using Newtonsoft.Json;
 using Raylib_cs;
 using static Raylib_cs.Raylib;
 
-[MoonSharpUserData]
 [JsonObject(MemberSerialization.OptIn)]
 internal class Transform(Obj obj) : Component(obj) {
 

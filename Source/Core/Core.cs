@@ -1,4 +1,4 @@
-﻿using System.Numerics;
+using System.Numerics;
 using Raylib_cs;
 using static Raylib_cs.Raylib;
 
@@ -41,6 +41,9 @@ internal static class Core {
 
         // Fonts
         Fonts.Init();
+
+        // Runtime Scripts
+        if (CommandLine.Runtime) ScriptCompiler.LoadRuntime();
 
         // Assets
         AssetManager.Init();
@@ -264,14 +267,13 @@ internal static class Core {
 
     public static void Logic() {
 
+        Tasks.Update();
         AssetManager.Update();
 
         if (ActiveLevel == null) return;
 
         // Robust loading of any newly added/restored components
         Load();
-
-        if (IsPlaying) LuaMouse.Loop();
 
         Lights.Clear();
         TransparentRenderQueue.Clear();

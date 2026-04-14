@@ -1,4 +1,4 @@
-﻿using System.Runtime.InteropServices;
+using System.Runtime.InteropServices;
 using ImGuiNET;
 using Raylib_cs;
 using static System.Text.Encoding;

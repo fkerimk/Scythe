@@ -1,5 +1,4 @@
-﻿using System.Numerics;
-using MoonSharp.Interpreter;
+using System.Numerics;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
@@ -218,9 +217,6 @@ internal class Level {
         return obj;
     }
 
-    [MoonSharpHidden] public Obj? Find(string[] names) => Root.Find(names);
-    [MoonSharpHidden] public Component? FindComponent(string[] names) => Root.FindComponent(names);
-
-    public Obj? Find(Table t) => Root.Find(t.Values.Select(v => v.String).ToArray());
-    public Component? FindComponent(Table t) => Root.FindComponent(t.Values.Select(v => v.String).ToArray());
+    public Obj? Find(string[] names) => Root.Find(names);
+    public Component? FindComponent(string[] names) => Root.FindComponent(names);
 }

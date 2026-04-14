@@ -1,4 +1,4 @@
-﻿using Raylib_cs;
+using Raylib_cs;
 using static Raylib_cs.Raylib;
 
 internal static class Runtime {
@@ -38,7 +38,6 @@ internal static class Runtime {
         }
 
         Core.Quit();
-        CloseWindow();
     }
 
     public static void Quit() => _scheduledQuit = true;
