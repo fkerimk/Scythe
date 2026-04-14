@@ -48,6 +48,10 @@ internal static class Core {
         // Assets
         AssetManager.Init();
 
+        // Let the splash screen play until AssetManager fully drains its import queue!
+        if (!CommandLine.NoSplash) Splash.ShowWhileLoading();
+        else while (Splash.IsLoading) Tasks.Update();
+
         // Setup Global PBR Uniforms
         var pbr = AssetManager.Get<ShaderAsset>("pbr");
 
@@ -83,6 +87,8 @@ internal static class Core {
         _skyboxTexture = LoadTextureCubemap(image, CubemapLayout.AutoDetect);
         UnloadImage(image);
         _skyboxModel.Materials[0].Maps[(int)MaterialMapIndex.Cubemap].Texture = _skyboxTexture;
+        
+        Splash.Cleanup();
     }
 
     private static RenderTexture2D LoadShadowmapRenderTexture(int width, int height) {

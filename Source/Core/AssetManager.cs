@@ -1,4 +1,4 @@
-﻿using System.Collections.Concurrent;
+using System.Collections.Concurrent;
 using Newtonsoft.Json;
 
 internal static class AssetManager {
@@ -20,30 +20,40 @@ internal static class AssetManager {
         Assets.Clear();
         TypeCache.Clear();
 
-        // Load Resources
-        if (PathUtil.GetPath("Resources", out var resourcesPath)) {
+        var resourcesPath = "";
+        bool hasRes = PathUtil.GetPath("Resources", out resourcesPath);
+        var resFiles = hasRes ? Directory.GetFiles(resourcesPath, "*.*", SearchOption.AllDirectories).ToList() : new List<string>();
 
-            ScanDirectory(resourcesPath);
-            CreateWatcher(resourcesPath, "*.*", HandleFileChange, HandleFileDelete);
-        }
-
-        // Mod Directory (Recursive)
         var modPath = ScytheConfig.Current.Project;
+        var modFiles = Directory.Exists(modPath) ? Directory.GetFiles(modPath, "*.*", SearchOption.AllDirectories).Where(f => !f.Contains("/Assembly/") && !f.Contains("\\Assembly\\")).ToList() : new List<string>();
 
-        if (Directory.Exists(modPath)) {
+        Tasks.Run("Importing Assets", task => {
+            
+            if (hasRes) CreateWatcher(resourcesPath, "*.*", HandleFileChange, HandleFileDelete);
+            if (Directory.Exists(modPath)) CreateWatcher(modPath, "*.*", HandleFileChange, HandleFileDelete);
 
-            ScanDirectory(modPath);
-            CreateWatcher(modPath, "*.*", HandleFileChange, HandleFileDelete);
-        }
+            var totalFiles = resFiles.Concat(modFiles).ToList();
+            int current = 0;
+
+            foreach (var file in totalFiles) {
+                
+                var full = Path.GetFullPath(file);
+                
+                Tasks.RunOnMainThread(() => {
+                    ImportFile(full);
+                });
+                
+                current++;
+                task.Progress = (float)current / totalFiles.Count;
+                task.Status = Path.GetFileName(full);
+            }
+            
+            task.Progress = 1f;
+            task.Status = "Completed";
+        });
     }
 
-    private static void ScanDirectory(string path) {
-
-        if (!Directory.Exists(path)) return;
-
-        var files = Directory.GetFiles(path, "*.*", SearchOption.AllDirectories);
-        foreach (var file in files) ImportFile(Path.GetFullPath(file));
-    }
+    private static void ScanDirectory(string path) { }
 
     private static void HandleFileChange(string file) {
 

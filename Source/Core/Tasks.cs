@@ -34,9 +34,11 @@ internal static class Tasks {
         MainThreadQueue.Enqueue(action);
     }
 
-    public static void Update() {
+    public static void Update(int timeBudgetMs = 0) {
+        var sw = timeBudgetMs > 0 ? System.Diagnostics.Stopwatch.StartNew() : null;
         while (MainThreadQueue.TryDequeue(out var action)) {
             SafeExec.Try(action);
+            if (sw != null && sw.ElapsedMilliseconds > timeBudgetMs) break;
         }
 
         lock (ActiveTasks) {

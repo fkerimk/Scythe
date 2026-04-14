@@ -9,7 +9,6 @@ NativeResolver.Init();
 Window.Show(width: 1600, height: 900, maximize: false, flags: [ConfigFlags.Msaa4xHint, ConfigFlags.ResizableWindow]);
 
 if (!CommandLine.Runtime) CommandLine.NoSplash = false;
-if (!CommandLine.NoSplash) Splash.Show();
 
 PathUtil.ValidateFile("Scythe.json", out var scytheJson, "{}");
 JsonConvert.PopulateObject(File.ReadAllText(scytheJson), ScytheConfig.Current);
