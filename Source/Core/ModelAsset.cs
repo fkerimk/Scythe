@@ -125,7 +125,7 @@ internal class ModelAsset : Asset {
         if (index < 0 || index >= Materials.Length) return;
 
         ref var mat = ref Materials[index];
-        var asset = (index < CachedMaterialAssets.Count) ? CachedMaterialAssets[index] : null;
+        var asset = index < CachedMaterialAssets.Count ? CachedMaterialAssets[index] : null;
 
         if (asset == null && !string.IsNullOrEmpty(MaterialPaths[index])) {
 

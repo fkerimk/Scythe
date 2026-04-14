@@ -95,9 +95,9 @@ internal class Model(Obj obj) : Component(obj) {
 
         foreach (var mesh in Meshes) {
 
-            var material = (mesh.MaterialIndex >= 0 && mesh.MaterialIndex < AssetRef.Materials.Length) ? AssetRef.Materials[mesh.MaterialIndex] : MaterialAsset.Default.Material;
+            var material = mesh.MaterialIndex >= 0 && mesh.MaterialIndex < AssetRef.Materials.Length ? AssetRef.Materials[mesh.MaterialIndex] : MaterialAsset.Default.Material;
 
-            var matAsset = (mesh.MaterialIndex >= 0 && mesh.MaterialIndex < AssetRef.CachedMaterialAssets.Count) ? (AssetRef.CachedMaterialAssets[mesh.MaterialIndex] ?? MaterialAsset.Default) : MaterialAsset.Default;
+            var matAsset = mesh.MaterialIndex >= 0 && mesh.MaterialIndex < AssetRef.CachedMaterialAssets.Count ? AssetRef.CachedMaterialAssets[mesh.MaterialIndex] ?? MaterialAsset.Default : MaterialAsset.Default;
 
             // 2. Resolve Material Asset parameters (only for shared shader values)
             var shader = material.Shader;

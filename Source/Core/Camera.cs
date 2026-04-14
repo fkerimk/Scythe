@@ -28,7 +28,7 @@ internal class Camera(Obj obj) : Component(obj) {
         var forward = Vector3.Transform(Vector3.UnitZ, rot);
 
         Cam.Position = pos;
-        Cam.Target = (pos + forward);
+        Cam.Target = pos + forward;
         Cam.Up = Vector3.Transform(Vector3.UnitY, rot);
     }
 

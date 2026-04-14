@@ -47,7 +47,7 @@ internal class CapsuleCollider(Obj obj) : Component(obj) {
 
         var up = Vector3.TransformNormal(Vector3.UnitY, Obj.WorldMatrix);
 
-        var offsetDist = (Height * scale.Y) / 2.0f - (Radius * maxScale);
+        var offsetDist = Height * scale.Y / 2.0f - Radius * maxScale;
         if (offsetDist < 0) offsetDist = 0;
 
         // Local UP is (0,1,0). Rotated UP is Vector3.Transform(Vector3.UnitY, Rot);

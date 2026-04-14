@@ -392,8 +392,8 @@ internal class Preview : Viewport {
 
                 foreach (var mesh in model.Meshes) {
 
-                    var material = (mesh.MaterialIndex >= 0 && mesh.MaterialIndex < model.Materials.Length) ? model.Materials[mesh.MaterialIndex] : MaterialAsset.Default.Material;
-                    var matAsset = (mesh.MaterialIndex >= 0 && mesh.MaterialIndex < model.CachedMaterialAssets.Count) ? (model.CachedMaterialAssets[mesh.MaterialIndex] ?? MaterialAsset.Default) : MaterialAsset.Default;
+                    var material = mesh.MaterialIndex >= 0 && mesh.MaterialIndex < model.Materials.Length ? model.Materials[mesh.MaterialIndex] : MaterialAsset.Default.Material;
+                    var matAsset = mesh.MaterialIndex >= 0 && mesh.MaterialIndex < model.CachedMaterialAssets.Count ? model.CachedMaterialAssets[mesh.MaterialIndex] ?? MaterialAsset.Default : MaterialAsset.Default;
 
                     SetupPreviewLighting(matAsset, camera, target, distance);
                     DrawMesh(mesh.RlMesh, material, matBase);
@@ -679,8 +679,8 @@ internal class Preview : Viewport {
 
                 foreach (var mesh in model.Meshes) {
 
-                    var material = (mesh.MaterialIndex >= 0 && mesh.MaterialIndex < model.Materials.Length) ? model.Materials[mesh.MaterialIndex] : MaterialAsset.Default.Material;
-                    var matAsset = (mesh.MaterialIndex >= 0 && mesh.MaterialIndex < model.CachedMaterialAssets.Count) ? (model.CachedMaterialAssets[mesh.MaterialIndex] ?? MaterialAsset.Default) : MaterialAsset.Default;
+                    var material = mesh.MaterialIndex >= 0 && mesh.MaterialIndex < model.Materials.Length ? model.Materials[mesh.MaterialIndex] : MaterialAsset.Default.Material;
+                    var matAsset = mesh.MaterialIndex >= 0 && mesh.MaterialIndex < model.CachedMaterialAssets.Count ? model.CachedMaterialAssets[mesh.MaterialIndex] ?? MaterialAsset.Default : MaterialAsset.Default;
 
                     SetupPreviewLighting(matAsset, camera, target, distance);
                     DrawMesh(mesh.RlMesh, material, matBase);

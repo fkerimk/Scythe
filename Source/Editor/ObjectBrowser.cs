@@ -445,7 +445,7 @@ internal class ObjectBrowser : Viewport {
 
             for (var i = 0; i < model.Materials.Length; i++) {
 
-                var name = (i < model.Meshes.Count && !string.IsNullOrEmpty(model.Meshes[i].Name)) ? model.Meshes[i].Name : $"Mesh {i}";
+                var name = i < model.Meshes.Count && !string.IsNullOrEmpty(model.Meshes[i].Name) ? model.Meshes[i].Name : $"Mesh {i}";
                 DrawShadowedLabel(name);
                 object? val = model.MaterialPaths[i];
 
@@ -579,9 +579,9 @@ internal class ObjectBrowser : Viewport {
 
         if (separator) {
 
-            var icon = (first is Component c) ? c.LabelIcon : Icons.FaCube;
-            var color = (first is Component cc) ? cc.LabelColor : Colors.GuiTypeModel;
-            var isRemovable = (first is Component and not Transform) && targets.Count == 1;
+            var icon = first is Component c ? c.LabelIcon : Icons.FaCube;
+            var color = first is Component cc ? cc.LabelColor : Colors.GuiTypeModel;
+            var isRemovable = first is Component and not Transform && targets.Count == 1;
 
             DrawSectionHeader(
                 title,

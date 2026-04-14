@@ -99,7 +99,7 @@ internal static class PostProcessing {
 
             // Swap for next pass
             currentSource = currentDest;
-            currentDest   = (currentDest.Id == _tempRt.Id) ? _tempRt2 : _tempRt;
+            currentDest   = currentDest.Id == _tempRt.Id ? _tempRt2 : _tempRt;
         }
 
         // Apply SSAO first
@@ -220,8 +220,8 @@ internal static class PostProcessing {
         var height = GetScreenHeight();
 
         // Halton Sequence (2, 3)
-        var jX = GetHalton((_frameIndex % 16) + 1, 2) - 0.5f;
-        var jY = GetHalton((_frameIndex % 16) + 1, 3) - 0.5f;
+        var jX = GetHalton(_frameIndex % 16 + 1, 2) - 0.5f;
+        var jY = GetHalton(_frameIndex % 16 + 1, 3) - 0.5f;
 
         _jitter = new Vector2(jX * 2.0f / width, jY * 2.0f / height);
 

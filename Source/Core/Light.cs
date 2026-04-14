@@ -73,8 +73,8 @@ internal class Light(Obj obj) : Component(obj) {
 
                     for (var i = 0; i < 8; i++) {
 
-                        var angle     = (i       / 8f) * MathF.PI * 2f;
-                        var nextAngle = ((i + 1) / 8f) * MathF.PI * 2f;
+                        var angle     = i       / 8f * MathF.PI * 2f;
+                        var nextAngle = (i + 1) / 8f * MathF.PI * 2f;
 
                         var offset1 = Obj.Right * MathF.Cos(angle)     * coneRadius + Obj.Up * MathF.Sin(angle)     * coneRadius;
                         var offset2 = Obj.Right * MathF.Cos(nextAngle) * coneRadius + Obj.Up * MathF.Sin(nextAngle) * coneRadius;
@@ -90,7 +90,7 @@ internal class Light(Obj obj) : Component(obj) {
 
                     for (var i = 0; i < sides; i++) {
 
-                        var angle = (i / sides) * MathF.PI * 2f;
+                        var angle = i / sides * MathF.PI * 2f;
 
                         var offset = Obj.Right * MathF.Cos(angle) * coneRadius + Obj.Up * MathF.Sin(angle) * coneRadius;
                         var point  = baseCenter                                + offset;

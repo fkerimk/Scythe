@@ -187,7 +187,7 @@ internal class MaterialAsset : Asset {
 
                 case "vec4": {
 
-                    var val = Data.Colors.TryGetValue(prop.Name, out var col) ? ColorNormalize(col) : (Default.Data.Colors.TryGetValue(prop.Name, out var defCol) ? ColorNormalize(defCol) : Vector4.One);
+                    var val = Data.Colors.TryGetValue(prop.Name, out var col) ? ColorNormalize(col) : Default.Data.Colors.TryGetValue(prop.Name, out var defCol) ? ColorNormalize(defCol) : Vector4.One;
                     SetShaderValue(shader, loc, val, ShaderUniformDataType.Vec4);
 
                     break;

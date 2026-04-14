@@ -388,7 +388,7 @@ internal static class Core {
                     _ => pos + fwd
                 },
                 Up = shadowLight.Type == 1 ? Vector3.UnitX : Vector3.UnitY,
-                FovY = (shadowLight.Type == 0 ? shadowLight.Range * 2.0f : (shadowLight.Type == 2 ? 90.0f : 160.0f)) * RenderSettings.ShadowFovScale,
+                FovY = (shadowLight.Type == 0 ? shadowLight.Range * 2.0f : shadowLight.Type == 2 ? 90.0f : 160.0f) * RenderSettings.ShadowFovScale,
                 Projection = shadowLight.Type == 0 ? CameraProjection.Orthographic : CameraProjection.Perspective
             };
 

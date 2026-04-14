@@ -84,7 +84,7 @@ internal class Transform(Obj obj) : Component(obj) {
     }
 
     public Quaternion WorldRot {
-        get => (Obj.Parent == null) ? Rot : Obj.Parent.Transform.WorldRot * Rot;
+        get => Obj.Parent == null ? Rot : Obj.Parent.Transform.WorldRot * Rot;
         set {
 
             if (Obj.Parent == null)
@@ -332,7 +332,7 @@ internal class Transform(Obj obj) : Component(obj) {
             2 => "Scale",
             _ => "Bruh"
         };
-        var spaceName = (_mode == 2) ? ("") : (_isWorldSpace ? "(World)" : "(Local)");
+        var spaceName = _mode == 2 ? "" : _isWorldSpace ? "(World)" : "(Local)";
 
         var textA = $"{modeName} {spaceName}";
         var textPosA = Editor.EditorRender.RelativeMouse with { Y = Editor.EditorRender.RelativeMouse.Y - 15 };
@@ -365,7 +365,7 @@ internal class Transform(Obj obj) : Component(obj) {
 
         Obj.DecomposeWorldMatrix(out var worldPos, out _, out _);
 
-        var a = worldPos + (Raymath.Vector3Normalize(normal) * 0.1f);
+        var a = worldPos + Raymath.Vector3Normalize(normal) * 0.1f;
         var b = a + normal * 1.5f;
 
         if (!string.IsNullOrEmpty(_activeId) && _activeId != id) {
@@ -493,7 +493,7 @@ internal class Transform(Obj obj) : Component(obj) {
 
                 for (var i = 0; i < rayQuality + 1; i++) {
 
-                    var angle = (i / (float)rayQuality) * MathF.PI * 2f;
+                    var angle = i / (float)rayQuality * MathF.PI * 2f;
                     var step = worldPos + (normal1 * MathF.Cos(angle) + normal2 * MathF.Sin(angle)) * 1.5f;
 
                     if (GetRayCollisionSphere(ray, step, rayRadius * 1.5f).Hit) isHovered = true;
@@ -546,7 +546,7 @@ internal class Transform(Obj obj) : Component(obj) {
             History.StopRecording();
         }
 
-        var targetColor = (!isActive && isHovered && !IsCursorHidden()) ? Color.White : color;
+        var targetColor = !isActive && isHovered && !IsCursorHidden() ? Color.White : color;
 
         if (_mode == 1) {
             // Draw rotation circle
@@ -556,8 +556,8 @@ internal class Transform(Obj obj) : Component(obj) {
 
             for (var i = 0; i < 48; i++) {
 
-                var angle1 = (i / 48f) * MathF.PI * 2f;
-                var angle2 = ((i + 1) / 48f) * MathF.PI * 2f;
+                var angle1 = i / 48f * MathF.PI * 2f;
+                var angle2 = (i + 1) / 48f * MathF.PI * 2f;
                 var p1 = worldPos + (normal1 * MathF.Cos(angle1) + normal2 * MathF.Sin(angle1)) * 1.5f;
                 var p2 = worldPos + (normal1 * MathF.Cos(angle2) + normal2 * MathF.Sin(angle2)) * 1.5f;
 

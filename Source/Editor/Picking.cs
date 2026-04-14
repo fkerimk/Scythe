@@ -96,9 +96,9 @@ internal static class Picking {
 
         var mousePos = Editor.EditorRender.RelativeMouse;
 
-        var text = (DragTarget != null) ? $"Set parent to: {DragTarget.Name}" : $"Dragging: {DragSource.Name}";
+        var text = DragTarget != null ? $"Set parent to: {DragTarget.Name}" : $"Dragging: {DragSource.Name}";
 
-        var color = (DragTarget != null) ? Color.Green : Color.Yellow;
+        var color = DragTarget != null ? Color.Green : Color.Yellow;
 
         Raylib.DrawTextEx(Fonts.RlMontserratRegular, text, new System.Numerics.Vector2(mousePos.X + 22, mousePos.Y - 18), 20, 1, Color.Black);
         Raylib.DrawTextEx(Fonts.RlMontserratRegular, text, new System.Numerics.Vector2(mousePos.X + 20, mousePos.Y - 20), 20, 1, color);

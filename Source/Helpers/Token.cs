@@ -29,7 +29,7 @@ internal static partial class Extensions {
         foreach (Match m in matches) {
 
             var t = m.Value;
-            var type = t.StartsWith("--") ? TokenType.Comment : (t.StartsWith('\"') || t.StartsWith('\'') ? TokenType.String : (char.IsDigit(t[0]) ? TokenType.Number : (TokenKeywords.Contains(t) ? TokenType.Keyword : (string.IsNullOrWhiteSpace(t) ? TokenType.Whitespace : TokenType.Normal))));
+            var type = t.StartsWith("--") ? TokenType.Comment : t.StartsWith('\"') || t.StartsWith('\'') ? TokenType.String : char.IsDigit(t[0]) ? TokenType.Number : TokenKeywords.Contains(t) ? TokenType.Keyword : string.IsNullOrWhiteSpace(t) ? TokenType.Whitespace : TokenType.Normal;
 
             tokens.Add(new Token { Text = t, Type = type });
         }

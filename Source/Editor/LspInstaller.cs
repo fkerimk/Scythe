@@ -86,7 +86,7 @@ internal static class LspInstaller {
                 await fileStream.WriteAsync(buffer.AsMemory(0, read));
                 totalRead += read;
                 Progress = (float)totalRead / totalBytes;
-                Status = $"Downloading... {(totalRead / 1024 / 1024)}MB";
+                Status = $"Downloading... {totalRead / 1024 / 1024}MB";
             }
         }
 

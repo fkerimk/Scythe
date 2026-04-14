@@ -60,21 +60,21 @@ internal static partial class Extensions {
             var nearCenter = camera.Position + forward * near;
             var corners = new Vector3[8];
 
-            corners[0] = nearCenter + (up * topNear) - (right * rightNear);
-            corners[1] = nearCenter + (up * topNear) + (right * rightNear);
-            corners[2] = nearCenter - (up * topNear) + (right * rightNear);
-            corners[3] = nearCenter - (up * topNear) - (right * rightNear);
+            corners[0] = nearCenter + up * topNear - right * rightNear;
+            corners[1] = nearCenter + up * topNear + right * rightNear;
+            corners[2] = nearCenter - up * topNear + right * rightNear;
+            corners[3] = nearCenter - up * topNear - right * rightNear;
 
             var farCenter = camera.Position + forward * far;
-            corners[4] = farCenter + (up * topFar) - (right * rightFar);
-            corners[5] = farCenter + (up * topFar) + (right * rightFar);
-            corners[6] = farCenter - (up * topFar) + (right * rightFar);
-            corners[7] = farCenter - (up * topFar) - (right * rightFar);
+            corners[4] = farCenter + up * topFar - right * rightFar;
+            corners[5] = farCenter + up * topFar + right * rightFar;
+            corners[6] = farCenter - up * topFar + right * rightFar;
+            corners[7] = farCenter - up * topFar - right * rightFar;
 
             for (var i = 0; i < 4; i++) {
 
                 DrawLine3D(corners[i], corners[(i + 1) % 4], color);
-                DrawLine3D(corners[i + 4], corners[((i + 1) % 4) + 4], color);
+                DrawLine3D(corners[i + 4], corners[(i + 1) % 4 + 4], color);
                 DrawLine3D(corners[i], corners[i + 4], color);
             }
         }

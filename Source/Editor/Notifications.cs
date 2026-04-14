@@ -105,7 +105,7 @@ internal static class Notifications {
             var size = Raylib.MeasureTextEx(Fonts.RlMontserratRegular, text, Size, 1.0f);
             Width = (int)size.X + 45;
             DrawPosX = -Width; // Start off-screen
-            DrawPosY = Y + (PendingNotifications.Count * (Height + Spacing));
+            DrawPosY = Y + PendingNotifications.Count * (Height + Spacing);
         }
     }
 }

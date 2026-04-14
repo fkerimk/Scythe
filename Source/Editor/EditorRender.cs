@@ -97,7 +97,7 @@ internal class EditorRender() : Viewport("Render (Editor)") {
                 var label = $"{level.Name}{(level.IsDirty ? " *" : "")}###level_{level.GetHashCode()}";
 
                 var open = true;
-                var isSelected = (Core.ActiveLevelIndex == i);
+                var isSelected = Core.ActiveLevelIndex == i;
                 var flags = ImGuiTabItemFlags.None;
 
                 if (Core.ShouldFocusActiveLevel && isSelected) flags |= ImGuiTabItemFlags.SetSelected;
