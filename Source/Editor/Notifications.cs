@@ -1,4 +1,4 @@
-﻿using System.Numerics;
+using System.Numerics;
 using Raylib_cs;
 
 internal static class Notifications {
@@ -13,7 +13,26 @@ internal static class Notifications {
 
     private static readonly List<Notification> PendingNotifications = [];
 
-    public static void Show(string text, float duration = 2.5f) => PendingNotifications.Add(new Notification(text, duration));
+    public static void Show(string text, float duration = 2.5f) {
+
+        if (text == "Play Mode Stopped" || text == "Play Mode Started") {
+
+            var otherText = text == "Play Mode Stopped" ? "Play Mode Started" : "Play Mode Stopped";
+            var existing = PendingNotifications.Find(n => n.Text == otherText);
+
+            if (existing != null) {
+
+                existing.Text = text;
+                existing.Timer = EntryTime;
+                existing.Duration = EntryTime + duration;
+                existing.UpdateWidth();
+
+                return;
+            }
+        }
+
+        PendingNotifications.Add(new Notification(text, duration));
+    }
 
     public static void ShowTask(BackgroundTask task) => PendingNotifications.Add(new Notification(task));
 
