@@ -104,9 +104,9 @@ internal class Rigidbody(Obj obj) : Component(obj) {
             if (boxCollider.Shape != null) {
                 if (boxCollider.Center != Vector3.Zero) {
                     var scaledCenter = boxCollider.Center * scale;
-                    Body.AddShape(new TransformedShape(boxCollider.Shape, Conversion.ToJitter(scaledCenter)), false);
+                    Body.AddShape(new TransformedShape(boxCollider.Shape, Conversion.ToJitter(scaledCenter)), MassInertiaUpdateMode.Preserve);
                 } else
-                    Body.AddShape(boxCollider.Shape, false);
+                    Body.AddShape(boxCollider.Shape, MassInertiaUpdateMode.Preserve);
             }
         }
 
@@ -122,9 +122,9 @@ internal class Rigidbody(Obj obj) : Component(obj) {
             if (sphereCollider.Shape != null) {
                 if (sphereCollider.Center != Vector3.Zero) {
                     var scaledCenter = sphereCollider.Center * scale;
-                    Body.AddShape(new TransformedShape(sphereCollider.Shape, Conversion.ToJitter(scaledCenter)), false);
+                    Body.AddShape(new TransformedShape(sphereCollider.Shape, Conversion.ToJitter(scaledCenter)), MassInertiaUpdateMode.Preserve);
                 } else
-                    Body.AddShape(sphereCollider.Shape, false);
+                    Body.AddShape(sphereCollider.Shape, MassInertiaUpdateMode.Preserve);
             }
         }
 
@@ -140,9 +140,9 @@ internal class Rigidbody(Obj obj) : Component(obj) {
             if (capsuleCollider.Shape != null) {
                 if (capsuleCollider.Center != Vector3.Zero) {
                     var scaledCenter = capsuleCollider.Center * scale;
-                    Body.AddShape(new TransformedShape(capsuleCollider.Shape, Conversion.ToJitter(scaledCenter)), false);
+                    Body.AddShape(new TransformedShape(capsuleCollider.Shape, Conversion.ToJitter(scaledCenter)), MassInertiaUpdateMode.Preserve);
                 } else
-                    Body.AddShape(capsuleCollider.Shape, false);
+                    Body.AddShape(capsuleCollider.Shape, MassInertiaUpdateMode.Preserve);
             }
         }
 
