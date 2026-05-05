@@ -8,10 +8,36 @@ internal static class AssetManager {
     private static readonly Dictionary<string, Asset>     PathLookup     = new();
     private static readonly Dictionary<Type, List<Asset>> TypeCache      = new();
     private static readonly ConcurrentQueue<Action>       PendingActions = new();
+    private static readonly Dictionary<string, DateTime>   _pendingImports = new();
+    private static DateTime                               _lastImportNotify = DateTime.MinValue;
 
     public static void Update() {
 
         while (PendingActions.TryDequeue(out var action)) action();
+
+        var now = DateTime.Now;
+        var ready = _pendingImports.Where(kvp => kvp.Value <= now).ToList();
+
+        foreach (var kvp in ready) {
+            _pendingImports.Remove(kvp.Key);
+            if (IsFileReady(kvp.Key)) {
+                ImportFile(kvp.Key);
+                if ((now - _lastImportNotify).TotalSeconds >= 2.0) {
+                    var file = kvp.Key;
+                    Tasks.RunOnMainThread(() => Notifications.Show($"Imported: {Path.GetFileName(file)}"));
+                    _lastImportNotify = now;
+                }
+            } else {
+                _pendingImports[kvp.Key] = now.AddMilliseconds(300);
+            }
+        }
+    }
+
+    private static bool IsFileReady(string file) {
+        try {
+            using var stream = File.Open(file, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+            return stream.Length > 0;
+        } catch { return false; }
     }
 
     public static void Init() {
@@ -62,7 +88,7 @@ internal static class AssetManager {
 
         foreach (var kvp in toReload) kvp.Value.Unload();
 
-        ImportFile(file);
+        _pendingImports[file] = DateTime.Now.AddMilliseconds(300);
     }
 
     private static void HandleFileDelete(string file) => UnloadAsset(file);
