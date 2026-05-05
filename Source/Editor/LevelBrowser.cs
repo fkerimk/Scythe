@@ -87,6 +87,9 @@ internal class LevelBrowser : Viewport {
         // Draw objects
         DrawObject(Core.ActiveLevel.Root);
 
+        if (IsWindowHovered() && IsMouseReleased(ImGuiMouseButton.Left) && !IsAnyItemHovered())
+            SelectObject(null);
+
         EndChild();
     }
 
@@ -327,7 +330,7 @@ internal class LevelBrowser : Viewport {
 
     public static void SelectObject(Obj? obj, bool multiSelect = false) {
 
-        if (obj != null) Editor.SetSelectedAsset(null);
+        if (obj != null || !multiSelect) Editor.SetSelectedAsset(null);
 
         if (!multiSelect) {
 

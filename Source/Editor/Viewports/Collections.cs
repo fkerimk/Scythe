@@ -102,6 +102,12 @@ internal class Collections : Viewport {
         foreach (var entry in entries)
             DrawEntry(entry);
 
+        if (IsWindowHovered() && IsMouseReleased(ImGuiMouseButton.Left) && !IsAnyItemHovered()) {
+
+            Editor.SetSelectedAsset(null);
+            LevelBrowser.SelectObject(null);
+        }
+
         EndChild();
     }
 
@@ -144,8 +150,8 @@ internal class Collections : Viewport {
             return;
         }
 
-        Editor.SetSelectedAsset(path);
         LevelBrowser.SelectObject(null);
+        Editor.SetSelectedAsset(path);
     }
 
     private bool TryDrawThumbnail(string path, float startX, float iconWidth, float thumbnailSize) {
