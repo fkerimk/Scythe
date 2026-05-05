@@ -32,6 +32,7 @@ internal static unsafe class Editor {
     // ReSharper restore MemberCanBePrivate.Global
 
     private static Level? _editorLevelRef;
+    public static string? SelectedAssetPath { get; private set; }
 
     public static void OpenScript(string path) => throw new NotImplementedException(Ansi.ErrorMessage("Script editor"));
 
@@ -50,6 +51,13 @@ internal static unsafe class Editor {
         Core.SetActiveLevel(Core.OpenLevels.Count - 1);
         level.Save();
         Core.Load();
+    }
+
+    public static void SetSelectedAsset(string? path) {
+
+        SelectedAssetPath = path;
+        ProjectBrowser.SyncExternalSelection(path);
+        Collections.SyncExternalSelection(path);
     }
 
     public static void Show() {

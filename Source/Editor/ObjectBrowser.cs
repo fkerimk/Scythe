@@ -25,7 +25,7 @@ internal class ObjectBrowser : Viewport {
         // Asset inspection
         if (LevelBrowser.SelectedObjects.Count == 0) {
 
-            var selectedFile = Editor.ProjectBrowser.SelectedFile;
+            var selectedFile = Editor.SelectedAssetPath;
 
             if (!string.IsNullOrEmpty(selectedFile)) DrawAssetInspector(selectedFile.Replace('\\', '/'));
 

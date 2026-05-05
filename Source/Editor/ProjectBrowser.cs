@@ -32,7 +32,21 @@ internal class ProjectBrowser : Viewport {
     private string _lastSearch = "";
     private readonly List<string> _cachedSearchResults = [];
 
-    public string? SelectedFile => _selectedPaths.Count == 1 ? _selectedPaths.First() : null;
+    public string? SelectedFile => Editor.SelectedAssetPath;
+
+    public void SyncExternalSelection(string? path) {
+
+        _selectedPaths.Clear();
+
+        if (string.IsNullOrEmpty(path)) {
+
+            _selectionAnchor = null;
+            return;
+        }
+
+        _selectedPaths.Add(path);
+        _selectionAnchor = path;
+    }
 
     public ProjectBrowser() : base("Project") {
 
@@ -399,7 +413,11 @@ internal class ProjectBrowser : Viewport {
         Columns(1);
 
         // Clear Selection if BG Clicked
-        if (bgClicked && !_itemClickedThisFrame && !_isBoxSelecting && !_ignoreMouseRelease && !GetIO().KeyCtrl) _selectedPaths.Clear();
+        if (bgClicked && !_itemClickedThisFrame && !_isBoxSelecting && !_ignoreMouseRelease && !GetIO().KeyCtrl) {
+
+            _selectedPaths.Clear();
+            Editor.SetSelectedAsset(null);
+        }
 
         // Draw Box Overlay
         if (_isBoxSelecting) {
@@ -415,6 +433,28 @@ internal class ProjectBrowser : Viewport {
             if (IsKeyPressed(ImGuiKey.Delete) && _selectedPaths.Count > 0) DeleteSelectedItems();
             if (IsKeyPressed(ImGuiKey.F2) && _selectedPaths.Count == 1) StartRename(_selectedPaths.First());
         }
+
+        SyncSelectedAsset();
+    }
+
+    private void SyncSelectedAsset() {
+
+        if (_selectedPaths.Count != 1) {
+
+            if (Editor.SelectedAssetPath != null) Editor.SetSelectedAsset(null);
+            return;
+        }
+
+        var selectedPath = _selectedPaths.First();
+
+        if (Directory.Exists(selectedPath)) {
+
+            if (Editor.SelectedAssetPath != null) Editor.SetSelectedAsset(null);
+            return;
+        }
+
+        if (!string.Equals(Editor.SelectedAssetPath, selectedPath, StringComparison.OrdinalIgnoreCase))
+            Editor.SetSelectedAsset(selectedPath);
     }
 
     private bool DrawGridItem(string path, bool isDirectory, Rect selectBox, out bool doubleClicked) {

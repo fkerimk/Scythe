@@ -31,7 +31,7 @@ internal class Preview : Viewport {
 
     protected override void OnDraw() {
 
-        var selectedFile = Editor.ProjectBrowser.SelectedFile;
+        var selectedFile = Editor.SelectedAssetPath;
         var selectedCamera = LevelBrowser.SelectedObject?.Components.GetValueOrDefault("Camera") as Camera;
 
         if (selectedCamera == null && string.IsNullOrEmpty(selectedFile)) {

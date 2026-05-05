@@ -10,6 +10,7 @@ internal class Collections : Viewport {
     private readonly string _collectionsRoot;
     
     private string _currentPath;
+    private string? _selectedPath;
     
     private string _newCollectionName = "";
     private bool _showAddPopup;
@@ -25,6 +26,8 @@ internal class Collections : Viewport {
 
         if (!Directory.Exists(_collectionsRoot)) Directory.CreateDirectory(_collectionsRoot);
     }
+
+    public void SyncExternalSelection(string? path) => _selectedPath = path;
 
     protected override void OnDraw() {
 
@@ -119,17 +122,20 @@ internal class Collections : Viewport {
         PopFont();
 
         SameLine(startX + iconWidth + 5f);
+        var isSelected = string.Equals(_selectedPath, path, StringComparison.OrdinalIgnoreCase);
 
-        if (!Selectable(name, false, ImGuiSelectableFlags.AllowDoubleClick)) return;
+        if (!Selectable(name, isSelected)) return;
 
-        if (!IsMouseDoubleClicked(ImGuiMouseButton.Left)) return;
+        if (isDirectory) {
 
-        if (isDirectory)
             _currentPath = path;
-        else if (IsScript(path))
-            Editor.OpenScript(path);
-        else if (IsLevel(path))
-            Editor.OpenLevel(path);
+            Editor.SetSelectedAsset(null);
+
+            return;
+        }
+
+        Editor.SetSelectedAsset(path);
+        LevelBrowser.SelectObject(null);
     }
 
     private bool TryDrawThumbnail(string path, float startX, float iconWidth, float thumbnailSize) {

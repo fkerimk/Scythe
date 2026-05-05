@@ -327,6 +327,8 @@ internal class LevelBrowser : Viewport {
 
     public static void SelectObject(Obj? obj, bool multiSelect = false) {
 
+        if (obj != null) Editor.SetSelectedAsset(null);
+
         if (!multiSelect) {
 
             foreach (var s in SelectedObjects) s.IsSelected = false;
