@@ -27,7 +27,6 @@ internal static unsafe class Editor {
     public static MusicPlayer MusicPlayer = null!;
     public static Preview Preview = null!;
     public static RuntimeRender RuntimeRender = null!;
-    public static BackgroundTasks BackgroundTasks = null!;
     public static Collections Collections = null!;
     // ReSharper restore MemberCanBePrivate.Global
 
@@ -73,7 +72,6 @@ internal static unsafe class Editor {
         MusicPlayer = new MusicPlayer();
         Preview = new Preview();
         RuntimeRender = new RuntimeRender();
-        BackgroundTasks = new BackgroundTasks();
         Collections = new Collections();
 
         PathUtil.ValidateFile("Layouts/User.ini", out var layoutPath);
@@ -265,7 +263,6 @@ internal static unsafe class Editor {
             ProjectBrowser.Draw();
             MusicPlayer.Draw();
             Preview.Draw();
-            BackgroundTasks.Draw();
             Collections.Draw();
 
             Picking.Update();

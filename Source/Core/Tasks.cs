@@ -15,6 +15,7 @@ internal static class Tasks {
     public static BackgroundTask Run(string name, Action<BackgroundTask> action) {
         var task = new BackgroundTask { Name = name, Status = "Working..." };
         lock (ActiveTasks) ActiveTasks.Add(task);
+        Notifications.ShowTask(task);
         
         Task.Run(() => {
             try {
