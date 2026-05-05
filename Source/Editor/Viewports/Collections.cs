@@ -1,5 +1,6 @@
 using System.Numerics;
 using ImGuiNET;
+using Raylib_cs;
 using static ImGuiNET.ImGui;
 
 namespace Viewports;
@@ -87,43 +88,101 @@ internal class Collections : Viewport {
     private void DrawBrowser() {
         
         if (!BeginChild("Browser")) return;
-        
-        var directories = Directory.GetDirectories(_currentPath);
 
-        foreach (var dir in directories) {
-                
-            var name = Path.GetFileName(dir);
-                
-            PushFont(Fonts.ImFontAwesomeNormal);
+        var entries = Directory
+            .GetFileSystemEntries(_currentPath)
+            .Where(entry => !IsSidecarMetaFile(entry))
+            .OrderByDescending(Directory.Exists)
+            .ThenBy(Path.GetFileName, new NaturalStringComparer()!)
+            .ToArray();
 
-            var icon = name switch {
-                
-                "Materials" when Depth == 1 => Icons.FaFileImage,
-                "Models" when Depth == 1 => Icons.FaCube,
-                "Scripts" when Depth == 1 => Icons.FaFileCode,
-                _ => Icons.FaFolder
-            };
-
-            var startX = GetCursorPosX();
-            
-            const float iconWidth = 20f;
-            
-            var iconSize = CalcTextSize(icon);
-            SetCursorPosX(startX + (iconWidth - iconSize.X) * 0.5f);
-            
-            TextColored(new Vector4(1f, 0.8f, 0.2f, 1f), icon);
-            
-            PopFont();
-                
-            SameLine(startX + iconWidth + 5f);
-            
-            if (!Selectable(name, false, ImGuiSelectableFlags.AllowDoubleClick)) continue;
-            
-            if (IsMouseDoubleClicked(ImGuiMouseButton.Left))
-                _currentPath = dir;
-        }
+        foreach (var entry in entries)
+            DrawEntry(entry);
 
         EndChild();
+    }
+
+    private void DrawEntry(string path) {
+
+        var name = GetNameWithoutExtension(path);
+        var isDirectory = Directory.Exists(path);
+        var startX = GetCursorPosX();
+
+        const float iconWidth = 20f;
+        const float thumbnailSize = 16f;
+
+        PushFont(Fonts.ImFontAwesomeNormal);
+
+        if (!TryDrawThumbnail(path, startX, iconWidth, thumbnailSize))
+            DrawIcon(path, isDirectory, startX, iconWidth);
+
+        PopFont();
+
+        SameLine(startX + iconWidth + 5f);
+
+        if (!Selectable(name, false, ImGuiSelectableFlags.AllowDoubleClick)) return;
+
+        if (!IsMouseDoubleClicked(ImGuiMouseButton.Left)) return;
+
+        if (isDirectory)
+            _currentPath = path;
+        else if (IsScript(path))
+            Editor.OpenScript(path);
+        else if (IsLevel(path))
+            Editor.OpenLevel(path);
+    }
+
+    private bool TryDrawThumbnail(string path, float startX, float iconWidth, float thumbnailSize) {
+
+        var textureAsset = AssetManager.Get<TextureAsset>(path);
+        var matAsset = AssetManager.Get<MaterialAsset>(path);
+        var modelAsset = AssetManager.Get<ModelAsset>(path);
+
+        Texture2D? thumbTex = null;
+
+        if (textureAsset is { Thumbnail: not null })
+            thumbTex = textureAsset.Thumbnail.Value;
+        else if (matAsset != null) {
+
+            if (!matAsset.Thumbnail.HasValue) Preview.UpdateThumbnail(matAsset);
+            thumbTex = matAsset.Thumbnail;
+
+        } else if (modelAsset != null) {
+
+            if (!modelAsset.Thumbnail.HasValue) Preview.UpdateThumbnail(modelAsset);
+            thumbTex = modelAsset.Thumbnail;
+        }
+
+        if (!thumbTex.HasValue || thumbTex.Value.Id == 0) return false;
+
+        var tex = thumbTex.Value;
+        float w = tex.Width;
+        float h = tex.Height;
+
+        var ratio = w / h;
+        var drawW = thumbnailSize;
+        var drawH = thumbnailSize;
+
+        if (w > h)
+            drawH = drawW / ratio;
+        else
+            drawW = drawH * ratio;
+
+        SetCursorPosX(startX + (iconWidth - drawW) * 0.5f);
+        Image((IntPtr)tex.Id, new Vector2(drawW, drawH));
+
+        return true;
+    }
+
+    private void DrawIcon(string path, bool isDirectory, float startX, float iconWidth) {
+
+        var icon = GetIcon(path, isDirectory);
+        var iconSize = CalcTextSize(icon);
+        SetCursorPosX(startX + (iconWidth - iconSize.X) * 0.5f);
+
+        if (isDirectory) PushStyleColor(ImGuiCol.Text, new Vector4(1f, 0.8f, 0.2f, 1f));
+        Text(icon);
+        if (isDirectory) PopStyleColor();
     }
 
     private void DrawPopups() {
@@ -183,5 +242,55 @@ internal class Collections : Viewport {
         }
 
         Notifications.Show($"Collection '{name}' created.");
+    }
+
+    private static bool IsSidecarMetaFile(string path) {
+
+        if (!path.EndsWith(".json", StringComparison.OrdinalIgnoreCase)) return false;
+
+        var assetPath = path[..^5];
+        return File.Exists(assetPath);
+    }
+
+    private string GetIcon(string path, bool isDirectory) {
+
+        if (isDirectory) {
+
+            var name = Path.GetFileName(path);
+            return name switch {
+                "Materials" when Depth == 1 => Icons.FaFileImage,
+                "Models" when Depth == 1 => Icons.FaCube,
+                "Scripts" when Depth == 1 => Icons.FaFileCode,
+                "Levels" when Depth == 1 => Icons.FaMap,
+                _ => Icons.FaFolder
+            };
+        }
+
+        if (IsScript(path)) return Icons.FaFileCode;
+        if (IsLevel(path)) return Icons.FaFlag;
+        if (IsMaterial(path)) return Icons.FaFileImage;
+        if (IsModel(path)) return Icons.FaCube;
+
+        return Icons.FaFile;
+    }
+
+    private static bool IsLevel(string path) => path.EndsWith(".level.json", StringComparison.OrdinalIgnoreCase);
+    private static bool IsMaterial(string path) => path.EndsWith(".material.json", StringComparison.OrdinalIgnoreCase);
+    private static bool IsScript(string path) => path.EndsWith(".cs", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsModel(string path) {
+
+        var ext = Path.GetExtension(path).ToLowerInvariant();
+        return ext is ".fbx" or ".obj" or ".gltf" or ".glb" or ".iqm";
+    }
+
+    private static string GetNameWithoutExtension(string path) {
+
+        var name = Path.GetFileName(path);
+
+        if (IsLevel(path)) return name[..^11];
+        if (IsMaterial(path)) return name[..^14];
+
+        return Path.GetFileNameWithoutExtension(name);
     }
 }

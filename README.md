@@ -125,10 +125,11 @@ Many post-processing shaders and various other shaders were taken from, or based
 <br/>
 [The Green Wizard Gnome N64 Style](https://skfb.ly/oXSLR) by Drillimpact, licensed under [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/).
 <br/>
-[Animated FPS Pistol](https://skfb.ly/psqCp) by Levraicoincoin, DJMaesen, licensed under [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/).
+[Beretta Pistol FPS ANIMATION](https://skfb.ly/oAKR8) by BURNER, DJMaesen, licensed under [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/).
 
 #### Early Samples
 
-
 [Bear Man PSX](https://skfb.ly/p9SUZ) by Bonvikt, licensed under [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/).
+<br/>
+[Animated FPS Pistol](https://skfb.ly/psqCp) by Levraicoincoin, DJMaesen, licensed under [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/).
 
