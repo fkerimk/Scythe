@@ -71,7 +71,7 @@
                             },
                             "Components": {
                               "Model": {
-                                "Path": "Collections/FPS/Models/pistolanim.fbx",
+                                "Path": "Collections/FPS/Models/Pistol/Pistol.fbx",
                                 "Color": {
                                   "R": 255,
                                   "G": 255,
@@ -82,7 +82,7 @@
                                 "CastShadows": false
                               },
                               "Animation": {
-                                "Path": "Collections/FPS/Models/pistolanim.fbx",
+                                "Path": "Collections/FPS/Models/Pistol/Pistol.fbx",
                                 "IsPlaying": true,
                                 "Looping": true
                               },

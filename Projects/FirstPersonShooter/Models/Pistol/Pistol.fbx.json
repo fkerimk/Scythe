@@ -1,7 +1,0 @@
-{
-  "MeshMaterials": {
-    "0": "Models/Pistol/Arms.material.json",
-    "1": "Models/Pistol/Pistol.material.json"
-  },
-  "ImportScale": 0.01
-}
