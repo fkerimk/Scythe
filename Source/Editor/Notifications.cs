@@ -5,13 +5,14 @@ internal static class Notifications {
 
     private const int X = 25;
     private const int Y = 25;
-    private const int Spacing = 12;
+    private const int Spacing = 3;
     private const int Size = 18;
     private const int TaskIconSize = 16;
     private const float Fadeout = 0.3f;
     private const float EntryTime = 0.6f;
 
     private static readonly List<Notification> PendingNotifications = [];
+    private static float _mouseMoveTimer;
 
     public static void Show(string text, float duration = 2.5f) {
 
@@ -41,6 +42,9 @@ internal static class Notifications {
         if (PendingNotifications.Count == 0) return;
 
         var dt = Raylib.GetFrameTime();
+
+        if (Raylib.GetMouseDelta().LengthSquared() > 0.01f) _mouseMoveTimer = 1.0f;
+        else _mouseMoveTimer = Math.Max(0, _mouseMoveTimer - dt);
 
         for (var i = PendingNotifications.Count - 1; i >= 0; i--) {
 
@@ -90,7 +94,25 @@ internal static class Notifications {
                 }
             }
 
-            DrawNotification(n, alpha);
+            // Proximity Opacity
+            var mousePos = Raylib.GetMousePosition();
+            var rect = new Rectangle(n.DrawPosX, n.DrawPosY, n.Width, n.Height);
+
+            var dx = Math.Max(0, Math.Max(rect.X - mousePos.X, mousePos.X - (rect.X + rect.Width)));
+            var dy = Math.Max(0, Math.Max(rect.Y - mousePos.Y, mousePos.Y - (rect.Y + rect.Height)));
+            var dist = MathF.Sqrt(dx * dx + dy * dy);
+
+            const float limit = 180f; // Distance threshold for opacity drop
+            var targetOpacity = 1.0f;
+
+            if (_mouseMoveTimer > 0) {
+                var factor = Math.Clamp(dist / limit, 0f, 1f);
+                targetOpacity = Raymath.Lerp(0.15f, 1.0f, factor);
+            }
+
+            n.Opacity = Raymath.Lerp(n.Opacity, targetOpacity, dt * 10.0f);
+
+            DrawNotification(n, alpha * n.Opacity);
             PendingNotifications[i] = n;
         }
     }
@@ -250,6 +272,7 @@ internal static class Notifications {
         public float Timer;
         public float DrawPosX;
         public float DrawPosY;
+        public float Opacity = 1.0f;
 
         public Notification(string text, float duration) {
 
