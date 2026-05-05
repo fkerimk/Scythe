@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Threading;
 using Newtonsoft.Json;
 
 internal static class AssetManager {
@@ -8,17 +9,17 @@ internal static class AssetManager {
     private static readonly Dictionary<string, Asset>     PathLookup     = new();
     private static readonly Dictionary<Type, List<Asset>> TypeCache      = new();
     private static readonly ConcurrentQueue<Action>       PendingActions = new();
-    private static readonly List<string>                  _pendingImportFiles = new();
-    private static DateTime                               _importDebounce = DateTime.MinValue;
+    private static readonly List<string>                  _pendingFiles  = new();
+    private static DateTime                               _debounceTime  = DateTime.MinValue;
     private static BackgroundTask?                        _importTask;
 
     public static void Update() {
-
         while (PendingActions.TryDequeue(out var action)) action();
 
-        if (_pendingImportFiles.Count > 0 && DateTime.Now > _importDebounce && _importTask == null) {
+        if (_importTask != null && _importTask.IsDone) _importTask = null;
+
+        if (_importTask == null && _pendingFiles.Count > 0 && DateTime.Now > _debounceTime)
             StartImportTask();
-        }
     }
 
     public static void Init() {
@@ -34,30 +35,26 @@ internal static class AssetManager {
         var modPath = ScytheConfig.Current.Project;
         var modFiles = Directory.Exists(modPath) ? Directory.GetFiles(modPath, "*.*", SearchOption.AllDirectories).Where(f => !f.Contains("/Assembly/") && !f.Contains("\\Assembly\\")).ToList() : new List<string>();
 
-        Tasks.Run("Importing Assets", task => {
-            
-            if (hasRes) CreateWatcher(resourcesPath, "*.*", HandleFileChange, HandleFileDelete);
-            if (Directory.Exists(modPath)) CreateWatcher(modPath, "*.*", HandleFileChange, HandleFileDelete);
+        if (hasRes) CreateWatcher(resourcesPath, "*.*", HandleFileChange, HandleFileDelete);
+        if (Directory.Exists(modPath)) CreateWatcher(modPath, "*.*", HandleFileChange, HandleFileDelete);
 
-            var totalFiles = resFiles.Concat(modFiles).ToList();
-            int current = 0;
+        var totalFiles = resFiles.Concat(modFiles).ToList();
+        if (totalFiles.Count == 0) return;
 
-            foreach (var file in totalFiles) {
-                
-                var full = Path.GetFullPath(file);
-                
-                Tasks.RunOnMainThread(() => {
-                    ImportFile(full);
-                });
-                
-                current++;
-                task.Progress = (float)current / totalFiles.Count;
-                task.Status = Path.GetFileName(full);
-            }
-            
-            task.Progress = 1f;
-            task.Status = "Success";
-        });
+        var task = new BackgroundTask { Name = "Importing Assets", Status = "Working...", Progress = 0f };
+        lock (Tasks.ActiveTasks) Tasks.ActiveTasks.Add(task);
+        Notifications.ShowTask(task);
+
+        for (int i = 0; i < totalFiles.Count; i++) {
+            ImportFile(Path.GetFullPath(totalFiles[i]));
+            task.Progress = (float)(i + 1) / totalFiles.Count;
+            task.Status = Path.GetFileName(totalFiles[i]);
+        }
+
+        task.Progress = 1f;
+        task.Status = "Success";
+        task.IsDone = true;
+        task.EndTime = DateTime.Now;
     }
 
     private static void ScanDirectory(string path) { }
@@ -69,33 +66,41 @@ internal static class AssetManager {
 
         foreach (var kvp in toReload) kvp.Value.Unload();
 
-        lock (_pendingImportFiles) {
-            if (!_pendingImportFiles.Contains(file))
-                _pendingImportFiles.Add(file);
+        lock (_pendingFiles) {
+            if (!_pendingFiles.Contains(file))
+                _pendingFiles.Add(file);
         }
-        _importDebounce = DateTime.Now.AddMilliseconds(500);
+        _debounceTime = DateTime.Now.AddMilliseconds(500);
     }
 
     private static void StartImportTask() {
+
         List<string> filesToImport;
-        lock (_pendingImportFiles) {
-            filesToImport = new List<string>(_pendingImportFiles);
-            _pendingImportFiles.Clear();
+        lock (_pendingFiles) {
+            filesToImport = new List<string>(_pendingFiles);
+            _pendingFiles.Clear();
         }
 
         if (filesToImport.Count == 0) return;
 
         _importTask = Tasks.Run("Importing Assets", task => {
+
             int current = 0;
             foreach (var file in filesToImport) {
-                Tasks.RunOnMainThread(() => ImportFile(file));
+
+                var done = new ManualResetEventSlim(false);
+                Tasks.RunOnMainThread(() => {
+                    try { ImportFile(file); }
+                    finally { done.Set(); }
+                });
+                done.Wait();
                 current++;
                 task.Progress = (float)current / filesToImport.Count;
                 task.Status = Path.GetFileName(file);
             }
+
             task.Progress = 1f;
             task.Status = "Success";
-            _importTask = null;
         });
     }
 
@@ -140,7 +145,6 @@ internal static class AssetManager {
         var toRemove = Assets.Where(kvp => kvp.Value.File.Replace('\\', '/').ToLowerInvariant() == path).ToList();
 
         foreach (var kvp in toRemove) {
-
             kvp.Value.Unload();
             Assets.Remove(kvp.Key);
             RemoveFromMaps(kvp.Value);
@@ -234,15 +238,13 @@ internal static class AssetManager {
         PathLookup[typePrefix + full] = asset;
         PathLookup[typePrefix + name] = asset;
 
-        // Resource relative path
         if (full.Contains("/resources/", StringComparison.InvariantCultureIgnoreCase)) {
 
             var idx    = full.IndexOf("/resources/", StringComparison.InvariantCultureIgnoreCase);
-            var relRes = full[(idx + 1)..]; // "resources/..."
+            var relRes = full[(idx + 1)..];
             PathLookup[typePrefix + relRes] = asset;
         }
 
-        // Mod relative Path
         if (full.Contains(ScytheConfig.Current.Project.Replace('\\', '/'), StringComparison.InvariantCultureIgnoreCase)) {
 
             var rel = Path.GetRelativePath(ScytheConfig.Current.Project, file).Replace('\\', '/').ToLowerInvariant();
@@ -251,7 +253,7 @@ internal static class AssetManager {
 
         if (!TypeCache.TryGetValue(typeof(T), out var list)) {
 
-            list                 = (List<Asset>)[];
+            list                 = [];
             TypeCache[typeof(T)] = list;
         }
 
@@ -267,7 +269,6 @@ internal static class AssetManager {
 
         if (PathLookup.TryGetValue(prefix + req, out var asset) && asset is T { IsLoaded: true } tAsset) return tAsset;
 
-        // Fallback for resources
         if (req.Contains(':') || req.StartsWith('/')) return null;
 
         var res = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Resources", name)).Replace('\\', '/').ToLowerInvariant();
