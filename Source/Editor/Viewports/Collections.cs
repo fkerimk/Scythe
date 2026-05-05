@@ -124,7 +124,17 @@ internal class Collections : Viewport {
         SameLine(startX + iconWidth + 5f);
         var isSelected = string.Equals(_selectedPath, path, StringComparison.OrdinalIgnoreCase);
 
-        if (!Selectable(name, isSelected)) return;
+        if (isSelected) {
+            PushStyleColor(ImGuiCol.Header, Colors.GuiButtonActive.ToVector4());
+            PushStyleColor(ImGuiCol.HeaderHovered, Colors.GuiButtonActive.ToVector4());
+            PushStyleColor(ImGuiCol.HeaderActive, Colors.GuiButtonActive.ToVector4());
+        }
+
+        var clicked = Selectable(name, isSelected, ImGuiSelectableFlags.None, new Vector2(GetContentRegionAvail().X, 0f));
+
+        if (isSelected) PopStyleColor(3);
+
+        if (!clicked) return;
 
         if (isDirectory) {
 
