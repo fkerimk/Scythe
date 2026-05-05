@@ -8,36 +8,17 @@ internal static class AssetManager {
     private static readonly Dictionary<string, Asset>     PathLookup     = new();
     private static readonly Dictionary<Type, List<Asset>> TypeCache      = new();
     private static readonly ConcurrentQueue<Action>       PendingActions = new();
-    private static readonly Dictionary<string, DateTime>   _pendingImports = new();
-    private static DateTime                               _lastImportNotify = DateTime.MinValue;
+    private static readonly List<string>                  _pendingImportFiles = new();
+    private static DateTime                               _importDebounce = DateTime.MinValue;
+    private static BackgroundTask?                        _importTask;
 
     public static void Update() {
 
         while (PendingActions.TryDequeue(out var action)) action();
 
-        var now = DateTime.Now;
-        var ready = _pendingImports.Where(kvp => kvp.Value <= now).ToList();
-
-        foreach (var kvp in ready) {
-            _pendingImports.Remove(kvp.Key);
-            if (IsFileReady(kvp.Key)) {
-                ImportFile(kvp.Key);
-                if ((now - _lastImportNotify).TotalSeconds >= 2.0) {
-                    var file = kvp.Key;
-                    Tasks.RunOnMainThread(() => Notifications.Show($"Imported: {Path.GetFileName(file)}"));
-                    _lastImportNotify = now;
-                }
-            } else {
-                _pendingImports[kvp.Key] = now.AddMilliseconds(300);
-            }
+        if (_pendingImportFiles.Count > 0 && DateTime.Now > _importDebounce && _importTask == null) {
+            StartImportTask();
         }
-    }
-
-    private static bool IsFileReady(string file) {
-        try {
-            using var stream = File.Open(file, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-            return stream.Length > 0;
-        } catch { return false; }
     }
 
     public static void Init() {
@@ -88,7 +69,34 @@ internal static class AssetManager {
 
         foreach (var kvp in toReload) kvp.Value.Unload();
 
-        _pendingImports[file] = DateTime.Now.AddMilliseconds(300);
+        lock (_pendingImportFiles) {
+            if (!_pendingImportFiles.Contains(file))
+                _pendingImportFiles.Add(file);
+        }
+        _importDebounce = DateTime.Now.AddMilliseconds(500);
+    }
+
+    private static void StartImportTask() {
+        List<string> filesToImport;
+        lock (_pendingImportFiles) {
+            filesToImport = new List<string>(_pendingImportFiles);
+            _pendingImportFiles.Clear();
+        }
+
+        if (filesToImport.Count == 0) return;
+
+        _importTask = Tasks.Run("Importing Assets", task => {
+            int current = 0;
+            foreach (var file in filesToImport) {
+                Tasks.RunOnMainThread(() => ImportFile(file));
+                current++;
+                task.Progress = (float)current / filesToImport.Count;
+                task.Status = Path.GetFileName(file);
+            }
+            task.Progress = 1f;
+            task.Status = "Success";
+            _importTask = null;
+        });
     }
 
     private static void HandleFileDelete(string file) => UnloadAsset(file);
