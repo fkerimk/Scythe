@@ -57,7 +57,7 @@ internal static class Window {
             if (width > 0 && height > 0 && !IsWindowMaximized()) SetWindowSize(width, height);
         }
 
-        // Fullscreen & maximizing 
+        // Fullscreen & maximizing t
         if (fullscreen) {
             if (borderless) {
                 Flags.Add(ConfigFlags.UndecoratedWindow);

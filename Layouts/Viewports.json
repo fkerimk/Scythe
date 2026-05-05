@@ -6,5 +6,6 @@
   "MusicPlayer": true,
   "Preview": true,
   "RuntimeRender": true,
-  "BackgroundTasks": true
+  "BackgroundTasks": true,
+  "Collections": true
 }

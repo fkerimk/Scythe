@@ -6,7 +6,8 @@ CommandLine.Init();
 NativeResolver.Init();
 
 // Initialize window
-Window.Show(width: 1600, height: 900, maximize: false, flags: [ConfigFlags.Msaa4xHint, ConfigFlags.ResizableWindow]);
+SetTraceLogLevel(TraceLogLevel.Warning);
+Window.Show(width: 1280, height: 720, maximize: false, flags: [ConfigFlags.Msaa4xHint, ConfigFlags.ResizableWindow]);
 
 if (!CommandLine.Runtime) CommandLine.NoSplash = false;
 

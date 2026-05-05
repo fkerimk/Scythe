@@ -1,4 +1,4 @@
-﻿using System.Numerics;
+using System.Numerics;
 using ImGuiNET;
 using Raylib_cs;
 using static ImGuiNET.ImGui;
@@ -20,8 +20,8 @@ internal static class Style {
         Set(ImGuiCol.TextDisabled, Colors.GuiTextDisabled);
         Set(ImGuiCol.WindowBg, Colors.GuiWindowBg);
 
-        //ChildBg,
-        //PopupBg,
+        Set(ImGuiCol.ChildBg, Colors.GuiWindowBg);
+        Set(ImGuiCol.PopupBg, Colors.GuiWindowBg);
         Set(ImGuiCol.Border, Colors.GuiBorder);
 
         //BorderShadow,
@@ -78,9 +78,9 @@ internal static class Style {
         Set(ImGuiCol.DragDropTarget, Colors.GuiDragDropTarget);
 
         //NavCursor,
-        //NavWindowingHighlight,
-        //NavWindowingDimBg,
-        //ModalWindowDimBg,
+        Set(ImGuiCol.NavWindowingHighlight, new Color(255, 255, 255, 180));
+        Set(ImGuiCol.NavWindowingDimBg, new Color(200, 200, 200, 50));
+        Set(ImGuiCol.ModalWindowDimBg, new Color(0, 0, 0, 150));
 
         if (style?.WindowPadding != null) Set(ImGuiStyleVar.WindowPadding, style.Value.WindowPadding.Value);
         if (style?.CellPadding != null) Set(ImGuiStyleVar.CellPadding, style.Value.CellPadding.Value);

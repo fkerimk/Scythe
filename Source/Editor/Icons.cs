@@ -15,7 +15,7 @@ internal static class Icons {
     public const string FaCode = "";
     public const string FaFileCode = "";
     public const string FaSearch = "";
-    public const string FaPlus = "\uf067";
+    public const string FaPlus = "";
     public const string FaAsterisk = "*";
     public const string FaPlay = "";
     public const string FaStop = "";
@@ -23,7 +23,7 @@ internal static class Icons {
     public const string FaFlag = "";
     public const string FaHouse = "";
     public const string FaFileImage = "";
-    public const string FaXMark = "\uf00d";
-    public const string FaTrashAlt = "\uf2ed";
+    public const string FaXMark = "";
+    public const string FaTrashAlt = "";
     public const string FaWandMagicSparkles = "";
 }

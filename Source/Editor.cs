@@ -1,12 +1,17 @@
 using System.Numerics;
 using System.Runtime.InteropServices;
-using ImGuiNET;
+
+using Viewports;
+
 using Raylib_cs;
-using rlImGui_cs;
-using static ImGuiNET.ImGui;
 using static Raylib_cs.Raylib;
 using static Raylib_cs.Rlgl;
+
+using rlImGui_cs;
 using static rlImGui_cs.rlImGui;
+
+using ImGuiNET;
+using static ImGuiNET.ImGui;
 
 internal static unsafe class Editor {
 
@@ -23,6 +28,7 @@ internal static unsafe class Editor {
     public static Preview Preview = null!;
     public static RuntimeRender RuntimeRender = null!;
     public static BackgroundTasks BackgroundTasks = null!;
+    public static Collections Collections = null!;
     // ReSharper restore MemberCanBePrivate.Global
 
     private static Level? _editorLevelRef;
@@ -60,6 +66,7 @@ internal static unsafe class Editor {
         Preview = new Preview();
         RuntimeRender = new RuntimeRender();
         BackgroundTasks = new BackgroundTasks();
+        Collections = new Collections();
 
         PathUtil.ValidateFile("Layouts/User.ini", out var layoutPath);
 
@@ -251,6 +258,7 @@ internal static unsafe class Editor {
             MusicPlayer.Draw();
             Preview.Draw();
             BackgroundTasks.Draw();
+            Collections.Draw();
 
             Picking.Update();
 
