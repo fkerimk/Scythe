@@ -80,7 +80,7 @@ internal static class Notifications {
 
         var bg = new Color((byte)22, (byte)22, (byte)32, (byte)(248 * alpha));
         var border = new Color((byte)50, (byte)50, (byte)70, (byte)(150 * alpha));
-        var accent = GetTaskAccent(n.Task);
+        var accent = GetNotificationAccent(n);
         accent.A = (byte)(255 * alpha);
         var textCol = new Color((byte)230, (byte)230, (byte)245, (byte)(255 * alpha));
         var statusCol = accent;
@@ -88,6 +88,7 @@ internal static class Notifications {
         var rect = new Rectangle(n.DrawPosX, n.DrawPosY, n.Width, n.Height);
         var iconX = rect.X + 18;
         var iconY = rect.Y + rect.Height / 2;
+        var textStartX = rect.X + 34;
 
         // Shadow
         Raylib.DrawRectangleRounded(new Rectangle(rect.X + 3, rect.Y + 3, rect.Width, rect.Height), 0.25f, 8, new Color((byte)0, (byte)0, (byte)0, (byte)(120 * alpha)));
@@ -106,18 +107,23 @@ internal static class Notifications {
             DrawTaskSpinner(new Vector2(iconX, iconY), alpha);
         else if (n.Task?.IsDone == true)
             DrawTaskResultIcon(n.Task, new Vector2(iconX, iconY), alpha, accent);
+        else {
+
+            var icon = GetPlainNotificationIcon(n.Text);
+            DrawNotificationIcon(icon, new Vector2(iconX, iconY), alpha, accent);
+        }
 
         var textY = rect.Y + 10;
         if (n.Task != null) {
 
             var prefix = $"{n.Task.Name}: ";
-            var prefixPos = new Vector2(rect.X + 34, textY);
+            var prefixPos = new Vector2(textStartX, textY);
             Raylib.DrawTextEx(Fonts.RlMontserratRegular, prefix, prefixPos, Size, 1.0f, textCol);
             var prefixSize = Raylib.MeasureTextEx(Fonts.RlMontserratRegular, prefix, Size, 1.0f);
             Raylib.DrawTextEx(Fonts.RlMontserratRegular, n.Task.Status, new Vector2(prefixPos.X + prefixSize.X, textY), Size, 1.0f, statusCol);
 
         } else
-            Raylib.DrawTextEx(Fonts.RlMontserratRegular, n.Text, new Vector2(rect.X + 34, textY), Size, 1.0f, textCol);
+            Raylib.DrawTextEx(Fonts.RlMontserratRegular, n.Text, new Vector2(textStartX, textY), Size, 1.0f, textCol);
 
         if (n.Task is { IsDone: false } task && task.Progress > 0f) {
 
@@ -163,11 +169,50 @@ internal static class Notifications {
         }
     }
 
+    private static void DrawNotificationIcon(string icon, Vector2 center, float alpha, Color accent) {
+
+        var color = accent;
+        color.A = (byte)(255 * alpha);
+        var size = Raylib.MeasureTextEx(Fonts.RlFontAwesome, icon, TaskIconSize, 1.0f);
+        Raylib.DrawTextEx(Fonts.RlFontAwesome, icon, new Vector2(center.X - size.X * 0.5f, center.Y - size.Y * 0.5f), TaskIconSize, 1.0f, color);
+    }
+
     private static Color GetTaskAccent(BackgroundTask? task) {
 
         if (task == null || !task.IsDone) return Colors.Primary;
         if (IsTaskFailure(task)) return new Color((byte)220, (byte)70, (byte)70, (byte)255);
         return new Color((byte)78, (byte)207, (byte)113, (byte)255);
+    }
+
+    private static Color GetNotificationAccent(Notification notification) {
+
+        if (notification.Task != null) return GetTaskAccent(notification.Task);
+
+        var text = notification.Text;
+
+        if (text.Contains("failed", StringComparison.OrdinalIgnoreCase) || text.Contains("error", StringComparison.OrdinalIgnoreCase))
+            return new Color((byte)220, (byte)70, (byte)70, (byte)255);
+
+        if (text.Contains("saved", StringComparison.OrdinalIgnoreCase) ||
+            text.Contains("created", StringComparison.OrdinalIgnoreCase) ||
+            text.Contains("started", StringComparison.OrdinalIgnoreCase) ||
+            text.Contains("copied", StringComparison.OrdinalIgnoreCase))
+            return new Color((byte)78, (byte)207, (byte)113, (byte)255);
+
+        return Colors.Primary;
+    }
+
+    private static string GetPlainNotificationIcon(string text) {
+
+        if (text.Contains("Play Mode Started", StringComparison.OrdinalIgnoreCase)) return Icons.FaPlay;
+        if (text.Contains("Play Mode Stopped", StringComparison.OrdinalIgnoreCase)) return Icons.FaStop;
+        if (text.Contains("Undo", StringComparison.OrdinalIgnoreCase) || text.Contains("Redo", StringComparison.OrdinalIgnoreCase)) return Icons.FaArrows;
+        if (text.Contains("Saved", StringComparison.OrdinalIgnoreCase)) return Icons.FaCheck;
+        if (text.Contains("Rename failed", StringComparison.OrdinalIgnoreCase) || text.Contains("failed", StringComparison.OrdinalIgnoreCase) || text.Contains("error", StringComparison.OrdinalIgnoreCase)) return Icons.FaXMark;
+        if (text.Contains("Copied", StringComparison.OrdinalIgnoreCase)) return Icons.FaFile;
+        if (text.Contains("Collection", StringComparison.OrdinalIgnoreCase) && text.Contains("created", StringComparison.OrdinalIgnoreCase)) return Icons.FaFolder;
+
+        return Icons.FaLightbulbO;
     }
 
     private static bool IsTaskFailure(BackgroundTask task) =>
@@ -217,7 +262,7 @@ internal static class Notifications {
         private static int MeasureWidth(string text, bool hasTaskIcon) {
 
             var size = Raylib.MeasureTextEx(Fonts.RlMontserratRegular, text, Size, 1.0f);
-            var basePadding = hasTaskIcon ? 64 : 45;
+            var basePadding = hasTaskIcon ? 64 : 64;
             var minWidth = hasTaskIcon ? 320 : 0;
             return (int)Math.Max(size.X + basePadding, minWidth);
         }

@@ -13,7 +13,7 @@ internal static class Fonts {
 
     public static ImFontPtr ImMontserratRegular, ImFontAwesomeSmall, ImFontAwesomeNormal, ImFontAwesomeLarge;
 
-    public static Font RlMontserratRegular, RlCascadiaCode;
+    public static Font RlMontserratRegular, RlCascadiaCode, RlFontAwesome;
 
     private static ImFontConfigPtr _imFontConfigPtr;
     private static IntPtr          _iconRanges;
@@ -38,12 +38,14 @@ internal static class Fonts {
 
         RlMontserratRegular = LoadFont<Font>("Fonts/montserrat-regular.otf");
         RlCascadiaCode      = LoadFont<Font>("Fonts/CascadiaCode-Regular.ttf");
+        RlFontAwesome       = LoadFont<Font>("Fonts/fa7-free-solid.otf", NormalSize, true);
     }
 
     public static void UnloadRlFonts() {
 
         UnloadFont(RlMontserratRegular);
         UnloadFont(RlCascadiaCode);
+        UnloadFont(RlFontAwesome);
     }
 
     private static unsafe T LoadFont<T>(string path, int size = NormalSize, bool useIconRanges = false) {
@@ -53,11 +55,27 @@ internal static class Fonts {
         if (typeof(T) == typeof(Font)) {
 
             var codepoints = new List<int>();
-            for (var i = 32; i < 127; i++) codepoints.Add(i); // Basic ASCII
 
-            int[] turkishChars = [0x00c7, 0x00e7, 0x011e, 0x011f, 0x0130, 0x0131, 0x00d6, 0x00f6, 0x015e, 0x015f, 0x00dc, 0x00fc];
+            if (useIconRanges) {
 
-            codepoints.AddRange(turkishChars);
+                string[] icons = [
+                    Icons.FaPlay, Icons.FaPause, Icons.FaStop, Icons.FaClock, Icons.FaFilm, Icons.FaCheck, Icons.FaXMark,
+                    Icons.FaFile, Icons.FaFolder, Icons.FaLevelUp, Icons.FaDotCircleO, Icons.FaCube, Icons.FaArrowsAlt,
+                    Icons.FaPlayCircle, Icons.FaArrows, Icons.FaLightbulbO, Icons.FaVideoCamera, Icons.FaCrosshairs,
+                    Icons.FaCode, Icons.FaFileCode, Icons.FaSearch, Icons.FaPlus, Icons.FaMap, Icons.FaFlag,
+                    Icons.FaHouse, Icons.FaFileImage, Icons.FaTrashAlt, Icons.FaWandMagicSparkles
+                ];
+
+                codepoints.AddRange(icons.Select(icon => char.ConvertToUtf32(icon, 0)).Distinct());
+
+            } else {
+
+                for (var i = 32; i < 127; i++) codepoints.Add(i); // Basic ASCII
+
+                int[] turkishChars = [0x00c7, 0x00e7, 0x011e, 0x011f, 0x0130, 0x0131, 0x00d6, 0x00f6, 0x015e, 0x015f, 0x00dc, 0x00fc];
+
+                codepoints.AddRange(turkishChars);
+            }
 
             fixed (int* pCodepoints = codepoints.ToArray()) {
 
