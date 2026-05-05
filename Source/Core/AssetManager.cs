@@ -49,7 +49,7 @@ internal static class AssetManager {
             }
             
             task.Progress = 1f;
-            task.Status = "Completed";
+            task.Status = "Success";
         });
     }
 

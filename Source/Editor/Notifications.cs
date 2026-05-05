@@ -36,7 +36,7 @@ internal static class Notifications {
                 if (n.Task.IsDone && n.Duration < 0f) {
 
                     n.Duration = 2.5f;
-                    n.Timer = 0f;
+                    n.DrawPosX = X;
                 }
             }
 
@@ -80,9 +80,11 @@ internal static class Notifications {
 
         var bg = new Color((byte)22, (byte)22, (byte)32, (byte)(248 * alpha));
         var border = new Color((byte)50, (byte)50, (byte)70, (byte)(150 * alpha));
-        var accent = Colors.Primary;
+        var accent = GetTaskAccent(n.Task);
         accent.A = (byte)(255 * alpha);
         var textCol = new Color((byte)230, (byte)230, (byte)245, (byte)(255 * alpha));
+        var statusCol = accent;
+        statusCol.A = (byte)(255 * alpha);
         var rect = new Rectangle(n.DrawPosX, n.DrawPosY, n.Width, n.Height);
         var iconX = rect.X + 18;
         var iconY = rect.Y + rect.Height / 2;
@@ -103,10 +105,19 @@ internal static class Notifications {
         if (n.Task is { IsDone: false })
             DrawTaskSpinner(new Vector2(iconX, iconY), alpha);
         else if (n.Task?.IsDone == true)
-            Raylib.DrawCircleV(new Vector2(iconX, iconY), 5f, Raylib.Fade(accent, 0.9f * alpha));
+            DrawTaskResultIcon(n.Task, new Vector2(iconX, iconY), alpha, accent);
 
         var textY = rect.Y + 10;
-        Raylib.DrawTextEx(Fonts.RlMontserratRegular, n.Text, new Vector2(rect.X + 34, textY), Size, 1.0f, textCol);
+        if (n.Task != null) {
+
+            var prefix = $"{n.Task.Name}: ";
+            var prefixPos = new Vector2(rect.X + 34, textY);
+            Raylib.DrawTextEx(Fonts.RlMontserratRegular, prefix, prefixPos, Size, 1.0f, textCol);
+            var prefixSize = Raylib.MeasureTextEx(Fonts.RlMontserratRegular, prefix, Size, 1.0f);
+            Raylib.DrawTextEx(Fonts.RlMontserratRegular, n.Task.Status, new Vector2(prefixPos.X + prefixSize.X, textY), Size, 1.0f, statusCol);
+
+        } else
+            Raylib.DrawTextEx(Fonts.RlMontserratRegular, n.Text, new Vector2(rect.X + 34, textY), Size, 1.0f, textCol);
 
         if (n.Task is { IsDone: false } task && task.Progress > 0f) {
 
@@ -134,6 +145,34 @@ internal static class Notifications {
             Raylib.DrawCircleV(dot, 1.8f, new Color(baseColor.R, baseColor.G, baseColor.B, dotAlpha));
         }
     }
+
+    private static void DrawTaskResultIcon(BackgroundTask task, Vector2 center, float alpha, Color accent) {
+
+        var color = accent;
+        color.A = (byte)(255 * alpha);
+
+        if (IsTaskFailure(task)) {
+
+            Raylib.DrawLineEx(center + new Vector2(-4, -4), center + new Vector2(4, 4), 2.5f, color);
+            Raylib.DrawLineEx(center + new Vector2(-4, 4), center + new Vector2(4, -4), 2.5f, color);
+
+        } else {
+
+            Raylib.DrawLineEx(center + new Vector2(-5, 0), center + new Vector2(-1, 4), 2.5f, color);
+            Raylib.DrawLineEx(center + new Vector2(-1, 4), center + new Vector2(6, -4), 2.5f, color);
+        }
+    }
+
+    private static Color GetTaskAccent(BackgroundTask? task) {
+
+        if (task == null || !task.IsDone) return Colors.Primary;
+        if (IsTaskFailure(task)) return new Color((byte)220, (byte)70, (byte)70, (byte)255);
+        return new Color((byte)78, (byte)207, (byte)113, (byte)255);
+    }
+
+    private static bool IsTaskFailure(BackgroundTask task) =>
+        task.Status.StartsWith("Fail", StringComparison.OrdinalIgnoreCase) ||
+        task.Status.StartsWith("Error", StringComparison.OrdinalIgnoreCase);
 
     private class Notification {
 

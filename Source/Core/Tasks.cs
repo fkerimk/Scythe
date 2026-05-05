@@ -21,7 +21,7 @@ internal static class Tasks {
             try {
                 action(task);
             } catch (Exception e) {
-                task.Status = "Error: " + e.Message;
+                task.Status = "Fail: " + e.Message;
             } finally {
                 task.IsDone = true;
                 task.EndTime = DateTime.Now;

@@ -22,6 +22,7 @@ internal static class Icons {
     public const string FaStop = "";
     public const string FaClock = "";
     public const string FaFilm = "";
+    public const string FaCheck = "";
     public const string FaMap = "";
     public const string FaFlag = "";
     public const string FaHouse = "";

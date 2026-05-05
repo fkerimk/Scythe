@@ -22,14 +22,11 @@ internal static class ScriptCompiler {
 
         Tasks.Run("Compile Project Scripts", task => {
 
-            task.Status = "Compiling...";
-            
             try {
-                
                 var scriptsDir = Path.Combine(ScytheConfig.Current.Project, "Scripts");
-                
+
                 if (!Directory.Exists(scriptsDir)) {
-                    
+
                     Tasks.RunOnMainThread(() => { _compiling = false; });
                     return;
                 }
@@ -40,8 +37,7 @@ internal static class ScriptCompiler {
                 var projectName = new DirectoryInfo(ScytheConfig.Current.Project).Name;
                 var csprojPath = Path.Combine(ScytheConfig.Current.Project, $"{projectName}.csproj");
                 var dirPropsPath = Path.Combine(ScytheConfig.Current.Project, "Directory.Build.props");
-                
-                // Write/Update IDE project file if it doesn't exist
+
                 if (!File.Exists(dirPropsPath)) {
                     File.WriteAllText(dirPropsPath, $"""
                                                    <Project>
@@ -77,80 +73,82 @@ internal static class ScriptCompiler {
                                                    """);
                 }
 
-                // Cache check: Avoid redundant compiling
-                if (File.Exists(scriptOutDll)) {
-                    
-                    var dllTime = File.GetLastWriteTime(scriptOutDll);
+                while (true) {
 
-                    var csFiles = Directory.GetFiles(ScytheConfig.Current.Project, "*.cs", SearchOption.AllDirectories);
+                    _queued = false;
+                    task.Status = "Compiling...";
 
-                    var needsCompile = csFiles.Where(f => !f.Contains(Path.DirectorySeparatorChar + "Assembly" + Path.DirectorySeparatorChar) && !f.Contains("/Assembly/")).Any(f => File.GetLastWriteTime(f) > dllTime);
+                    if (File.Exists(scriptOutDll)) {
 
-                    if (!needsCompile) {
-                        
-                        Tasks.RunOnMainThread(() => {
-                            
-                            LoadRuntime();
-                            
-                            _compiling = false;
-                            
-                            foreach (var asset in AssetManager.GetAll<ScriptAsset>()) {
-                                
-                                asset.Unload();
-                                asset.AssignFromAssembly();
-                            }
-                        });
-                        
-                        task.Status = "Up-to-date";
-                        return;
+                        var dllTime = File.GetLastWriteTime(scriptOutDll);
+                        var csFiles = Directory.GetFiles(ScytheConfig.Current.Project, "*.cs", SearchOption.AllDirectories);
+                        var needsCompile = csFiles.Where(f => !f.Contains(Path.DirectorySeparatorChar + "Assembly" + Path.DirectorySeparatorChar) && !f.Contains("/Assembly/")).Any(f => File.GetLastWriteTime(f) > dllTime);
+
+                        if (!needsCompile) {
+
+                            Tasks.RunOnMainThread(() => {
+
+                                LoadRuntime();
+
+                                foreach (var asset in AssetManager.GetAll<ScriptAsset>()) {
+
+                                    asset.Unload();
+                                    asset.AssignFromAssembly();
+                                }
+                            });
+
+                            task.Status = "Up-to-date";
+                            break;
+                        }
                     }
-                }
 
-                var processInfo = new ProcessStartInfo {
-                    
-                    FileName = "dotnet",
-                    Arguments = $"build \"{csprojPath}\" -c Release",
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    UseShellExecute = false,
-                    CreateNoWindow = true
-                };
+                    var processInfo = new ProcessStartInfo {
 
-                using var process = Process.Start(processInfo);
-                process?.WaitForExit();
+                        FileName = "dotnet",
+                        Arguments = $"build \"{csprojPath}\" -c Release",
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true,
+                        UseShellExecute = false,
+                        CreateNoWindow = true
+                    };
 
-                if (File.Exists(scriptOutDll) && process?.ExitCode == 0) {
+                    using var process = Process.Start(processInfo);
+                    process?.WaitForExit();
+
+                    if (!File.Exists(scriptOutDll) || process?.ExitCode != 0) {
+
+                        Console.WriteLine(process?.StandardOutput.ReadToEnd());
+                        Console.WriteLine(process?.StandardError.ReadToEnd());
+                        task.Status = "Fail";
+                        break;
+                    }
+
                     var bytes = File.ReadAllBytes(scriptOutDll);
                     var asm = Assembly.Load(bytes);
 
                     Tasks.RunOnMainThread(() => {
-                        
-                        ProjectAssembly = asm;
-                        _compiling = false;
 
-                        // Notify all ScriptAssets to reload using the new assembly
+                        ProjectAssembly = asm;
+
                         foreach (var asset in AssetManager.GetAll<ScriptAsset>()) {
-                            
+
                             asset.Unload();
                             asset.AssignFromAssembly();
                         }
-
-                        if (_queued) CompileProject();
                     });
-                    task.Status = "Completed";
-                    
-                } else {
-                    
-                    Console.WriteLine(process?.StandardOutput.ReadToEnd());
-                    Console.WriteLine(process?.StandardError.ReadToEnd());
-                    task.Status = "Build Failed";
-                    Tasks.RunOnMainThread(() => { _compiling = false; if (_queued) CompileProject(); });
+
+                    if (_queued) continue;
+
+                    task.Status = "Success";
+                    break;
                 }
+
+                Tasks.RunOnMainThread(() => { _compiling = false; });
 
             } catch (Exception e) {
                 
-                task.Status = "Error: " + e.Message;
-                Tasks.RunOnMainThread(() => { _compiling = false; if (_queued) CompileProject(); });
+                task.Status = "Fail: " + e.Message;
+                Tasks.RunOnMainThread(() => { _compiling = false; });
             }
         });
     }
