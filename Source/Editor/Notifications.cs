@@ -7,6 +7,7 @@ internal static class Notifications {
     private const int Y = 25;
     private const int Spacing = 12;
     private const int Size = 18;
+    private const int TaskIconSize = 16;
     private const float Fadeout = 0.3f;
     private const float EntryTime = 0.6f;
 
@@ -30,6 +31,7 @@ internal static class Notifications {
             if (n.Task != null) {
 
                 n.Text = string.IsNullOrWhiteSpace(n.Task.Status) ? n.Task.Name : $"{n.Task.Name}: {n.Task.Status}";
+                n.UpdateWidth();
 
                 if (n.Task.IsDone && n.Duration < 0f) {
 
@@ -53,7 +55,9 @@ internal static class Notifications {
                 n.DrawPosX = Raymath.Lerp(n.DrawPosX, X, dt * 10.0f);
 
             // Exit Animation
-            if (n.Timer > n.Duration) {
+            var shouldExit = n.Duration >= 0f && n.Timer > n.Duration;
+
+            if (shouldExit) {
 
                 var exitProgress = (n.Timer - n.Duration) / Fadeout;
                 alpha = Math.Max(0, 1.0f - Ease.InCubic(exitProgress));
@@ -79,8 +83,9 @@ internal static class Notifications {
         var accent = Colors.Primary;
         accent.A = (byte)(255 * alpha);
         var textCol = new Color((byte)230, (byte)230, (byte)245, (byte)(255 * alpha));
-
         var rect = new Rectangle(n.DrawPosX, n.DrawPosY, n.Width, n.Height);
+        var iconX = rect.X + 18;
+        var iconY = rect.Y + rect.Height / 2;
 
         // Shadow
         Raylib.DrawRectangleRounded(new Rectangle(rect.X + 3, rect.Y + 3, rect.Width, rect.Height), 0.25f, 8, new Color((byte)0, (byte)0, (byte)0, (byte)(120 * alpha)));
@@ -95,14 +100,19 @@ internal static class Notifications {
         // Subtle Glow
         Raylib.DrawCircleV(new Vector2(rect.X + 2, rect.Y + rect.Height / 2), 6, Raylib.Fade(accent, 0.2f * alpha));
 
+        if (n.Task is { IsDone: false })
+            DrawTaskSpinner(new Vector2(iconX, iconY), alpha);
+        else if (n.Task?.IsDone == true)
+            Raylib.DrawCircleV(new Vector2(iconX, iconY), 5f, Raylib.Fade(accent, 0.9f * alpha));
+
         var textY = rect.Y + 10;
-        Raylib.DrawTextEx(Fonts.RlMontserratRegular, n.Text, new Vector2(rect.X + 18, textY), Size, 1.0f, textCol);
+        Raylib.DrawTextEx(Fonts.RlMontserratRegular, n.Text, new Vector2(rect.X + 34, textY), Size, 1.0f, textCol);
 
         if (n.Task is { IsDone: false } task && task.Progress > 0f) {
 
-            var barX = rect.X + 18;
+            var barX = rect.X + 34;
             var barY = rect.Y + rect.Height - 12;
-            var barWidth = rect.Width - 34;
+            var barWidth = rect.Width - 50;
             var progress = Math.Clamp(task.Progress, 0f, 1f);
 
             Raylib.DrawRectangleRounded(new Rectangle(barX, barY, barWidth, 4), 1f, 4, new Color((byte)60, (byte)60, (byte)75, (byte)(200 * alpha)));
@@ -110,10 +120,25 @@ internal static class Notifications {
         }
     }
 
+    private static void DrawTaskSpinner(Vector2 center, float alpha) {
+
+        var t = (float)Raylib.GetTime();
+        var baseColor = new Color((byte)230, (byte)230, (byte)245, (byte)(220 * alpha));
+
+        for (var i = 0; i < 8; i++) {
+
+            var angle = t * 5f + i * MathF.PI * 0.25f;
+            var radius = 6f;
+            var dot = center + new Vector2(MathF.Cos(angle), MathF.Sin(angle)) * radius;
+            var dotAlpha = (byte)(Math.Max(40, 255 - i * 26) * alpha);
+            Raylib.DrawCircleV(dot, 1.8f, new Color(baseColor.R, baseColor.G, baseColor.B, dotAlpha));
+        }
+    }
+
     private class Notification {
 
         public int Height => Task == null || Task.IsDone || Task.Progress <= 0f ? 42 : 54;
-        public readonly int Width;
+        public int Width;
 
         public string Text;
         public float Duration;
@@ -128,8 +153,7 @@ internal static class Notifications {
             Text = text;
             Duration = duration;
             Timer = 0;
-            var size = Raylib.MeasureTextEx(Fonts.RlMontserratRegular, text, Size, 1.0f);
-            Width = (int)size.X + 45;
+            Width = MeasureWidth(text, false);
             DrawPosX = -Width; // Start off-screen
             DrawPosY = Y + PendingNotifications.Count * (Height + Spacing);
         }
@@ -140,10 +164,23 @@ internal static class Notifications {
             Text = string.IsNullOrWhiteSpace(task.Status) ? task.Name : $"{task.Name}: {task.Status}";
             Duration = task.IsDone ? 2.5f : -1f;
             Timer = 0f;
-            var size = Raylib.MeasureTextEx(Fonts.RlMontserratRegular, Text, Size, 1.0f);
-            Width = (int)Math.Max(size.X + 45, 280);
+            Width = MeasureWidth(Text, true);
             DrawPosX = -Width;
             DrawPosY = Y + PendingNotifications.Count * (Height + Spacing);
+        }
+
+        public void UpdateWidth() {
+
+            var targetWidth = MeasureWidth(Text, Task != null);
+            if (targetWidth > Width) Width = targetWidth;
+        }
+
+        private static int MeasureWidth(string text, bool hasTaskIcon) {
+
+            var size = Raylib.MeasureTextEx(Fonts.RlMontserratRegular, text, Size, 1.0f);
+            var basePadding = hasTaskIcon ? 64 : 45;
+            var minWidth = hasTaskIcon ? 320 : 0;
+            return (int)Math.Max(size.X + basePadding, minWidth);
         }
     }
 }

@@ -21,6 +21,8 @@ internal static class ScriptCompiler {
         _queued = false;
 
         Tasks.Run("Compile Project Scripts", task => {
+
+            task.Status = "Compiling...";
             
             try {
                 
