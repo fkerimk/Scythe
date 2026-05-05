@@ -297,6 +297,17 @@ internal static class AssimpLoader {
         foreach (var child in node.Children) UpdateAnimation(child, clip, time, globalTransform, globalInverse, boneMap);
     }
 
+    public static void ApplyBindPose(ModelNode node, in Matrix4x4 parentTransform, in Matrix4x4 globalInverse, Dictionary<string, List<BoneInfo>> boneMap) {
+
+        var globalTransform = node.Transformation * parentTransform;
+
+        if (boneMap.TryGetValue(node.Name, out var bones))
+            foreach (var bone in bones)
+                bone.FinalTransformation = bone.Offset * globalTransform * globalInverse;
+
+        foreach (var child in node.Children) ApplyBindPose(child, globalTransform, globalInverse, boneMap);
+    }
+
     public static void UpdateAnimationBlended(ModelNode node, AnimationClip clipA, double timeA, AnimationClip clipB, double timeB, float blend, in Matrix4x4 parentTransform, in Matrix4x4 globalInverse, Dictionary<string, List<BoneInfo>> boneMap) {
 
         var nodeTransform = GetBlendedTransform(clipA.ChannelMap.GetValueOrDefault(node.Name), timeA, clipB.ChannelMap.GetValueOrDefault(node.Name), timeB, blend, node.Transformation);

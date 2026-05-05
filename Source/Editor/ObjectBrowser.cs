@@ -404,6 +404,36 @@ internal class ObjectBrowser : Viewport {
         Spacing();
     }
 
+    private void DrawAnimationPreviewControls(Animation animation) {
+
+        if (!animation.HasPreviewClip) return;
+
+        Spacing();
+        Separator();
+        Spacing();
+
+        var isPlaying = animation.EditorPreviewPlaying;
+        if (Button(isPlaying ? "Pause" : "Play"))
+            if (isPlaying)
+                animation.PausePreview();
+            else
+                animation.PlayPreview();
+
+        SameLine();
+
+        if (Button("Stop")) animation.StopPreview();
+
+        var time = animation.CurrentTime;
+        var duration = animation.DurationSeconds;
+
+        SameLine();
+        SetNextItemWidth(GetContentRegionAvail().X);
+        BeginDisabled(duration <= 0f);
+        if (SliderFloat("##animation_time", ref time, 0f, Math.Max(duration, 0.0001f), $"{time:0.00}s / {duration:0.00}s"))
+            animation.CurrentTime = time;
+        EndDisabled();
+    }
+
     // Asset inspectors
     private void DrawAssetInspector(string path) {
 
@@ -648,10 +678,20 @@ internal class ObjectBrowser : Viewport {
             }
         }
 
-        if (separator)
-            EndSection(open);
+        if (separator) {
 
-        else {
+            if (open && first is Animation animation && targets.Count == 1) {
+
+                Columns(1);
+                PopStyleVar();
+                DrawAnimationPreviewControls(animation);
+                TreePop();
+                Spacing();
+
+            } else
+                EndSection(open);
+
+        } else {
 
             Columns(1);
             PopStyleVar();
