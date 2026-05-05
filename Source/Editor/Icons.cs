@@ -18,7 +18,10 @@ internal static class Icons {
     public const string FaPlus = "";
     public const string FaAsterisk = "*";
     public const string FaPlay = "";
+    public const string FaPause = "";
     public const string FaStop = "";
+    public const string FaClock = "";
+    public const string FaFilm = "";
     public const string FaMap = "";
     public const string FaFlag = "";
     public const string FaHouse = "";

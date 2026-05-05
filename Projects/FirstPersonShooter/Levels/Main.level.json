@@ -71,7 +71,7 @@
                             },
                             "Components": {
                               "Model": {
-                                "Path": "Collections/Sample/Models/pistolanim.fbx",
+                                "Path": "Collections/FPS/Models/pistolanim.fbx",
                                 "Color": {
                                   "R": 255,
                                   "G": 255,
@@ -82,7 +82,7 @@
                                 "CastShadows": false
                               },
                               "Animation": {
-                                "Path": "Collections/Sample/Models/pistolanim.fbx",
+                                "Path": "Collections/FPS/Models/pistolanim.fbx",
                                 "IsPlaying": true,
                                 "Looping": true
                               },
@@ -296,13 +296,13 @@
   },
   "EditorCamera": {
     "Position": {
-      "X": -0.739012,
-      "Y": 2.7142568,
-      "Z": -0.9838037
+      "X": 0.28424254,
+      "Y": 2.1991525,
+      "Z": -0.37902132
     },
     "Rotation": {
-      "X": -0.52883315,
-      "Y": 0.6168009
+      "X": -0.18683274,
+      "Y": -0.1601991
     }
   }
 }

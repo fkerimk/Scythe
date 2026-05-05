@@ -81,6 +81,12 @@ internal class Animation(Obj obj) : Component(obj) {
 
     public void PlayPreview(float blendTime = 0.25f) {
 
+        if (EditorPreviewEnabled && !EditorPreviewPlaying) {
+
+            EditorPreviewPlaying = true;
+            return;
+        }
+
         StartPlayback(_track, blendTime, true);
     }
 
@@ -139,6 +145,24 @@ internal class Animation(Obj obj) : Component(obj) {
             return (float)(clip.Duration / clip.TicksPerSecond);
         }
     }
+
+    public float CurrentFrame {
+        get => _frameRaw;
+        set {
+
+            var clip = CurrentClip;
+            if (clip == null) return;
+
+            _frameRaw = Math.Clamp(value, 0f, (float)clip.Duration);
+            EditorPreviewEnabled = true;
+            EditorPreviewPlaying = false;
+            _lastTrack = -1;
+            _blendWeight = 1.0f;
+            _blendTimer = 0f;
+        }
+    }
+
+    public float DurationFrames => CurrentClip == null ? 0f : (float)CurrentClip.Duration;
 
     public bool HasPreviewClip => CurrentClip != null;
 

@@ -10,6 +10,7 @@ internal class ObjectBrowser : Viewport {
     private readonly IEnumerable<Type> _addComponentTypes;
     private string[] _foundFiles = [];
     private string _searchFilter = "";
+    private bool _showAnimationFrames;
 
     public ObjectBrowser() : base("Object") {
 
@@ -413,24 +414,53 @@ internal class ObjectBrowser : Viewport {
         Spacing();
 
         var isPlaying = animation.EditorPreviewPlaying;
-        if (Button(isPlaying ? "Pause" : "Play"))
+        PushFont(Fonts.ImFontAwesomeSmall);
+
+        var playHovered = false;
+        if (Button(isPlaying ? Icons.FaPause : Icons.FaPlay, new Vector2(30, 24)))
             if (isPlaying)
                 animation.PausePreview();
             else
                 animation.PlayPreview();
 
+        playHovered = IsItemHovered();
+
         SameLine();
 
-        if (Button("Stop")) animation.StopPreview();
+        var stopHovered = false;
+        if (Button(Icons.FaStop, new Vector2(30, 24))) animation.StopPreview();
 
-        var time = animation.CurrentTime;
-        var duration = animation.DurationSeconds;
+        stopHovered = IsItemHovered();
+
+        SameLine();
+
+        var modeHovered = false;
+        if (Button(_showAnimationFrames ? Icons.FaFilm : Icons.FaClock, new Vector2(30, 24)))
+            _showAnimationFrames = !_showAnimationFrames;
+
+        modeHovered = IsItemHovered();
+
+        PopFont();
+
+        if (playHovered) SetTooltip(isPlaying ? "Pause" : "Play");
+        if (stopHovered) SetTooltip("Stop");
+        if (modeHovered) SetTooltip(_showAnimationFrames ? "Frames" : "Seconds");
+
+        var duration = _showAnimationFrames ? animation.DurationFrames : animation.DurationSeconds;
+        var value = _showAnimationFrames ? animation.CurrentFrame : animation.CurrentTime;
+        var max = Math.Max(duration, 0.0001f);
+        var format = _showAnimationFrames
+            ? $"{value:0}f / {duration:0}f"
+            : $"{value:0.00}s / {duration:0.00}s";
 
         SameLine();
         SetNextItemWidth(GetContentRegionAvail().X);
         BeginDisabled(duration <= 0f);
-        if (SliderFloat("##animation_time", ref time, 0f, Math.Max(duration, 0.0001f), $"{time:0.00}s / {duration:0.00}s"))
-            animation.CurrentTime = time;
+        if (SliderFloat("##animation_time", ref value, 0f, max, format))
+            if (_showAnimationFrames)
+                animation.CurrentFrame = value;
+            else
+                animation.CurrentTime = value;
         EndDisabled();
     }
 
