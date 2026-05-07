@@ -59,5 +59,10 @@
             <_Parameter1>Scripts</_Parameter1>
         </AssemblyAttribute>
     </ItemGroup>
+
+    <PropertyGroup Condition="'$(ScytheRuntimeBuild)' == 'true'">
+        <InvariantGlobalization>true</InvariantGlobalization>
+        <AppLocalIcu>false</AppLocalIcu>
+    </PropertyGroup>
     
 </Project>
