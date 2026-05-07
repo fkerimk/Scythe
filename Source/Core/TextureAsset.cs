@@ -49,7 +49,12 @@ internal class TextureAsset : Asset {
         if (IsLoaded) {
 
             UnloadTexture(Texture);
-            if (Thumbnail.HasValue) UnloadTexture(Thumbnail.Value);
+            Texture = new Texture2D();
+            if (Thumbnail.HasValue) {
+
+                UnloadTexture(Thumbnail.Value);
+                Thumbnail = null;
+            }
         }
 
         IsLoaded = false;

@@ -100,15 +100,18 @@ internal class MaterialAsset : Asset {
         return true;
     }
 
-    public unsafe void ApplyChanges(bool updateThumbnail = true) {
+    public unsafe void ApplyChanges(bool updateThumbnail = true, bool bumpVersion = true) {
 
         if (!IsLoaded) return;
 
-        GlobalVersion++;
-        Version++;
+        if (bumpVersion) {
+
+            GlobalVersion++;
+            Version++;
+        }
 
         var shaderName = string.IsNullOrEmpty(Data.Shader) ? "pbr" : Data.Shader;
-        var shaderAsset = AssetManager.Get<ShaderAsset>(shaderName);
+        var shaderAsset = AssetManager.Get<ShaderAsset>(shaderName) ?? AssetManager.Get<ShaderAsset>("pbr");
         if (shaderAsset != null) Material.Shader = shaderAsset.Shader;
 
         ApplyMap("albedo_map", MaterialMapIndex.Albedo);
@@ -226,8 +229,13 @@ internal class MaterialAsset : Asset {
                 Material.Maps[i].Texture = new Texture2D();
 
         UnloadMaterial(Material);
+        Material = new Material();
 
-        if (Thumbnail.HasValue) UnloadTexture(Thumbnail.Value);
+        if (Thumbnail.HasValue) {
+
+            UnloadTexture(Thumbnail.Value);
+            Thumbnail = null;
+        }
 
         IsLoaded = false;
     }

@@ -363,7 +363,7 @@ internal class Preview : Viewport {
             case MaterialAsset mat: {
 
                 var mesh = GetPrimitiveMesh(_currentPrimitiveIndex);
-                mat.ApplyChanges(updateThumbnail: false);
+                mat.ApplyChanges(updateThumbnail: false, bumpVersion: false);
                 SetupPreviewLighting(mat, camera, target, distance);
 
                 var transform = Matrix4x4.Transpose(Matrix4x4.CreateTranslation(0, 0.5f, 0));
@@ -594,7 +594,12 @@ internal class Preview : Viewport {
         }
 
         ImageResize(&img, newW, newH);
-        if (tex.Thumbnail.HasValue) UnloadTexture(tex.Thumbnail.Value);
+        if (tex.Thumbnail.HasValue) {
+
+            UnloadTexture(tex.Thumbnail.Value);
+            tex.Thumbnail = null;
+        }
+
         tex.Thumbnail = LoadTextureFromImage(img);
         UnloadImage(img);
     }
@@ -648,7 +653,12 @@ internal class Preview : Viewport {
 
         var img = LoadImageFromTexture(rt.Texture);
         ImageFlipVertical(&img);
-        if (asset.Thumbnail.HasValue) UnloadTexture(asset.Thumbnail.Value);
+        if (asset.Thumbnail.HasValue) {
+
+            UnloadTexture(asset.Thumbnail.Value);
+            asset.Thumbnail = null;
+        }
+
         asset.Thumbnail = LoadTextureFromImage(img);
         UnloadImage(img);
         UnloadRenderTexture(rt);
@@ -663,7 +673,7 @@ internal class Preview : Viewport {
                 var mesh = _previewSphere ?? GenMeshSphere(0.5f, 64, 64);
                 _previewSphere = mesh;
 
-                mat.ApplyChanges(updateThumbnail: false);
+                mat.ApplyChanges(updateThumbnail: false, bumpVersion: false);
 
                 SetupPreviewLighting(mat, camera, target, distance);
                 DrawMesh(mesh, mat.Material, Matrix4x4.Transpose(Matrix4x4.CreateTranslation(0, 0.5f, 0)));

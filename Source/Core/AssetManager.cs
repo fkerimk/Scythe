@@ -69,6 +69,7 @@ internal static class AssetManager {
         foreach (var kvp in toReload) {
 
             kvp.Value.Unload();
+            RefreshDependentAssets(kvp.Value);
             ReloadDependentComponents(kvp.Value);
         }
 
@@ -157,6 +158,7 @@ internal static class AssetManager {
 
         foreach (var kvp in toRemove) {
             kvp.Value.Unload();
+            RefreshDependentAssets(kvp.Value);
             ReloadDependentComponents(kvp.Value);
             Assets.Remove(kvp.Key);
             RemoveFromMaps(kvp.Value);
@@ -275,6 +277,7 @@ internal static class AssetManager {
 
         AddToMaps<T>(file, asset);
         NormalizeInternalReferences(asset);
+        RefreshDependentAssets(asset);
 
         if (!isNew) ReloadDependentComponents(asset);
     }
@@ -428,6 +431,71 @@ internal static class AssetManager {
         }
 
         foreach (var child in obj.Children.Values) ReloadDependentComponents(child, asset);
+    }
+
+    private static void RefreshDependentAssets(Asset asset) {
+
+        switch (asset) {
+
+            case TextureAsset texture:
+                RefreshMaterialsUsingTexture(texture.GUID);
+                break;
+
+            case ShaderAsset shader:
+                RefreshMaterialsUsingShader(shader.GUID);
+                break;
+
+            case MaterialAsset material:
+                RefreshModelsUsingMaterial(material.GUID);
+                Preview.UpdateThumbnail(material);
+                break;
+
+            case ModelAsset model:
+                Preview.UpdateThumbnail(model);
+                break;
+        }
+    }
+
+    private static void RefreshMaterialsUsingTexture(string guid) {
+
+        if (string.IsNullOrWhiteSpace(guid)) return;
+
+        foreach (var material in GetAll<MaterialAsset>()) {
+
+            if (!material.Data.Textures.Values.Any(value => string.Equals(NormalizeReference< TextureAsset >(value), guid, StringComparison.OrdinalIgnoreCase))) continue;
+
+            material.ApplyChanges();
+            Preview.UpdateThumbnail(material);
+            RefreshModelsUsingMaterial(material.GUID);
+        }
+    }
+
+    private static void RefreshMaterialsUsingShader(string guid) {
+
+        if (string.IsNullOrWhiteSpace(guid)) return;
+
+        foreach (var material in GetAll<MaterialAsset>()) {
+
+            if (!string.Equals(NormalizeReference<ShaderAsset>(material.Data.Shader), guid, StringComparison.OrdinalIgnoreCase)) continue;
+
+            material.ApplyChanges();
+            Preview.UpdateThumbnail(material);
+            RefreshModelsUsingMaterial(material.GUID);
+        }
+    }
+
+    private static void RefreshModelsUsingMaterial(string guid) {
+
+        if (string.IsNullOrWhiteSpace(guid)) return;
+
+        foreach (var model in GetAll<ModelAsset>()) {
+
+            var usesMaterial = model.MaterialPaths.Any(value => string.Equals(NormalizeReference<MaterialAsset>(value), guid, StringComparison.OrdinalIgnoreCase));
+            if (!usesMaterial) continue;
+
+            model.ApplySettings();
+            Preview.UpdateThumbnail(model);
+        }
     }
 
     private static string NormalizeReferenceByType(string typeName, string value) => typeName switch {

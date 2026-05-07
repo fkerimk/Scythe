@@ -182,6 +182,10 @@ internal class ModelAsset : Asset {
     public override unsafe void Unload() {
 
         foreach (var mesh in Meshes) UnloadMesh(mesh.RlMesh);
+        Meshes.Clear();
+        Bones.Clear();
+        BoneMap.Clear();
+        Animations.Clear();
 
         // ReSharper disable once ConditionIsAlwaysTrueOrFalseAccordingToNullableAPIContract
         if (Materials != null) {
@@ -196,6 +200,17 @@ internal class ModelAsset : Asset {
 
                 UnloadMaterial(Materials[i]);
             }
+        }
+
+        Materials = [];
+        MaterialPaths = [];
+        CachedMaterialAssets.Clear();
+        RootNode = null!;
+
+        if (Thumbnail.HasValue) {
+
+            UnloadTexture(Thumbnail.Value);
+            Thumbnail = null;
         }
 
         IsLoaded = false;
