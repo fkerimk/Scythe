@@ -520,7 +520,7 @@ internal static class AssetManager {
 
     private static void DeleteLegacyTextureImports(string folder, string guid, string keepPath) {
 
-        foreach (var ext in new[] { ".png", ".jpg", ".jpeg", ".bmp", ".tga", ".webp", ".avif", ".dds", ".stex", ".import.json" }) {
+        foreach (var ext in new[] { ".png", ".jpg", ".jpeg", ".bmp", ".tga", ".webp", ".avif", ".dds", ".stex", ".runtime.png", ".import.json" }) {
 
             var path = Path.Combine(folder, guid + ext);
             if (!File.Exists(path)) continue;
@@ -550,7 +550,7 @@ internal static class AssetManager {
 
     private static bool IsTextureCacheCurrent(string sourceFile, string importedPath, AssetSidecarData.TextureImportSettings settings) {
 
-        return TextureImportProcessor.IsCurrent(sourceFile, importedPath);
+        return TextureImportProcessor.IsCurrent(sourceFile, importedPath, settings);
     }
 
     private static IEnumerable<string> GetModelDependencyFiles(string sourceFile) {
@@ -810,6 +810,35 @@ internal static class AssetManager {
                 Tasks.RunOnMainThread(() => {
                     try {
                         ReloadAsset(texture);
+                    } finally {
+                        _textureImportsInProgress.Remove(guid);
+                    }
+                });
+
+                task.Progress = 1f;
+                task.Status = "Success";
+
+            } catch (Exception e) {
+                _textureImportsInProgress.Remove(guid);
+                task.Status = "Fail: " + e.Message;
+            }
+        });
+    }
+
+    public static void ApplyTextureFilterAsync(TextureAsset texture) {
+
+        if (texture == null || string.IsNullOrWhiteSpace(texture.GUID)) return;
+        if (!_textureImportsInProgress.Add(texture.GUID)) return;
+
+        var guid = texture.GUID;
+        Tasks.Run($"Update Texture Filter {Path.GetFileName(texture.File)}", task => {
+            try {
+                task.Status = "Applying...";
+                task.Progress = 0.3f;
+
+                Tasks.RunOnMainThread(() => {
+                    try {
+                        texture.ApplyTextureFilter();
                     } finally {
                         _textureImportsInProgress.Remove(guid);
                     }

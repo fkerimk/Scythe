@@ -10,13 +10,15 @@ internal class AssetSidecarData {
         public string Format = "Source";
         public string Compression = "Balanced";
         public int Quality = 90;
+        public string TextureFilter = "Bilinear";
 
         public object Clone() => new TextureImportSettings {
             MaxSize = MaxSize,
             ResizeFilter = ResizeFilter,
             Format = Format,
             Compression = Compression,
-            Quality = Quality
+            Quality = Quality,
+            TextureFilter = TextureFilter
         };
     }
 }

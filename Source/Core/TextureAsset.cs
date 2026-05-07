@@ -5,6 +5,7 @@ internal class TextureAsset : Asset {
 
     public Texture2D Texture;
     public AssetSidecarData.TextureImportSettings ImportSettings { get; private set; } = new();
+    public bool HasTransparentPixels { get; private set; }
     public int SourceWidth { get; private set; }
     public int SourceHeight { get; private set; }
     public int ImportedWidth { get; private set; }
@@ -22,12 +23,14 @@ internal class TextureAsset : Asset {
         ImportedWidth = 0;
         ImportedHeight = 0;
         ImportedFileSize = 0;
+        HasTransparentPixels = false;
 
         var sourceImage = LoadImage(File);
         if (sourceImage.Data != null) {
 
             SourceWidth = sourceImage.Width;
             SourceHeight = sourceImage.Height;
+            HasTransparentPixels = DetectTransparency(sourceImage);
             UnloadImage(sourceImage);
         }
 
@@ -48,6 +51,12 @@ internal class TextureAsset : Asset {
                 changed = true;
             }
 
+            if (string.IsNullOrWhiteSpace(meta.TextureImport.Format)) {
+
+                meta.TextureImport.Format = GetDefaultFormat();
+                changed = true;
+            }
+
             GUID = meta.GUID;
             ImportSettings = (AssetSidecarData.TextureImportSettings)meta.TextureImport.Clone();
             if (changed) System.IO.File.WriteAllText(jsonPath, Newtonsoft.Json.JsonConvert.SerializeObject(meta, Newtonsoft.Json.Formatting.Indented));
@@ -56,15 +65,23 @@ internal class TextureAsset : Asset {
 
             GUID = System.Guid.NewGuid().ToString("N");
             var meta = new AssetSidecarData { GUID = GUID };
+            meta.TextureImport.Format = GetDefaultFormat();
             ImportSettings = (AssetSidecarData.TextureImportSettings)meta.TextureImport.Clone();
             System.IO.File.WriteAllText(jsonPath, Newtonsoft.Json.JsonConvert.SerializeObject(meta, Newtonsoft.Json.Formatting.Indented));
         }
 
         if (ImportSettings == null) ImportSettings = new AssetSidecarData.TextureImportSettings();
+        if (string.IsNullOrWhiteSpace(ImportSettings.Format)) ImportSettings.Format = GetDefaultFormat();
+        if (string.IsNullOrWhiteSpace(ImportSettings.TextureFilter)) ImportSettings.TextureFilter = "Bilinear";
 
         ImportedFile = AssetManager.GetImportedTextureFile(File, GUID, ImportSettings);
 
         var image = LoadImage(ResolvedFile);
+        if (image.Data == null) {
+
+            image = TryLoadImportedFallbackImage();
+        }
+
         if (image.Data == null) {
 
             ImportedFile = "";
@@ -73,7 +90,7 @@ internal class TextureAsset : Asset {
         }
 
         Texture = LoadTextureFromImage(image);
-        SetTextureFilter(Texture, TextureFilter.Bilinear);
+        ApplyTextureFilter();
         UnloadImage(image);
 
         if (SourceWidth <= 0 || SourceHeight <= 0) {
@@ -114,6 +131,7 @@ internal class TextureAsset : Asset {
         ImportedHeight = 0;
         SourceFileSize = 0;
         ImportedFileSize = 0;
+        HasTransparentPixels = false;
     }
 
     public override IEnumerable<string> GetWatchedFiles() {
@@ -132,5 +150,83 @@ internal class TextureAsset : Asset {
 
         AssetManager.RegisterInternalWrite(jsonPath);
         System.IO.File.WriteAllText(jsonPath, Newtonsoft.Json.JsonConvert.SerializeObject(meta, Newtonsoft.Json.Formatting.Indented));
+    }
+
+    public void ApplyTextureFilter() {
+
+        if (!IsLoaded && Texture.Id == 0) return;
+        SetTextureFilter(Texture, GetTextureFilter(ImportSettings.TextureFilter));
+    }
+
+    private string GetDefaultFormat() => HasTransparentPixels ? "Png" : "Jpeg";
+
+    private static TextureFilter GetTextureFilter(string filter) => filter switch {
+        "Point" => TextureFilter.Point,
+        "Trilinear" => TextureFilter.Trilinear,
+        "Anisotropic 4x" => TextureFilter.Anisotropic4X,
+        "Anisotropic 8x" => TextureFilter.Anisotropic8X,
+        "Anisotropic 16x" => TextureFilter.Anisotropic16X,
+        _ => TextureFilter.Bilinear
+    };
+
+    private static unsafe bool DetectTransparency(Image image) {
+
+        var colors = LoadImageColors(image);
+        if (colors == null) return false;
+
+        try {
+            var pixelCount = image.Width * image.Height;
+            for (var i = 0; i < pixelCount; i++) {
+
+                if (colors[i].A < 255) return true;
+            }
+
+            return false;
+
+        } finally {
+            UnloadImageColors(colors);
+        }
+    }
+
+    private Image TryLoadImportedFallbackImage() {
+
+        if (string.IsNullOrWhiteSpace(ImportedFile) || !System.IO.File.Exists(ImportedFile)) return default;
+
+        var effectiveFormat = TextureImportProcessor.GetEffectiveFormat(File, ImportSettings);
+        if (effectiveFormat is not "WebP" and not "Avif") return default;
+
+        var tempFile = Path.Combine(Path.GetTempPath(), $"scythe-{GUID}-{Guid.NewGuid():N}.png");
+
+        try {
+            var psi = new System.Diagnostics.ProcessStartInfo("ffmpeg") {
+                UseShellExecute = false,
+                RedirectStandardError = true,
+                RedirectStandardOutput = true,
+                CreateNoWindow = true
+            };
+
+            psi.ArgumentList.Add("-y");
+            psi.ArgumentList.Add("-hide_banner");
+            psi.ArgumentList.Add("-loglevel");
+            psi.ArgumentList.Add("error");
+            psi.ArgumentList.Add("-i");
+            psi.ArgumentList.Add(ImportedFile);
+            psi.ArgumentList.Add("-frames:v");
+            psi.ArgumentList.Add("1");
+            psi.ArgumentList.Add(tempFile);
+
+            using var process = System.Diagnostics.Process.Start(psi);
+            if (process == null) return default;
+            process.WaitForExit();
+            if (process.ExitCode != 0 || !System.IO.File.Exists(tempFile)) return default;
+
+            return LoadImage(tempFile);
+
+        } finally {
+            try {
+                if (System.IO.File.Exists(tempFile)) System.IO.File.Delete(tempFile);
+            } catch {
+            }
+        }
     }
 }

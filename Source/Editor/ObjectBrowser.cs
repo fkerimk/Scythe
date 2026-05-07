@@ -778,6 +778,11 @@ internal class ObjectBrowser : Viewport {
             }
             NextColumn();
 
+            var effectiveFormat = TextureImportProcessor.GetEffectiveFormat(texture.File, texture.ImportSettings);
+            var usesResizeFilter = texture.ImportSettings.MaxSize > 0;
+            var usesCompression = TextureImportProcessor.UsesCompression(effectiveFormat);
+            var usesQuality = TextureImportProcessor.UsesQuality(effectiveFormat);
+
             var maxSizeOptions = new[] { 0, 32, 64, 128, 256, 512, 1024, 2048, 4096 };
             var maxSizeLabels = new[] { "Original", "32", "64", "128", "256", "512", "1024", "2048", "4096" };
             var selectedMaxSize = Array.IndexOf(maxSizeOptions, texture.ImportSettings.MaxSize);
@@ -794,6 +799,7 @@ internal class ObjectBrowser : Viewport {
             NextColumn();
 
             DrawShadowedLabel("Resize Filter");
+            BeginDisabled(!usesResizeFilter);
             var resizeOptions = new[] { "Nearest", "Bilinear", "Bicubic", "Lanczos" };
             var selectedResize = Array.IndexOf(resizeOptions, texture.ImportSettings.ResizeFilter);
             if (selectedResize < 0) selectedResize = 1;
@@ -804,9 +810,11 @@ internal class ObjectBrowser : Viewport {
                 texture.SaveMeta();
                 AssetManager.ReimportTextureAsync(texture);
             }
+            EndDisabled();
             NextColumn();
 
             DrawShadowedLabel("Compression");
+            BeginDisabled(!usesCompression);
             var compressionOptions = new[] { "Fast", "Balanced", "Best" };
             var selectedCompression = Array.IndexOf(compressionOptions, texture.ImportSettings.Compression);
             if (selectedCompression < 0) selectedCompression = 1;
@@ -817,9 +825,11 @@ internal class ObjectBrowser : Viewport {
                 texture.SaveMeta();
                 AssetManager.ReimportTextureAsync(texture);
             }
+            EndDisabled();
             NextColumn();
 
             DrawShadowedLabel("Quality");
+            BeginDisabled(!usesQuality);
             if (!_pendingTextureQuality.TryGetValue(texture.GUID, out var quality))
                 quality = texture.ImportSettings.Quality;
             SetNextItemWidth(GetContentRegionAvail().X);
@@ -832,6 +842,20 @@ internal class ObjectBrowser : Viewport {
                 _pendingTextureQuality[texture.GUID] = quality;
                 texture.SaveMeta();
                 AssetManager.ReimportTextureAsync(texture);
+            }
+            EndDisabled();
+            NextColumn();
+
+            DrawShadowedLabel("Texture Filter");
+            var textureFilterOptions = new[] { "Point", "Bilinear", "Trilinear", "Anisotropic 4x", "Anisotropic 8x", "Anisotropic 16x" };
+            var selectedTextureFilter = Array.IndexOf(textureFilterOptions, texture.ImportSettings.TextureFilter);
+            if (selectedTextureFilter < 0) selectedTextureFilter = 1;
+            SetNextItemWidth(GetContentRegionAvail().X);
+            if (Combo("##texture_filter", ref selectedTextureFilter, textureFilterOptions, textureFilterOptions.Length)) {
+
+                texture.ImportSettings.TextureFilter = textureFilterOptions[selectedTextureFilter];
+                texture.SaveMeta();
+                AssetManager.ApplyTextureFilterAsync(texture);
             }
             NextColumn();
 

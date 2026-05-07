@@ -2,13 +2,25 @@ using System.Diagnostics;
 
 internal static class TextureImportProcessor {
 
+    public static string GetEffectiveFormat(string sourceFile, AssetSidecarData.TextureImportSettings settings) => settings.Format switch {
+        "Png" => "Png",
+        "Jpeg" => "Jpeg",
+        "WebP" => "WebP",
+        "Avif" => "Avif",
+        _ => GetFormatFromExtension(Path.GetExtension(sourceFile).ToLowerInvariant())
+    };
+
+    public static bool UsesCompression(string effectiveFormat) => effectiveFormat is "Png" or "WebP" or "Avif";
+
+    public static bool UsesQuality(string effectiveFormat) => effectiveFormat is "Jpeg" or "WebP" or "Avif";
+
     public static string BuildImportedPath(string importsFolder, string guid, string sourceFile, AssetSidecarData.TextureImportSettings settings) {
 
         var ext = GetOutputExtension(sourceFile, settings);
         return Path.Combine(importsFolder, guid + ext);
     }
 
-    public static bool IsCurrent(string sourceFile, string importedFile) {
+    public static bool IsCurrent(string sourceFile, string importedFile, AssetSidecarData.TextureImportSettings settings) {
 
         if (!File.Exists(sourceFile) || !File.Exists(importedFile)) return false;
 
@@ -117,21 +129,20 @@ internal static class TextureImportProcessor {
         }
     }
 
-    private static string GetOutputExtension(string sourceFile, AssetSidecarData.TextureImportSettings settings) => settings.Format switch {
-        "Png" => ".png",
+    private static string GetOutputExtension(string sourceFile, AssetSidecarData.TextureImportSettings settings) => GetEffectiveFormat(sourceFile, settings) switch {
         "Jpeg" => ".jpg",
         "WebP" => ".webp",
         "Avif" => ".avif",
-        _ => NormalizeSourceExtension(Path.GetExtension(sourceFile).ToLowerInvariant())
+        _ => ".png"
     };
 
-    private static string NormalizeSourceExtension(string ext) => ext switch {
-        ".jpg" => ".jpg",
-        ".jpeg" => ".jpg",
-        ".png" => ".png",
-        ".webp" => ".webp",
-        ".avif" => ".avif",
-        _ => ".png"
+    private static string GetFormatFromExtension(string ext) => ext switch {
+        ".jpg" => "Jpeg",
+        ".jpeg" => "Jpeg",
+        ".png" => "Png",
+        ".webp" => "WebP",
+        ".avif" => "Avif",
+        _ => "Png"
     };
 
     private static string GetScaleFlag(string filter) => filter switch {
