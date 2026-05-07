@@ -1,7 +1,7 @@
 {
   "GUID": "9bed13f5578040f3b14816d53a3c3c36",
   "Shader": "130640b64e604a7182ed64ef6f055bac",
-  "ShaderPath": "/mnt/secondary/Projects/Scythe/Resources/Shaders/pbr.vs",
+  "ShaderPath": "../../../Resources/Shaders/pbr.vs",
   "Textures": {
     "albedo_map": "6069dbcaf2564bb09314a557862c8a1b",
     "metallic_map": "53282585bb7d4d61a42d4b78f7fadf9d",

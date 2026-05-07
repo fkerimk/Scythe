@@ -1,25 +1,32 @@
 using System.Runtime.InteropServices;
-using ImGuiNET;
-using Raylib_cs;
 using static System.Text.Encoding;
+#if !SCYTHE_RUNTIME_BUILD
+using ImGuiNET;
 using static ImGuiNET.ImGui;
 using static ImGuiNET.ImGuiNative;
-using static Raylib_cs.Raylib;
 using static rlImGui_cs.rlImGui;
+#endif
+using Raylib_cs;
+using static Raylib_cs.Raylib;
 
 internal static class Fonts {
 
     private const int SmallSize = 11, NormalSize = 16, LargeSize = 32;
 
+#if !SCYTHE_RUNTIME_BUILD
     public static ImFontPtr ImMontserratRegular, ImFontAwesomeSmall, ImFontAwesomeNormal, ImFontAwesomeLarge;
+#endif
 
     public static Font RlMontserratRegular, RlCascadiaCode, RlFontAwesome;
 
+#if !SCYTHE_RUNTIME_BUILD
     private static ImFontConfigPtr _imFontConfigPtr;
     private static IntPtr          _iconRanges;
+#endif
 
     public static unsafe void Init() {
 
+#if !SCYTHE_RUNTIME_BUILD
         if (!CommandLine.Runtime) {
 
             _iconRanges = GCHandle.Alloc(new ushort[] { 0xE000, 0xF8FF, 0 }, GCHandleType.Pinned).AddrOfPinnedObject();
@@ -35,6 +42,7 @@ internal static class Fonts {
 
             ReloadFonts();
         }
+#endif
 
         RlMontserratRegular = LoadFont<Font>("Fonts/montserrat-regular.otf");
         RlCascadiaCode      = LoadFont<Font>("Fonts/CascadiaCode-Regular.ttf");
@@ -91,10 +99,12 @@ internal static class Fonts {
             }
         }
 
+    #if !SCYTHE_RUNTIME_BUILD
         if (typeof(T) == typeof(ImFontPtr)) {
 
             return (T)(object)(useIconRanges ? GetIO().Fonts.AddFontFromFileTTF(fontPath, size, _imFontConfigPtr, _iconRanges) : GetIO().Fonts.AddFontFromFileTTF(fontPath, size, _imFontConfigPtr));
         }
+    #endif
 
         throw new NotSupportedException($"Unsupported font type: {typeof(T)}");
     }

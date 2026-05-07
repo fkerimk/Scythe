@@ -4,6 +4,7 @@ using static Raylib_cs.Raylib;
 
 CommandLine.Init();
 NativeResolver.Init();
+if (BundleRuntime.TryActivate()) CommandLine.Runtime = true;
 
 // Initialize window
 SetTraceLogLevel(TraceLogLevel.Error);
@@ -11,31 +12,38 @@ Window.Show(width: 1280, height: 720, maximize: false, flags: [ConfigFlags.Msaa4
 
 if (!CommandLine.Runtime) CommandLine.NoSplash = false;
 
-PathUtil.ValidateFile("Scythe.json", out var scytheJson, "{}");
-JsonConvert.PopulateObject(File.ReadAllText(scytheJson), ScytheConfig.Current);
+if (!BundleRuntime.IsActive) {
+    PathUtil.ValidateFile("Scythe.json", out var scytheJson, "{}");
+    JsonConvert.PopulateObject(File.ReadAllText(scytheJson), ScytheConfig.Current);
 
-// Resolve relative paths
-if (!string.IsNullOrWhiteSpace(ScytheConfig.Current.Project)) {
+    // Resolve relative paths
+    if (!string.IsNullOrWhiteSpace(ScytheConfig.Current.Project)) {
     
-    if (!Directory.Exists(ScytheConfig.Current.Project)) {
+        if (!Directory.Exists(ScytheConfig.Current.Project)) {
         
-        var altPath = Path.Combine(Directory.GetCurrentDirectory(), "Projects", ScytheConfig.Current.Project);
-        if (Directory.Exists(altPath)) ScytheConfig.Current.Project = altPath;
+            var altPath = Path.Combine(Directory.GetCurrentDirectory(), "Projects", ScytheConfig.Current.Project);
+            if (Directory.Exists(altPath)) ScytheConfig.Current.Project = altPath;
+        }
     }
-}
 
-// Skip launcher if project is valid
-if (string.IsNullOrWhiteSpace(ScytheConfig.Current.Project) || !Directory.Exists(ScytheConfig.Current.Project)) {
+    // Skip launcher if project is valid
+    if (string.IsNullOrWhiteSpace(ScytheConfig.Current.Project) || !Directory.Exists(ScytheConfig.Current.Project)) {
     
-    var selected = Launcher.Show();
-    if (string.IsNullOrEmpty(selected)) return 0;
+    #if SCYTHE_RUNTIME_BUILD
+        throw new DirectoryNotFoundException(Ansi.ErrorMessage("Embedded project could not be resolved"));
+    #else
+        var selected = Launcher.Show();
+        if (string.IsNullOrEmpty(selected)) return 0;
     
-    ScytheConfig.Current.Project = selected;
-}
+        ScytheConfig.Current.Project = selected;
+    #endif
+    }
 
-// Ensure full path and save back for next run
-ScytheConfig.Current.Project = Path.GetFullPath(ScytheConfig.Current.Project);
-File.WriteAllText(scytheJson, JsonConvert.SerializeObject(ScytheConfig.Current, Formatting.Indented));
+    // Ensure full path and save back for next run
+    ScytheConfig.Current.Project = Path.GetFullPath(ScytheConfig.Current.Project);
+    File.WriteAllText(scytheJson, JsonConvert.SerializeObject(ScytheConfig.Current, Formatting.Indented));
+} else
+    ScytheConfig.Current.Project = BundleRuntime.ProjectRoot;
 
 if (!Directory.Exists(ScytheConfig.Current.Project)) throw new DirectoryNotFoundException(Ansi.ErrorMessage("Project not found"));
 
@@ -44,9 +52,13 @@ JsonConvert.PopulateObject(File.ReadAllText(projectJson), ProjectConfig.Current)
 
 PathUtil.ValidateDir("Project", out _, true);
 
+#if SCYTHE_RUNTIME_BUILD
+Runtime.Show();
+#else
 if (!CommandLine.Runtime)
-     Editor.Show();
+    Editor.Show();
 else Runtime.Show();
+#endif
 
 if (IsWindowReady()) CloseWindow();
 

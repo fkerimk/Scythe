@@ -49,6 +49,12 @@ internal static class NativeResolver {
 
         var fileName = libraryName.StartsWith(prefix) ? $"{libraryName}{ext}" : $"{prefix}{libraryName}{ext}";
 
+        try {
+            return NativeLibrary.Load(fileName, assembly, searchPath);
+        } catch {
+            // Fall back to explicit probing below.
+        }
+
         string[] searchPaths = [Path.Combine(baseDir, "runtimes", rid, "native", fileName), RuntimeInformation.IsOSPlatform(OSPlatform.OSX) ? Path.Combine(baseDir, "runtimes", "osx", "native", fileName) : "", Path.Combine(baseDir, fileName)];
 
         foreach (var path in searchPaths) {

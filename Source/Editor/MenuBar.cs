@@ -46,6 +46,8 @@ internal static class MenuBar {
             EndMenu();
         }
 
+        BuildPipeline.DrawMenu();
+
         EndMainMenuBar();
     }
 }

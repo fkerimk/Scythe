@@ -386,7 +386,7 @@ internal static class AssetManager {
 
         if (req.Contains(':') || req.StartsWith('/')) return null;
 
-        var res = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Resources", name)).Replace('\\', '/').ToLowerInvariant();
+        var res = Path.GetFullPath(Path.Combine(PathUtil.GetResourcesRoot(), name)).Replace('\\', '/').ToLowerInvariant();
 
         if (PathLookup.TryGetValue(prefix + res, out var rAsset) && rAsset is T { IsLoaded: true } rtAsset) return rtAsset;
 
@@ -474,7 +474,9 @@ internal static class AssetManager {
         sourceFile = Path.GetFullPath(sourceFile);
 
         if (string.IsNullOrWhiteSpace(guid) || !File.Exists(sourceFile) || IsImportsPath(sourceFile)) return sourceFile;
-        if (sourceFile.Contains("/resources/", StringComparison.OrdinalIgnoreCase) || sourceFile.Contains("\\resources\\", StringComparison.OrdinalIgnoreCase)) return sourceFile;
+
+        var isResourceFile = sourceFile.Contains("/resources/", StringComparison.OrdinalIgnoreCase) || sourceFile.Contains("\\resources\\", StringComparison.OrdinalIgnoreCase);
+        if (isResourceFile && type != "ModelAsset") return sourceFile;
 
         EnsureImportsRoot();
 
@@ -660,13 +662,13 @@ internal static class AssetManager {
 
         var full = Path.GetFullPath(file);
         var modPath = ScytheConfig.Current.Project;
-        var resPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Resources");
+        var resPath = PathUtil.GetResourcesRoot();
 
         if (full.StartsWith(modPath, StringComparison.OrdinalIgnoreCase))
             return Path.GetRelativePath(modPath, full).Replace('\\', '/');
 
         if (full.StartsWith(resPath, StringComparison.OrdinalIgnoreCase))
-            return Path.GetRelativePath(AppDomain.CurrentDomain.BaseDirectory, full).Replace('\\', '/');
+            return Path.GetRelativePath(PathUtil.GetBaseRoot(), full).Replace('\\', '/');
 
         return full.Replace('\\', '/');
     }
@@ -687,7 +689,7 @@ internal static class AssetManager {
         if (!TypeCache.TryGetValue(typeof(T), out var list)) return [];
 
         var modPath = ScytheConfig.Current.Project;
-        var resPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Resources");
+        var resPath = PathUtil.GetResourcesRoot();
 
         return list.Cast<T>()
                    .Select(a => {
@@ -697,7 +699,7 @@ internal static class AssetManager {
 
                            if (full.StartsWith(modPath, StringComparison.OrdinalIgnoreCase))
                                rel                                                                    = Path.GetRelativePath(modPath,                               full);
-                           else if (full.StartsWith(resPath, StringComparison.OrdinalIgnoreCase)) rel = Path.GetRelativePath(AppDomain.CurrentDomain.BaseDirectory, full);
+                           else if (full.StartsWith(resPath, StringComparison.OrdinalIgnoreCase)) rel = Path.GetRelativePath(PathUtil.GetBaseRoot(), full);
 
                            return (Path.GetFileNameWithoutExtension(a.File), rel.Replace('\\', '/'), a.GUID);
 

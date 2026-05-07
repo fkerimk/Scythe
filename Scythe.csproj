@@ -13,6 +13,7 @@
         
         <PublishAot>false</PublishAot>
         <PublishSingleFile>true</PublishSingleFile>
+        <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
         <SelfContained>false</SelfContained>
         <PublishTrimmed>false</PublishTrimmed>
         <TrimMode>link</TrimMode>
@@ -21,6 +22,10 @@
 
         <NoWarn>SYSLIB1045</NoWarn>
         
+    </PropertyGroup>
+
+    <PropertyGroup Condition="'$(ScytheRuntimeBuild)' == 'true'">
+        <DefineConstants>$(DefineConstants);SCYTHE_RUNTIME_BUILD</DefineConstants>
     </PropertyGroup>
 
     <ItemGroup>
@@ -35,8 +40,18 @@
     </ItemGroup>
 
     <ItemGroup>
-        <Compile Remove="Projects\**" />
-        <None Include="Projects\**" />
+        <Compile Remove="Projects/**" />
+        <None Include="Projects/**" />
+    </ItemGroup>
+
+    <ItemGroup Condition="'$(ScytheRuntimeBuild)' == 'true'">
+        <Compile Remove="Source/Editor/**/*.cs" />
+        <Compile Remove="Source/Editor.cs" />
+        <Compile Remove="Source/Launcher.cs" />
+    </ItemGroup>
+
+    <ItemGroup Condition="'$(ScytheRuntimeBuild)' == 'true' and '$(ScytheBundlePath)' != ''">
+        <EmbeddedResource Include="$(ScytheBundlePath)" LogicalName="Scythe.Bundle.zip" />
     </ItemGroup>
 
     <ItemGroup>

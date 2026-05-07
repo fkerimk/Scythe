@@ -1,5 +1,16 @@
 internal static class PathUtil {
 
+    public static string GetBaseRoot() => BundleRuntime.GetBaseRoot();
+    public static string GetResourcesRoot() {
+
+        if (BundleRuntime.IsActive) return BundleRuntime.GetResourcesRoot();
+
+        var workingDirResources = Path.GetFullPath("Resources");
+        if (Directory.Exists(workingDirResources)) return workingDirResources;
+
+        return Path.Combine(AppContext.BaseDirectory, "Resources");
+    }
+
     public static void ValidateFile(string path, out string validPath, string content = "", bool project = false) {
 
         validPath = path;
@@ -12,7 +23,7 @@ internal static class PathUtil {
 
         if (!project) {
 
-            validPath = Path.Join(AppContext.BaseDirectory, path);
+            validPath = Path.Join(GetBaseRoot(), path);
 
             if (File.Exists(validPath)) return;
         }
@@ -34,7 +45,7 @@ internal static class PathUtil {
 
         if (!project) {
 
-            validPath = Path.Join(AppContext.BaseDirectory, path);
+            validPath = Path.Join(GetBaseRoot(), path);
 
             if (Directory.Exists(validPath)) return;
         }
@@ -52,7 +63,17 @@ internal static class PathUtil {
 
         if (File.Exists(fullPath) || Directory.Exists(fullPath)) return true;
 
-        fullPath = Path.Join(Path.GetFullPath("Resources"), relativePath);
+        fullPath = Path.Join(GetBaseRoot(), relativePath);
+
+        if (File.Exists(fullPath) || Directory.Exists(fullPath)) return true;
+
+        var normalized = relativePath.Replace('\\', '/');
+        if (normalized.Equals("Resources", StringComparison.OrdinalIgnoreCase))
+            fullPath = GetResourcesRoot();
+        else if (normalized.StartsWith("Resources/", StringComparison.OrdinalIgnoreCase))
+            fullPath = Path.Join(GetBaseRoot(), relativePath);
+        else
+            fullPath = Path.Join(GetResourcesRoot(), relativePath);
 
         if (File.Exists(fullPath) || Directory.Exists(fullPath)) return true;
 
