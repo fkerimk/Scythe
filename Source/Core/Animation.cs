@@ -65,11 +65,15 @@ internal class Animation(Obj obj) : Component(obj) {
 
     public override bool Load() {
 
+        var oldGuid = GUID;
+        var oldPath = Path;
         var guid = GUID;
         var path = Path;
         var loaded = AssetManager.ResolveReference<AnimationAsset>(ref guid, ref path);
         GUID = guid;
         Path = path;
+
+        if ((GUID != oldGuid || Path != oldPath) && Core.ActiveLevel != null) Core.ActiveLevel.IsDirty = true;
 
         if (loaded is not { IsLoaded: true }) return false;
 

@@ -129,7 +129,6 @@ internal class ModelAsset : Asset {
         ThumbnailDirty = true;
         Preview.UpdateThumbnail(this);
         SaveSettings();
-        AssetManager.ReloadComponentsUsing(this);
     }
 
     public void UpdateMaterialsIfDirty() {

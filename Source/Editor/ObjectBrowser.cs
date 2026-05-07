@@ -500,7 +500,6 @@ internal class ObjectBrowser : Viewport {
 
                 model.Settings.ImportScale = (float)scale!;
                 model.SaveSettings();
-                AssetManager.ReloadComponentsUsing(model);
             }
 
             if (sDeactivated) History.StopRecording();

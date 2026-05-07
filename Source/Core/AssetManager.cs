@@ -295,6 +295,7 @@ internal static class AssetManager {
 
         AddToMaps<T>(file, asset);
         NormalizeInternalReferences(asset);
+        SyncDependentComponentReferences(asset);
         RefreshDependentAssets(asset);
 
         if (!isNew) ReloadDependentComponents(asset);
@@ -370,10 +371,12 @@ internal static class AssetManager {
         if (string.IsNullOrWhiteSpace(path)) return null;
 
         var asset = Get<T>(path);
+        asset ??= FindMovedAssetFallback<T>(path);
         if (asset != null) return asset;
 
         EnsureImported(path);
         asset = Get<T>(path);
+        asset ??= FindMovedAssetFallback<T>(path);
 
         if (asset is { ThumbnailDirty: true } && asset is TextureAsset or MaterialAsset or ModelAsset)
             Preview.UpdateThumbnail(asset);
@@ -447,6 +450,7 @@ internal static class AssetManager {
     public static T? ResolveReference<T>(ref string guid, ref string path) where T : Asset {
 
         var asset = Get<T>(guid) ?? Get<T>(path);
+        asset ??= FindMovedAssetFallback<T>(path);
         if (asset == null) return null;
 
         guid = asset.GUID;
@@ -480,6 +484,21 @@ internal static class AssetManager {
     }
 
     public static IEnumerable<T> GetAll<T>() where T : Asset => !TypeCache.TryGetValue(typeof(T), out var list) ? [] : list.Cast<T>();
+
+    private static T? FindMovedAssetFallback<T>(string? path) where T : Asset {
+
+        if (string.IsNullOrWhiteSpace(path) || !TypeCache.TryGetValue(typeof(T), out var list)) return null;
+
+        var fileName = Path.GetFileName(path.Replace('\\', '/'));
+        if (string.IsNullOrWhiteSpace(fileName)) return null;
+
+        var matches = list.Cast<T>()
+                          .Where(asset => asset.IsLoaded && string.Equals(Path.GetFileName(asset.File), fileName, StringComparison.OrdinalIgnoreCase))
+                          .Take(2)
+                          .ToList();
+
+        return matches.Count == 1 ? matches[0] : null;
+    }
 
     public static void UnloadAll() {
 
@@ -521,6 +540,54 @@ internal static class AssetManager {
 
     public static void ReloadComponentsUsing(Asset asset) => ReloadDependentComponents(asset);
 
+    private static void SyncDependentComponentReferences(Asset asset) {
+
+        if (string.IsNullOrWhiteSpace(asset.GUID)) return;
+
+        foreach (var level in Core.OpenLevels)
+            SyncDependentComponentReferences(level.Root, level, asset);
+    }
+
+    private static void SyncDependentComponentReferences(Obj obj, Level level, Asset asset) {
+
+        foreach (var component in obj.Components.Values) {
+
+            var props = component.GetType().GetProperties().Where(prop => Attribute.IsDefined(prop, typeof(FindAssetAttribute)));
+
+            foreach (var prop in props) {
+
+                if (prop.GetCustomAttributes(typeof(FindAssetAttribute), true).FirstOrDefault() is not FindAssetAttribute attr) continue;
+                if (attr.TypeName != asset.GetType().Name) continue;
+
+                var pathProp = component.GetType().GetProperty("Path");
+                var guidValue = prop.GetValue(component) as string ?? "";
+                var pathValue = pathProp?.GetValue(component) as string ?? "";
+                var usesAssetByGuid = string.Equals(NormalizeReferenceByType(attr.TypeName, guidValue), asset.GUID, StringComparison.OrdinalIgnoreCase);
+                var usesAssetByPath = string.Equals(NormalizeReferenceByType(attr.TypeName, pathValue), asset.GUID, StringComparison.OrdinalIgnoreCase);
+
+                if (!usesAssetByGuid && !usesAssetByPath) continue;
+
+                var storedPath = GetStoredPath(asset.File);
+                var changed = false;
+
+                if (!string.Equals(guidValue, asset.GUID, StringComparison.OrdinalIgnoreCase)) {
+                    prop.SetValue(component, asset.GUID);
+                    changed = true;
+                }
+
+                if (pathProp is { CanWrite: true } && pathProp.PropertyType == typeof(string) &&
+                    !string.Equals(pathValue, storedPath, StringComparison.OrdinalIgnoreCase)) {
+                    pathProp.SetValue(component, storedPath);
+                    changed = true;
+                }
+
+                if (changed) level.IsDirty = true;
+            }
+        }
+
+        foreach (var child in obj.Children.Values) SyncDependentComponentReferences(child, level, asset);
+    }
+
     private static void ReloadDependentComponents(Obj obj, Asset asset) {
 
         foreach (var component in obj.Components.Values) {
@@ -531,8 +598,11 @@ internal static class AssetManager {
 
                 if (prop.GetCustomAttributes(typeof(FindAssetAttribute), true).FirstOrDefault() is not FindAssetAttribute attr) continue;
                 if (attr.TypeName != asset.GetType().Name) continue;
-                if (prop.GetValue(component) is not string value) continue;
-                if (!string.Equals(NormalizeReferenceByType(attr.TypeName, value), asset.GUID, StringComparison.OrdinalIgnoreCase)) continue;
+                var guidValue = prop.GetValue(component) as string ?? "";
+                var pathValue = component.GetType().GetProperty("Path")?.GetValue(component) as string ?? "";
+                var usesAssetByGuid = string.Equals(NormalizeReferenceByType(attr.TypeName, guidValue), asset.GUID, StringComparison.OrdinalIgnoreCase);
+                var usesAssetByPath = string.Equals(NormalizeReferenceByType(attr.TypeName, pathValue), asset.GUID, StringComparison.OrdinalIgnoreCase);
+                if (!usesAssetByGuid && !usesAssetByPath) continue;
 
                 component.UnloadAndQuit();
                 break;

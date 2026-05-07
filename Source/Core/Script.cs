@@ -20,11 +20,15 @@ internal class Script(Obj obj) : Component(obj) {
 
         if (!CommandLine.Runtime && !Core.IsPlaying) return true;
 
+        var oldGuid = GUID;
+        var oldPath = Path;
         var guid = GUID;
         var path = Path;
         var asset = AssetManager.ResolveReference<ScriptAsset>(ref guid, ref path);
         GUID = guid;
         Path = path;
+
+        if ((GUID != oldGuid || Path != oldPath) && Core.ActiveLevel != null) Core.ActiveLevel.IsDirty = true;
 
         if (asset == null || !asset.IsLoaded || asset.ScriptType == null) return false;
 
