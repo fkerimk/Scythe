@@ -61,6 +61,7 @@ internal class AssimpMesh {
     public VertexBoneData[] BoneData = null!;
     public Raylib_cs.Mesh RlMesh;
     public int MaterialIndex;
+    public bool UsesSkinning;
 
     public Vector3[] AnimatedVertices = null!;
     public Vector3[] AnimatedNormals = null!;
@@ -77,6 +78,7 @@ internal class AssimpMesh {
             Indices = (uint[])Indices.Clone(),
             BoneData = (VertexBoneData[])BoneData.Clone(),
             MaterialIndex = MaterialIndex,
+            UsesSkinning = UsesSkinning,
 
             // Initialize unique RlMesh for this instance
             RlMesh = new Raylib_cs.Mesh {
@@ -205,6 +207,8 @@ internal static class AssimpLoader {
 
             foreach (var weight in bone.VertexWeights) am.BoneData[weight.VertexID].AddBoneData(boneIndex, weight.Weight);
         }
+
+        am.UsesSkinning = mesh.Bones.Count > 0;
 
         // Initialize RlMesh
         am.RlMesh = new Raylib_cs.Mesh {

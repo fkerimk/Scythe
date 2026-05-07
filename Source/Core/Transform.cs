@@ -157,6 +157,20 @@ internal class Transform(Obj obj) : Component(obj) {
     private Quaternion _visualRot = Quaternion.Identity;
     private Vector3 _visualScale = Vector3.One;
 
+    private float GetCartoonStretchSizeFactor() {
+
+        foreach (var component in Obj.Components.Values) {
+
+            if (component is not Model { IsLoaded: true } model) continue;
+
+            var worldBounds = model.GetWorldBoundsSize();
+
+            return MathF.Max(MathF.Max(worldBounds.X, worldBounds.Y), MathF.Max(worldBounds.Z, 0.0001f));
+        }
+
+        return 0f;
+    }
+
     public void UpdateTransform() {
 
         // ReSharper disable once ConditionIsAlwaysTrueOrFalseAccordingToNullableAPIContract
@@ -259,7 +273,16 @@ internal class Transform(Obj obj) : Component(obj) {
 
         if (speed > 0.1f) {
 
-            var stretch = MathF.Min(speed * 0.05f, 0.4f);
+            var sizeFactor = GetCartoonStretchSizeFactor();
+            if (sizeFactor <= 0f) {
+
+                var mTransOnly = Raymath.MatrixTranslate(_visualPos.X, _visualPos.Y, _visualPos.Z);
+                Obj.VisualWorldMatrix = Raymath.MatrixMultiply(baseMatrix, mTransOnly);
+
+                return;
+            }
+
+            var stretch = MathF.Min(speed * 0.05f / sizeFactor, 0.4f);
             var dir = Vector3.Normalize(_visualVel);
             var s = 1f + stretch;
             var k = 1f / MathF.Sqrt(s);

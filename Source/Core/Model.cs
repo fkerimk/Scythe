@@ -1,4 +1,5 @@
-﻿using Raylib_cs;
+﻿using System.Numerics;
+using Raylib_cs;
 using Newtonsoft.Json;
 using System.ComponentModel;
 using static Raylib_cs.Raylib;
@@ -33,6 +34,8 @@ internal class Model(Obj obj) : Component(obj) {
     public List<BoneInfo> Bones = [];
     public Dictionary<string, List<BoneInfo>> BoneMap = new();
     public ModelAsset AssetRef = null!;
+    public Vector3 LocalBoundsMin { get; private set; } = -Vector3.One * 0.5f;
+    public Vector3 LocalBoundsMax { get; private set; } = Vector3.One * 0.5f;
 
     public override bool Load() {
 
@@ -55,6 +58,7 @@ internal class Model(Obj obj) : Component(obj) {
 
         AssetRef = loaded;
         foreach (var m in AssetRef.Meshes) Meshes.Add(m.Clone());
+        (LocalBoundsMin, LocalBoundsMax) = ComputeLocalBounds(AssetRef.Meshes);
 
         // Copy bones and build the multi-bone map
         foreach (var b in AssetRef.Bones) {
@@ -72,6 +76,69 @@ internal class Model(Obj obj) : Component(obj) {
         }
 
         return true;
+    }
+
+    private static (Vector3 Min, Vector3 Max) ComputeLocalBounds(IEnumerable<AssimpMesh> meshes) {
+
+        var min = new Vector3(float.MaxValue);
+        var max = new Vector3(float.MinValue);
+        var hasVertex = false;
+
+        foreach (var mesh in meshes)
+        foreach (var vertex in mesh.Vertices) {
+
+            min = Vector3.Min(min, vertex);
+            max = Vector3.Max(max, vertex);
+            hasVertex = true;
+        }
+
+        if (!hasVertex) return (-Vector3.One * 0.5f, Vector3.One * 0.5f);
+
+        return (min, max);
+    }
+
+    public Vector3 GetWorldBoundsSize() {
+
+        var importScale = AssetRef is { IsLoaded: true } ? AssetRef.Settings.ImportScale : 1f;
+        var world = Obj.WorldMatrix;
+
+        Vector3 transformedMin = new(float.MaxValue);
+        Vector3 transformedMax = new(float.MinValue);
+        var hasVertex = false;
+
+        foreach (var mesh in Meshes) {
+
+            var vertices = mesh.UsesSkinning && mesh.AnimatedVertices.Length == mesh.Vertices.Length && mesh.AnimatedVertices.Length > 0
+                ? mesh.AnimatedVertices
+                : mesh.Vertices;
+
+            foreach (var vertex in vertices) {
+
+                var worldVertex = Raymath.Vector3Transform(vertex * importScale, world);
+                transformedMin = Vector3.Min(transformedMin, worldVertex);
+                transformedMax = Vector3.Max(transformedMax, worldVertex);
+                hasVertex = true;
+            }
+        }
+
+        if (!hasVertex) {
+
+            var fallbackSize = (LocalBoundsMax - LocalBoundsMin) * importScale;
+
+            return new Vector3(
+                MathF.Max(MathF.Abs(fallbackSize.X), 0.0001f),
+                MathF.Max(MathF.Abs(fallbackSize.Y), 0.0001f),
+                MathF.Max(MathF.Abs(fallbackSize.Z), 0.0001f)
+            );
+        }
+
+        var size = transformedMax - transformedMin;
+
+        return new Vector3(
+            MathF.Max(size.X, 0.0001f),
+            MathF.Max(size.Y, 0.0001f),
+            MathF.Max(size.Z, 0.0001f)
+        );
     }
 
     public override void Logic() { }
@@ -196,5 +263,7 @@ internal class Model(Obj obj) : Component(obj) {
         Meshes.Clear();
         Bones.Clear();
         BoneMap.Clear();
+        LocalBoundsMin = -Vector3.One * 0.5f;
+        LocalBoundsMax = Vector3.One * 0.5f;
     }
 }
