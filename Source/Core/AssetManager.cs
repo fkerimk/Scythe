@@ -499,6 +499,8 @@ internal static class AssetManager {
         var folder = Path.Combine(GetImportsRoot(), "Textures");
         var importedPath = TextureImportProcessor.BuildImportedPath(folder, guid, sourceFile, settings);
 
+        if (CommandLine.Runtime) return importedPath;
+
         if (IsTextureImportInProgress(guid))
             return File.Exists(importedPath) ? importedPath : sourceFile;
 
@@ -513,6 +515,8 @@ internal static class AssetManager {
     private static string EnsureImportedModelCache(string sourceFile, string guid) {
 
         var importedPath = Path.Combine(GetImportsRoot(), "Models", guid + ".scymodel");
+
+        if (CommandLine.Runtime) return importedPath;
 
         DeleteLegacyModelImports(guid);
         RegisterInternalWrite(importedPath);

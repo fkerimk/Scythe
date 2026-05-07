@@ -189,7 +189,10 @@ internal static class BuildPipeline {
             Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
             
             var ext = Path.GetExtension(file).ToLowerInvariant();
-            if (ext is ".fbx" or ".obj" or ".gltf" or ".png" or ".jpg" or ".jpeg" or ".tga" or ".bmp" or ".webp" or ".avif" or ".cs") {
+            var isImport = file.Contains("/Imports/", StringComparison.OrdinalIgnoreCase) || file.Contains("\\Imports\\", StringComparison.OrdinalIgnoreCase);
+            var isResource = file.Contains("/Resources/", StringComparison.OrdinalIgnoreCase) || file.Contains("\\Resources\\", StringComparison.OrdinalIgnoreCase);
+            
+            if (!isImport && !isResource && ext is ".fbx" or ".obj" or ".gltf" or ".png" or ".jpg" or ".jpeg" or ".tga" or ".bmp" or ".webp" or ".avif" or ".cs") {
                 File.WriteAllBytes(destination, []);
             } else {
                 File.Copy(file, destination, overwrite: true);
