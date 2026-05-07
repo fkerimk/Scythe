@@ -6,7 +6,7 @@ using static Raylib_cs.Raylib;
 internal static class CompiledAssetCache {
 
     private const int TextureVersion = 3;
-    private const int ModelVersion = 2;
+    private const int ModelVersion = 3;
     private const string TextureMagic = "STEX";
     private const string ModelMagic = "SMOD";
 
@@ -139,7 +139,8 @@ internal static class CompiledAssetCache {
         var data = AssimpLoader.Load(sourceFile);
 
         using var file = File.Create(outputFile);
-        using var brotli = new BrotliStream(file, CompressionLevel.Fastest);
+        using var buffered = new BufferedStream(file, 1024 * 128);
+        using var brotli = new BrotliStream(buffered, CompressionLevel.SmallestSize);
         using var writer = new BinaryWriter(brotli);
 
         writer.Write(ModelMagic);
@@ -177,7 +178,8 @@ internal static class CompiledAssetCache {
         try {
 
             using var file = File.OpenRead(cacheFile);
-            using var brotli = new BrotliStream(file, CompressionMode.Decompress);
+            using var buffered = new BufferedStream(file, 1024 * 128);
+            using var brotli = new BrotliStream(buffered, CompressionMode.Decompress);
             using var reader = new BinaryReader(brotli);
 
             if (reader.ReadString() != ModelMagic) return false;
