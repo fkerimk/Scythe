@@ -234,7 +234,7 @@ internal class LevelBrowser : Viewport {
                         if (!MenuItem(path)) continue;
 
                         var model = Level.MakeObject(name, obj);
-                        (model.MakeComponent("Model") as Model)?.Path = path;
+                        (model.MakeComponent("Model") as Model)!.GUID = AssetManager.GetGuid<ModelAsset>(path) ?? path;
                         SelectObject(model);
                     }
 

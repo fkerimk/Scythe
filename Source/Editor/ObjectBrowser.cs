@@ -8,7 +8,7 @@ internal class ObjectBrowser : Viewport {
 
     private int _propIndex;
     private readonly IEnumerable<Type> _addComponentTypes;
-    private string[] _foundFiles = [];
+    private (string Name, string Path, string GUID)[] _foundAssets = [];
     private string _searchFilter = "";
     private bool _showAnimationFrames;
 
@@ -102,7 +102,7 @@ internal class ObjectBrowser : Viewport {
             if (Core.ActiveLevel != null) Core.ActiveLevel.IsDirty = true;
 
             History.StopRecording();
-            if (component is Animation anim && targetObj.Components.TryGetValue("Model", out var m)) anim.Path = (m as Model)!.Path;
+            if (component is Animation anim && targetObj.Components.TryGetValue("Model", out var m)) anim.GUID = (m as Model)!.GUID;
         }
 
         EndPopup();
@@ -135,7 +135,7 @@ internal class ObjectBrowser : Viewport {
 
             if (Button($"{Icons.FaSearch}##{id}_btn")) {
 
-                List<(string Name, string Path)> names = pickerType switch {
+                List<(string Name, string Path, string GUID)> names = pickerType switch {
 
                     "ShaderAsset"    => AssetManager.GetNames<ShaderAsset>(),
                     "TextureAsset"   => AssetManager.GetNames<TextureAsset>(),
@@ -143,10 +143,10 @@ internal class ObjectBrowser : Viewport {
                     "AnimationAsset" => AssetManager.GetNames<AnimationAsset>(),
                     "MaterialAsset"  => AssetManager.GetNames<MaterialAsset>(),
                     "ScriptAsset"    => AssetManager.GetNames<ScriptAsset>(),
-                    _                => new List<(string, string)>()
+                    _                => new List<(string, string, string)>()
                 };
 
-                _foundFiles = names.Select(n => n.Path).ToArray();
+                _foundAssets = names.ToArray();
                 _searchFilter = "";
 
                 OpenPopup($"Picker_{id}");
@@ -174,7 +174,7 @@ internal class ObjectBrowser : Viewport {
         if (type == typeof(string)) {
 
             var val = (string)(value ?? "");
-            var display = Path.GetFileNameWithoutExtension(val);
+            var display = GetAssetDisplayValue(val, pickerType);
 
             if (string.IsNullOrEmpty(display)) display = val;
 
@@ -297,7 +297,7 @@ internal class ObjectBrowser : Viewport {
 
         if (IsItemDeactivated()) deactivated = true;
 
-        if (IsItemHovered() && type == typeof(string) && !string.IsNullOrEmpty((string)value!)) SetTooltip((string)value);
+            if (IsItemHovered() && type == typeof(string) && !string.IsNullOrEmpty((string)value!)) SetTooltip(GetAssetTooltip((string)value!, pickerType));
 
         // Picker Popup logic
         if (BeginPopup($"Picker_{id}")) {
@@ -306,20 +306,21 @@ internal class ObjectBrowser : Viewport {
             InputTextWithHint("##filter", "Search...", ref _searchFilter, 128);
             BeginChild("##files", new Vector2(400, 400));
 
-            var nms = _foundFiles.Select(Path.GetFileNameWithoutExtension).ToList();
+            var nms = _foundAssets.Select(asset => asset.Name).ToList();
 
-            for (var i = 0; i < _foundFiles.Length; i++) {
+            for (var i = 0; i < _foundAssets.Length; i++) {
 
-                var f = _foundFiles[i];
+                var asset = _foundAssets[i];
+                var f = asset.Path;
                 var n = nms[i];
 
                 if (!string.IsNullOrEmpty(_searchFilter) && !f.Contains(_searchFilter, StringComparison.OrdinalIgnoreCase)) continue;
 
-                if (Selectable($"{n}##{f}")) {
+                if (Selectable($"{n}##{asset.GUID}")) {
 
                     if (targets != null && propName != null) targets.ForEach(t => History.StartRecording(t, propName));
 
-                    value = f;
+                    value = asset.GUID;
                     changed = true;
                     deactivated = true;
 
@@ -329,7 +330,7 @@ internal class ObjectBrowser : Viewport {
                 if (string.IsNullOrEmpty(n) || nms.Count(x => x == n) <= 1) continue;
 
                 SameLine();
-                TextDisabled(Path.GetRelativePath(ScytheConfig.Current.Project, f));
+                TextDisabled(f);
             }
 
             EndChild();
@@ -698,7 +699,7 @@ internal class ObjectBrowser : Viewport {
                     foreach (var t in targets) {
 
                         prop.SetValue(t, val);
-                        if (t is Component comp && (prop.Name == "Path" || fileAttr != null || assetAttr != null)) comp.UnloadAndQuit();
+                        if (t is Component comp && (fileAttr != null || assetAttr != null)) comp.UnloadAndQuit();
                     }
 
                     if (Core.ActiveLevel != null) Core.ActiveLevel.IsDirty = true;
@@ -728,5 +729,36 @@ internal class ObjectBrowser : Viewport {
         }
 
         PopID();
+    }
+
+    private static string GetAssetDisplayValue(string value, string? pickerType) {
+
+        if (string.IsNullOrWhiteSpace(value)) return "";
+        if (string.IsNullOrWhiteSpace(pickerType)) return Path.GetFileNameWithoutExtension(value);
+
+        return pickerType switch {
+            "ShaderAsset" => AssetManager.Get<ShaderAsset>(value) is { } asset ? Path.GetFileNameWithoutExtension(asset.File) : value,
+            "TextureAsset" => AssetManager.Get<TextureAsset>(value) is { } asset ? Path.GetFileNameWithoutExtension(asset.File) : value,
+            "ModelAsset" => AssetManager.Get<ModelAsset>(value) is { } asset ? Path.GetFileNameWithoutExtension(asset.File) : value,
+            "AnimationAsset" => AssetManager.Get<AnimationAsset>(value) is { } asset ? Path.GetFileNameWithoutExtension(asset.File) : value,
+            "MaterialAsset" => AssetManager.Get<MaterialAsset>(value) is { } asset ? Path.GetFileNameWithoutExtension(asset.File) : value,
+            "ScriptAsset" => AssetManager.Get<ScriptAsset>(value) is { } asset ? Path.GetFileNameWithoutExtension(asset.File) : value,
+            _ => Path.GetFileNameWithoutExtension(value)
+        };
+    }
+
+    private static string GetAssetTooltip(string value, string? pickerType) {
+
+        if (string.IsNullOrWhiteSpace(pickerType)) return value;
+
+        return pickerType switch {
+            "ShaderAsset" => AssetManager.GetPath<ShaderAsset>(value) ?? value,
+            "TextureAsset" => AssetManager.GetPath<TextureAsset>(value) ?? value,
+            "ModelAsset" => AssetManager.GetPath<ModelAsset>(value) ?? value,
+            "AnimationAsset" => AssetManager.GetPath<AnimationAsset>(value) ?? value,
+            "MaterialAsset" => AssetManager.GetPath<MaterialAsset>(value) ?? value,
+            "ScriptAsset" => AssetManager.GetPath<ScriptAsset>(value) ?? value,
+            _ => value
+        };
     }
 }

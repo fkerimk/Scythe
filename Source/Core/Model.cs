@@ -8,8 +8,13 @@ internal class Model(Obj obj) : Component(obj) {
     public override string LabelIcon => Icons.FaCube;
     public override Color LabelColor => Colors.GuiTypeModel;
 
-    [Label("Path"), JsonProperty, RecordHistory, FindAsset("ModelAsset")]
-    public string Path { get; set; } = "";
+    [Label("Asset"), JsonProperty("GUID"), RecordHistory, FindAsset("ModelAsset")]
+    public string GUID { get; set; } = "";
+
+    [JsonProperty("Path")]
+    private string LegacyPath {
+        set => GUID = AssetManager.GetGuid<ModelAsset>(value) ?? value ?? "";
+    }
 
     [Label("Color"), JsonProperty, RecordHistory]
     public Color Color { get; set; } = Color.White;
@@ -33,7 +38,8 @@ internal class Model(Obj obj) : Component(obj) {
 
     public override bool Load() {
 
-        var loaded = AssetManager.Get<ModelAsset>(Path);
+        GUID = AssetManager.NormalizeReference<ModelAsset>(GUID);
+        var loaded = AssetManager.Get<ModelAsset>(GUID);
 
         if (loaded is not { IsLoaded: true }) return false;
 

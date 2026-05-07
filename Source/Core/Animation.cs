@@ -7,8 +7,13 @@ internal class Animation(Obj obj) : Component(obj) {
     public override string LabelIcon => Icons.FaPlayCircle;
     public override Color LabelColor => Colors.GuiTypeAnimation;
 
-    [Label("Path"), JsonProperty, RecordHistory, FindAsset("AnimationAsset")]
-    public string Path { get; set; } = "";
+    [Label("Asset"), JsonProperty("GUID"), RecordHistory, FindAsset("AnimationAsset")]
+    public string GUID { get; set; } = "";
+
+    [JsonProperty("Path")]
+    private string LegacyPath {
+        set => GUID = AssetManager.GetGuid<AnimationAsset>(value) ?? value ?? "";
+    }
 
     [Label("Track"), JsonProperty, RecordHistory]
     public int Track {
@@ -62,7 +67,8 @@ internal class Animation(Obj obj) : Component(obj) {
 
     public override bool Load() {
 
-        var loaded = AssetManager.Get<AnimationAsset>(Path);
+        GUID = AssetManager.NormalizeReference<AnimationAsset>(GUID);
+        var loaded = AssetManager.Get<AnimationAsset>(GUID);
 
         if (loaded is not { IsLoaded: true }) return false;
 

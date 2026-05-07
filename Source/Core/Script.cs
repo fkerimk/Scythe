@@ -6,8 +6,13 @@ internal class Script(Obj obj) : Component(obj) {
     public override string LabelIcon => Icons.FaCode;
     public override Color LabelColor => Color.White;
 
-    [Label("Path"), JsonProperty, RecordHistory, FindAsset("ScriptAsset")]
-    public string Path { get; set; } = "";
+    [Label("Asset"), JsonProperty("GUID"), RecordHistory, FindAsset("ScriptAsset")]
+    public string GUID { get; set; } = "";
+
+    [JsonProperty("Path")]
+    private string LegacyPath {
+        set => GUID = AssetManager.GetGuid<ScriptAsset>(value) ?? value ?? "";
+    }
 
     public ScytheScript? Instance;
 
@@ -17,7 +22,8 @@ internal class Script(Obj obj) : Component(obj) {
 
         if (!CommandLine.Runtime && !Core.IsPlaying) return true;
 
-        var asset = AssetManager.Get<ScriptAsset>(Path);
+        GUID = AssetManager.NormalizeReference<ScriptAsset>(GUID);
+        var asset = AssetManager.Get<ScriptAsset>(GUID);
 
         if (asset == null || !asset.IsLoaded || asset.ScriptType == null) return false;
 

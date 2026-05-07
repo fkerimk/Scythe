@@ -24,6 +24,26 @@ internal class ShaderAsset : Asset {
 
         if (vsPath == null && fsPath == null) return false;
 
+        var jsonPath = File + ".json";
+        if (System.IO.File.Exists(jsonPath)) {
+
+            var meta = Newtonsoft.Json.JsonConvert.DeserializeObject<AssetSidecarData>(System.IO.File.ReadAllText(jsonPath)) ?? new AssetSidecarData();
+            var changed = false;
+            if (string.IsNullOrWhiteSpace(meta.GUID)) {
+
+                meta.GUID = System.Guid.NewGuid().ToString("N");
+                changed = true;
+            }
+
+            GUID = meta.GUID;
+            if (changed) System.IO.File.WriteAllText(jsonPath, Newtonsoft.Json.JsonConvert.SerializeObject(meta, Newtonsoft.Json.Formatting.Indented));
+
+        } else {
+
+            GUID = System.Guid.NewGuid().ToString("N");
+            System.IO.File.WriteAllText(jsonPath, Newtonsoft.Json.JsonConvert.SerializeObject(new AssetSidecarData { GUID = GUID }, Newtonsoft.Json.Formatting.Indented));
+        }
+
         try {
 
             Shader = LoadShader(vsPath, fsPath);
@@ -126,5 +146,19 @@ internal class ShaderAsset : Asset {
         _locations[name] = loc;
 
         return loc;
+    }
+
+    public override IEnumerable<string> GetWatchedFiles() {
+
+        yield return File;
+        yield return File + ".json";
+
+        var name = Path.GetFileNameWithoutExtension(File);
+        var directory = Path.GetDirectoryName(File)!;
+        var vsPath = Path.Combine(directory, name + ".vs");
+        var fsPath = Path.Combine(directory, name + ".fs");
+
+        if (!string.Equals(vsPath, File, StringComparison.OrdinalIgnoreCase)) yield return vsPath;
+        if (!string.Equals(fsPath, File, StringComparison.OrdinalIgnoreCase)) yield return fsPath;
     }
 }

@@ -13,6 +13,7 @@ internal class MaterialAsset : Asset {
 
     public class MaterialData : ICloneable {
 
+        public string GUID = "";
         public string Shader = "Pbr";
 
         public Dictionary<string, string> Textures = new();
@@ -34,6 +35,7 @@ internal class MaterialAsset : Asset {
         public object Clone() {
             return new MaterialData {
                 Shader = Shader,
+                GUID = GUID,
                 Textures = new Dictionary<string, string>(Textures),
                 Floats = new Dictionary<string, float>(Floats),
                 Ints = new Dictionary<string, int>(Ints),
@@ -73,6 +75,16 @@ internal class MaterialAsset : Asset {
 
             var json = System.IO.File.ReadAllText(File);
             Data = JsonConvert.DeserializeObject<MaterialData>(json) ?? new MaterialData();
+            var changed = false;
+            if (string.IsNullOrWhiteSpace(Data.GUID)) {
+
+                Data.GUID = System.Guid.NewGuid().ToString("N");
+                changed = true;
+            }
+
+            GUID = Data.GUID;
+            changed |= NormalizeReferences();
+            if (changed) Save();
 
         } catch {
 
@@ -222,7 +234,36 @@ internal class MaterialAsset : Asset {
 
     public void Save() {
 
+        Data.GUID = GUID;
         var json = JsonConvert.SerializeObject(Data, Formatting.Indented);
         System.IO.File.WriteAllText(File, json);
+    }
+
+    public bool NormalizeReferences() {
+
+        var changed = false;
+        var shader = AssetManager.NormalizeReference<ShaderAsset>(Data.Shader);
+        if (shader != Data.Shader) {
+
+            Data.Shader = shader;
+            changed = true;
+        }
+
+        foreach (var key in Data.Textures.Keys.ToList()) {
+
+            var normalized = AssetManager.NormalizeReference<TextureAsset>(Data.Textures[key]);
+            if (normalized == Data.Textures[key]) continue;
+
+            Data.Textures[key] = normalized;
+            changed = true;
+        }
+
+        if (!string.Equals(GUID, Data.GUID, StringComparison.OrdinalIgnoreCase)) {
+
+            GUID = Data.GUID;
+            changed = true;
+        }
+
+        return changed;
     }
 }

@@ -5,6 +5,7 @@ using Newtonsoft.Json;
 internal static class AssetManager {
 
     private static readonly Dictionary<string, Asset>     Assets         = new();
+    private static readonly Dictionary<string, Asset>     GuidLookup     = new();
     private static readonly List<FileSystemWatcher>       Watchers       = [];
     private static readonly Dictionary<string, Asset>     PathLookup     = new();
     private static readonly Dictionary<Type, List<Asset>> TypeCache      = new();
@@ -25,6 +26,7 @@ internal static class AssetManager {
     public static void Init() {
 
         PathLookup.Clear();
+        GuidLookup.Clear();
         Assets.Clear();
         TypeCache.Clear();
 
@@ -62,13 +64,18 @@ internal static class AssetManager {
     private static void HandleFileChange(string file) {
 
         var path = file.Replace('\\', '/').ToLowerInvariant();
-        var toReload = Assets.Where(kvp => kvp.Value.File.Replace('\\', '/').ToLowerInvariant() == path).ToList();
+        var toReload = Assets.Where(kvp => kvp.Value.GetWatchedFiles().Any(watched => watched.Replace('\\', '/').ToLowerInvariant() == path)).ToList();
 
-        foreach (var kvp in toReload) kvp.Value.Unload();
+        foreach (var kvp in toReload) {
+
+            kvp.Value.Unload();
+            ReloadDependentComponents(kvp.Value);
+        }
 
         lock (_pendingFiles) {
-            if (!_pendingFiles.Contains(file))
-                _pendingFiles.Add(file);
+            foreach (var importTarget in GetImportTargets(file))
+                if (!_pendingFiles.Contains(importTarget))
+                    _pendingFiles.Add(importTarget);
         }
         _debounceTime = DateTime.Now.AddMilliseconds(500);
     }
@@ -108,6 +115,10 @@ internal static class AssetManager {
 
     private static void ImportFile(string file) {
 
+        file = Path.GetFullPath(file);
+
+        if (!File.Exists(file) && !file.EndsWith(".material.json", StringComparison.OrdinalIgnoreCase)) return;
+
         var ext = Path.GetExtension(file).ToLowerInvariant();
 
         switch (ext) {
@@ -142,10 +153,11 @@ internal static class AssetManager {
     private static void UnloadAsset(string file) {
 
         var path     = file.Replace('\\', '/').ToLowerInvariant();
-        var toRemove = Assets.Where(kvp => kvp.Value.File.Replace('\\', '/').ToLowerInvariant() == path).ToList();
+        var toRemove = Assets.Where(kvp => kvp.Value.GetWatchedFiles().Any(watched => watched.Replace('\\', '/').ToLowerInvariant() == path)).ToList();
 
         foreach (var kvp in toRemove) {
             kvp.Value.Unload();
+            ReloadDependentComponents(kvp.Value);
             Assets.Remove(kvp.Key);
             RemoveFromMaps(kvp.Value);
         }
@@ -155,7 +167,39 @@ internal static class AssetManager {
 
         var keysToRemove = PathLookup.Where(kvp => kvp.Value == asset).Select(kvp => kvp.Key).ToList();
         foreach (var k in keysToRemove) PathLookup.Remove(k);
+        var guidKeysToRemove = GuidLookup.Where(kvp => kvp.Value == asset).Select(kvp => kvp.Key).ToList();
+        foreach (var k in guidKeysToRemove) GuidLookup.Remove(k);
         if (TypeCache.TryGetValue(asset.GetType(), out var list)) list.Remove(asset);
+    }
+
+    private static IEnumerable<string> GetImportTargets(string file) {
+
+        file = Path.GetFullPath(file);
+
+        if (file.EndsWith(".material.json", StringComparison.OrdinalIgnoreCase)) {
+
+            yield return file;
+            yield break;
+        }
+
+        if (file.EndsWith(".json", StringComparison.OrdinalIgnoreCase)) {
+
+            var owner = file[..^5];
+            if (File.Exists(owner)) yield return owner;
+            yield break;
+        }
+
+        if (file.EndsWith(".fs", StringComparison.OrdinalIgnoreCase)) {
+
+            var vs = Path.ChangeExtension(file, ".vs");
+            if (File.Exists(vs)) {
+
+                yield return vs;
+                yield break;
+            }
+        }
+
+        yield return file;
     }
 
     private static void CreateWatcher(string path, string filter, Action<string> onImport, Action<string> onUnload) {
@@ -218,18 +262,26 @@ internal static class AssetManager {
     private static void GetOrLoad<T>(string file) where T : Asset, new() {
 
         var key = $"{file.ToLowerInvariant()}::{typeof(T).Name}";
+        var isNew = false;
 
         if (!Assets.TryGetValue(key, out var asset)) {
 
             asset       = new T { File = file };
             Assets[key] = asset;
-            AddToMaps<T>(file, asset);
+            isNew = true;
         }
 
-        if (!asset.IsLoaded) asset.Load();
+        if (!asset.IsLoaded && !asset.Load()) return;
+
+        AddToMaps<T>(file, asset);
+        NormalizeInternalReferences(asset);
+
+        if (!isNew) ReloadDependentComponents(asset);
     }
 
     private static void AddToMaps<T>(string file, Asset asset) {
+
+        RemoveFromMaps(asset);
 
         var typePrefix = typeof(T).Name + "::";
         var full       = Path.GetFullPath(file).Replace('\\', '/').ToLowerInvariant();
@@ -237,6 +289,7 @@ internal static class AssetManager {
 
         PathLookup[typePrefix + full] = asset;
         PathLookup[typePrefix + name] = asset;
+        if (!string.IsNullOrWhiteSpace(asset.GUID)) GuidLookup[typePrefix + asset.GUID.ToLowerInvariant()] = asset;
 
         if (full.Contains("/resources/", StringComparison.InvariantCultureIgnoreCase)) {
 
@@ -267,6 +320,7 @@ internal static class AssetManager {
         var req    = name.Replace('\\', '/').ToLowerInvariant();
         var prefix = typeof(T).Name + "::";
 
+        if (GuidLookup.TryGetValue(prefix + req, out var guidAsset) && guidAsset is T { IsLoaded: true } typedGuidAsset) return typedGuidAsset;
         if (PathLookup.TryGetValue(prefix + req, out var asset) && asset is T { IsLoaded: true } tAsset) return tAsset;
 
         if (req.Contains(':') || req.StartsWith('/')) return null;
@@ -278,7 +332,19 @@ internal static class AssetManager {
         return null;
     }
 
-    public static List<(string Name, string Path)> GetNames<T>() where T : Asset {
+    public static string NormalizeReference<T>(string? value) where T : Asset {
+
+        if (string.IsNullOrWhiteSpace(value)) return "";
+
+        var asset = Get<T>(value);
+        return asset?.GUID ?? value;
+    }
+
+    public static string? GetGuid<T>(string? value) where T : Asset => Get<T>(value)?.GUID;
+
+    public static string? GetPath<T>(string? value) where T : Asset => Get<T>(value)?.File;
+
+    public static List<(string Name, string Path, string GUID)> GetNames<T>() where T : Asset {
 
         if (!TypeCache.TryGetValue(typeof(T), out var list)) return [];
 
@@ -295,7 +361,7 @@ internal static class AssetManager {
                                rel                                                                    = Path.GetRelativePath(modPath,                               full);
                            else if (full.StartsWith(resPath, StringComparison.OrdinalIgnoreCase)) rel = Path.GetRelativePath(AppDomain.CurrentDomain.BaseDirectory, full);
 
-                           return (Path.GetFileNameWithoutExtension(a.File), rel.Replace('\\', '/'));
+                           return (Path.GetFileNameWithoutExtension(a.File), rel.Replace('\\', '/'), a.GUID);
 
                        }
                    )
@@ -314,7 +380,63 @@ internal static class AssetManager {
         foreach (var asset in Assets.Values) asset.Unload();
 
         Assets.Clear();
+        GuidLookup.Clear();
         PathLookup.Clear();
         TypeCache.Clear();
     }
+
+    private static void NormalizeInternalReferences(Asset asset) {
+
+        switch (asset) {
+
+            case MaterialAsset material:
+                if (material.NormalizeReferences()) material.Save();
+
+                break;
+
+            case ModelAsset model:
+                if (model.NormalizeReferences()) model.SaveSettings();
+
+                break;
+        }
+    }
+
+    private static void ReloadDependentComponents(Asset asset) {
+
+        if (string.IsNullOrWhiteSpace(asset.GUID)) return;
+
+        foreach (var level in Core.OpenLevels)
+            ReloadDependentComponents(level.Root, asset);
+    }
+
+    private static void ReloadDependentComponents(Obj obj, Asset asset) {
+
+        foreach (var component in obj.Components.Values) {
+
+            var props = component.GetType().GetProperties().Where(prop => Attribute.IsDefined(prop, typeof(FindAssetAttribute)));
+
+            foreach (var prop in props) {
+
+                if (prop.GetCustomAttributes(typeof(FindAssetAttribute), true).FirstOrDefault() is not FindAssetAttribute attr) continue;
+                if (attr.TypeName != asset.GetType().Name) continue;
+                if (prop.GetValue(component) is not string value) continue;
+                if (!string.Equals(NormalizeReferenceByType(attr.TypeName, value), asset.GUID, StringComparison.OrdinalIgnoreCase)) continue;
+
+                component.UnloadAndQuit();
+                break;
+            }
+        }
+
+        foreach (var child in obj.Children.Values) ReloadDependentComponents(child, asset);
+    }
+
+    private static string NormalizeReferenceByType(string typeName, string value) => typeName switch {
+        "ShaderAsset" => NormalizeReference<ShaderAsset>(value),
+        "TextureAsset" => NormalizeReference<TextureAsset>(value),
+        "ModelAsset" => NormalizeReference<ModelAsset>(value),
+        "AnimationAsset" => NormalizeReference<AnimationAsset>(value),
+        "MaterialAsset" => NormalizeReference<MaterialAsset>(value),
+        "ScriptAsset" => NormalizeReference<ScriptAsset>(value),
+        _ => value
+    };
 }

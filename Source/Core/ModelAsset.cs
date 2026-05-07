@@ -21,13 +21,17 @@ internal class ModelAsset : Asset {
 
     public class ModelSettings : ICloneable {
 
+        public string GUID = "";
+        public string AnimationGUID = "";
         public Dictionary<int, string> MeshMaterials = new();
         public float ImportScale = 1.0f;
 
-        public object Clone() => new ModelSettings { MeshMaterials = new Dictionary<int, string>(MeshMaterials), ImportScale = ImportScale };
+        public object Clone() => new ModelSettings { GUID = GUID, AnimationGUID = AnimationGUID, MeshMaterials = new Dictionary<int, string>(MeshMaterials), ImportScale = ImportScale };
     }
 
     public void ApplySettings() {
+
+        NormalizeReferences();
 
         for (var i = 0; i < Materials.Length; i++) {
 
@@ -69,6 +73,10 @@ internal class ModelAsset : Asset {
             var jsonPath = File + ".json";
             if (System.IO.File.Exists(jsonPath)) Settings = JsonConvert.DeserializeObject<ModelSettings>(System.IO.File.ReadAllText(jsonPath)) ?? new ModelSettings();
 
+            if (string.IsNullOrWhiteSpace(Settings.GUID)) Settings.GUID = System.Guid.NewGuid().ToString("N");
+            if (string.IsNullOrWhiteSpace(Settings.AnimationGUID)) Settings.AnimationGUID = System.Guid.NewGuid().ToString("N");
+            GUID = Settings.GUID;
+
         } catch (Exception e) {
 
             TraceLog(TraceLogLevel.Error, $"Failed to load model {File}: {e}");
@@ -90,6 +98,8 @@ internal class ModelAsset : Asset {
             ApplyMaterialState(i, true);
         }
 
+        NormalizeReferences();
+
         Preview.UpdateThumbnail(this);
 
         return true;
@@ -98,6 +108,7 @@ internal class ModelAsset : Asset {
     public void SaveSettings() {
 
         var jsonPath = File + ".json";
+        Settings.GUID = GUID;
         for (var i = 0; i < MaterialPaths.Length; i++) Settings.MeshMaterials[i] = MaterialPaths[i];
         System.IO.File.WriteAllText(jsonPath, JsonConvert.SerializeObject(Settings, Formatting.Indented));
     }
@@ -188,5 +199,42 @@ internal class ModelAsset : Asset {
         }
 
         IsLoaded = false;
+    }
+
+    public bool NormalizeReferences() {
+
+        var changed = false;
+
+        if (!string.IsNullOrWhiteSpace(Settings.GUID) && !string.Equals(GUID, Settings.GUID, StringComparison.OrdinalIgnoreCase)) {
+
+            GUID = Settings.GUID;
+            changed = true;
+        }
+
+        for (var i = 0; i < MaterialPaths.Length; i++) {
+
+            var normalized = AssetManager.NormalizeReference<MaterialAsset>(MaterialPaths[i]);
+            if (normalized == MaterialPaths[i]) continue;
+
+            MaterialPaths[i] = normalized;
+            changed = true;
+        }
+
+        foreach (var key in Settings.MeshMaterials.Keys.ToList()) {
+
+            var normalized = AssetManager.NormalizeReference<MaterialAsset>(Settings.MeshMaterials[key]);
+            if (normalized == Settings.MeshMaterials[key]) continue;
+
+            Settings.MeshMaterials[key] = normalized;
+            changed = true;
+        }
+
+        return changed;
+    }
+
+    public override IEnumerable<string> GetWatchedFiles() {
+
+        yield return File;
+        yield return File + ".json";
     }
 }
