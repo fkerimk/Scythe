@@ -47,17 +47,38 @@ internal class ModelAsset : Asset {
 
         // Normalize path for Linux compatibility
         File = File.Replace('\\', '/');
+        ImportedFile = "";
 
         if (!System.IO.File.Exists(File)) return false;
 
         try {
 
-            var data = AssimpLoader.Load(File);
-            Meshes = data.Meshes;
-            Bones = data.Bones;
-            RootNode = data.Root;
-            GlobalInverse = data.GlobalInverse;
-            Animations = data.Animations;
+            var jsonPath = File + ".json";
+            if (System.IO.File.Exists(jsonPath)) Settings = JsonConvert.DeserializeObject<ModelSettings>(System.IO.File.ReadAllText(jsonPath)) ?? new ModelSettings();
+
+            if (string.IsNullOrWhiteSpace(Settings.GUID)) Settings.GUID = System.Guid.NewGuid().ToString("N");
+            if (string.IsNullOrWhiteSpace(Settings.AnimationGUID)) Settings.AnimationGUID = System.Guid.NewGuid().ToString("N");
+            GUID = Settings.GUID;
+            ImportedFile = AssetManager.GetImportedModelFile(File, GUID);
+
+            if (string.Equals(Path.GetExtension(ResolvedFile), ".scymodel", StringComparison.OrdinalIgnoreCase) &&
+                CompiledAssetCache.LoadModel(ResolvedFile, out var compiledMeshes, out var compiledBones, out var compiledRoot, out var compiledGlobalInverse, out var compiledAnimations)) {
+
+                Meshes = compiledMeshes;
+                Bones = compiledBones;
+                RootNode = compiledRoot;
+                GlobalInverse = compiledGlobalInverse;
+                Animations = compiledAnimations;
+
+            } else {
+
+                var data = AssimpLoader.Load(ResolvedFile);
+                Meshes = data.Meshes;
+                Bones = data.Bones;
+                RootNode = data.Root;
+                GlobalInverse = data.GlobalInverse;
+                Animations = data.Animations;
+            }
 
             BoneMap.Clear();
 
@@ -71,14 +92,6 @@ internal class ModelAsset : Asset {
 
                 list.Add(b);
             }
-
-            var jsonPath = File + ".json";
-            if (System.IO.File.Exists(jsonPath)) Settings = JsonConvert.DeserializeObject<ModelSettings>(System.IO.File.ReadAllText(jsonPath)) ?? new ModelSettings();
-
-            if (string.IsNullOrWhiteSpace(Settings.GUID)) Settings.GUID = System.Guid.NewGuid().ToString("N");
-            if (string.IsNullOrWhiteSpace(Settings.AnimationGUID)) Settings.AnimationGUID = System.Guid.NewGuid().ToString("N");
-            GUID = Settings.GUID;
-
         } catch (Exception e) {
 
             TraceLog(TraceLogLevel.Error, $"Failed to load model {File}: {e}");

@@ -37,8 +37,6 @@ internal class Preview : Viewport {
         var selectedFile = Editor.SelectedAssetPath;
         var selectedCamera = string.IsNullOrEmpty(selectedFile) ? LevelBrowser.SelectedObject?.Components.GetValueOrDefault("Camera") as Camera : null;
 
-        if (!string.IsNullOrEmpty(selectedFile)) AssetManager.EnsureImported(selectedFile);
-
         if (selectedCamera == null && string.IsNullOrEmpty(selectedFile)) {
 
             _lastFile = "";

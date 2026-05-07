@@ -467,7 +467,6 @@ internal class ObjectBrowser : Viewport {
     // Asset inspectors
     private void DrawAssetInspector(string path) {
 
-        AssetManager.EnsureImported(path);
         var ext = Path.GetExtension(path).ToLowerInvariant();
 
         if (path.EndsWith(".material.json", StringComparison.OrdinalIgnoreCase)) {
@@ -475,6 +474,11 @@ internal class ObjectBrowser : Viewport {
             var asset = AssetManager.GetOrImport<MaterialAsset>(path);
 
             if (asset != null) DrawMaterialAssetInspector(asset);
+        } else if (ext is ".png" or ".jpg" or ".jpeg" or ".tga" or ".bmp") {
+
+            var asset = AssetManager.GetOrImport<TextureAsset>(path);
+
+            if (asset != null) DrawTextureAssetInspector(asset);
         } else if (ext is ".fbx" or ".obj" or ".gltf" or ".iqm") {
 
             var asset = AssetManager.GetOrImport<ModelAsset>(path) ?? AssetManager.Get<ModelAsset>(Path.GetFileNameWithoutExtension(path));
@@ -489,6 +493,12 @@ internal class ObjectBrowser : Viewport {
         DrawSectionHeader("Model Asset", Icons.FaCube, Colors.GuiTypeModel, out var open);
 
         if (open) {
+            PushStyleVar(ImGuiStyleVar.ItemSpacing, new Vector2(8, 8));
+            Columns(2, "##model_asset_props", false);
+            SetColumnWidth(0, GetWindowWidth() * 0.32f);
+
+            DrawInfoRow("Source Size", FormatFileSize(model.File));
+            DrawInfoRow("Imported Size", FormatFileSize(model.ImportedFile));
 
             DrawShadowedLabel("Import Scale");
 
@@ -516,6 +526,9 @@ internal class ObjectBrowser : Viewport {
 
                 if (deactivated) History.StopRecording();
             }
+
+            Columns(1);
+            PopStyleVar();
         }
 
         EndSection(open);
@@ -732,6 +745,73 @@ internal class ObjectBrowser : Viewport {
         PopID();
     }
 
+    private void DrawTextureAssetInspector(TextureAsset texture) {
+
+        PushID(texture.GetHashCode());
+        DrawSectionHeader("Texture Asset", Icons.FaFileImage, Colors.GuiTypeModel, out var open);
+
+        if (open) {
+            PushStyleVar(ImGuiStyleVar.ItemSpacing, new Vector2(8, 8));
+            Columns(2, "##texture_asset_props", false);
+            SetColumnWidth(0, GetWindowWidth() * 0.32f);
+
+            DrawInfoRow("Source Resolution", $"{texture.SourceWidth} x {texture.SourceHeight}");
+            DrawInfoRow("Imported Resolution", $"{texture.ImportedWidth} x {texture.ImportedHeight}");
+            DrawInfoRow("Source Size", FormatFileSize(texture.SourceFileSize));
+            DrawInfoRow("Imported Size", FormatFileSize(texture.ImportedFileSize));
+
+            var maxSizeOptions = new[] { 0, 32, 64, 128, 256, 512, 1024, 2048, 4096 };
+            var maxSizeLabels = new[] { "Original", "32", "64", "128", "256", "512", "1024", "2048", "4096" };
+            var selectedMaxSize = Array.IndexOf(maxSizeOptions, texture.ImportSettings.MaxSize);
+            if (selectedMaxSize < 0) selectedMaxSize = 0;
+
+            DrawShadowedLabel("Max Size");
+            SetNextItemWidth(GetContentRegionAvail().X);
+            if (Combo("##texture_max_size", ref selectedMaxSize, maxSizeLabels, maxSizeLabels.Length)) {
+
+                texture.ImportSettings.MaxSize = maxSizeOptions[selectedMaxSize];
+                texture.SaveMeta();
+                AssetManager.DeleteImportedCache(texture);
+                AssetManager.ReloadAsset(texture);
+            }
+            NextColumn();
+
+            DrawShadowedLabel("Resize Filter");
+            var resizeOptions = new[] { "Bilinear", "Nearest" };
+            var selectedResize = Array.IndexOf(resizeOptions, texture.ImportSettings.ResizeFilter);
+            if (selectedResize < 0) selectedResize = 0;
+            SetNextItemWidth(GetContentRegionAvail().X);
+            if (Combo("##texture_resize_filter", ref selectedResize, resizeOptions, resizeOptions.Length)) {
+
+                texture.ImportSettings.ResizeFilter = resizeOptions[selectedResize];
+                texture.SaveMeta();
+                AssetManager.DeleteImportedCache(texture);
+                AssetManager.ReloadAsset(texture);
+            }
+            NextColumn();
+
+            DrawShadowedLabel("Compression");
+            var compressionOptions = new[] { "Fast", "Normal", "High" };
+            var selectedCompression = Array.IndexOf(compressionOptions, texture.ImportSettings.Compression);
+            if (selectedCompression < 0) selectedCompression = 1;
+            SetNextItemWidth(GetContentRegionAvail().X);
+            if (Combo("##texture_compression", ref selectedCompression, compressionOptions, compressionOptions.Length)) {
+
+                texture.ImportSettings.Compression = compressionOptions[selectedCompression];
+                texture.SaveMeta();
+                AssetManager.DeleteImportedCache(texture);
+                AssetManager.ReloadAsset(texture);
+            }
+            NextColumn();
+
+            Columns(1);
+            PopStyleVar();
+        }
+
+        EndSection(open);
+        PopID();
+    }
+
     private static string GetAssetDisplayValue(string value, string? pickerType) {
 
         if (string.IsNullOrWhiteSpace(value)) return "";
@@ -761,5 +841,36 @@ internal class ObjectBrowser : Viewport {
             "ScriptAsset" => AssetManager.GetPath<ScriptAsset>(value) ?? value,
             _ => value
         };
+    }
+
+    private static void DrawInfoRow(string label, string value) {
+
+        DrawShadowedLabel(label);
+        TextDisabled(value);
+        NextColumn();
+    }
+
+    private static string FormatFileSize(string path) {
+
+        if (string.IsNullOrWhiteSpace(path) || !File.Exists(path)) return "-";
+
+        return FormatFileSize(new FileInfo(path).Length);
+    }
+
+    private static string FormatFileSize(long bytes) {
+
+        if (bytes < 0) return "-";
+
+        string[] units = ["B", "KB", "MB", "GB"];
+        double value = bytes;
+        var unitIndex = 0;
+
+        while (value >= 1024 && unitIndex < units.Length - 1) {
+
+            value /= 1024;
+            unitIndex++;
+        }
+
+        return $"{value:0.##} {units[unitIndex]}";
     }
 }

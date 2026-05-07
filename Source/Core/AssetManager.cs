@@ -1,6 +1,8 @@
 using System.Collections.Concurrent;
 using System.Threading;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
+using static Raylib_cs.Raylib;
 
 internal static class AssetManager {
 
@@ -45,7 +47,13 @@ internal static class AssetManager {
             var resFiles = hasRes ? Directory.GetFiles(resourcesPath, "*.*", SearchOption.AllDirectories).ToList() : new List<string>();
 
             var modPath = ScytheConfig.Current.Project;
-            var modFiles = Directory.Exists(modPath) ? Directory.GetFiles(modPath, "*.*", SearchOption.AllDirectories).Where(f => !f.Contains("/Assembly/") && !f.Contains("\\Assembly\\")).ToList() : new List<string>();
+            EnsureImportsRoot();
+            var modFiles = Directory.Exists(modPath)
+                ? Directory.GetFiles(modPath, "*.*", SearchOption.AllDirectories)
+                           .Where(f => !f.Contains("/Assembly/") && !f.Contains("\\Assembly\\"))
+                           .Where(f => !IsImportsPath(f))
+                           .ToList()
+                : new List<string>();
 
             var totalFiles = resFiles.Concat(modFiles).ToList();
             if (totalFiles.Count == 0) return;
@@ -77,7 +85,32 @@ internal static class AssetManager {
 
     private static void ScanDirectory(string path) { }
 
+    private static string GetImportsRoot() => Path.Combine(ScytheConfig.Current.Project, "Imports");
+
+    private static void EnsureImportsRoot() {
+
+        var projectPath = ScytheConfig.Current.Project;
+        if (string.IsNullOrWhiteSpace(projectPath) || !Directory.Exists(projectPath)) return;
+
+        Directory.CreateDirectory(GetImportsRoot());
+        Directory.CreateDirectory(Path.Combine(GetImportsRoot(), "Textures"));
+        Directory.CreateDirectory(Path.Combine(GetImportsRoot(), "Models"));
+    }
+
+    private static bool IsImportsPath(string path) {
+
+        var importsRoot = GetImportsRoot();
+        if (string.IsNullOrWhiteSpace(importsRoot)) return false;
+
+        var full = Path.GetFullPath(path).Replace('\\', '/');
+        var importsFull = Path.GetFullPath(importsRoot).Replace('\\', '/') + "/";
+
+        return full.StartsWith(importsFull, StringComparison.OrdinalIgnoreCase);
+    }
+
     private static void HandleFileChange(string file) {
+
+        if (IsImportsPath(file)) return;
 
         var path = file.Replace('\\', '/').ToLowerInvariant();
         if (ShouldIgnoreChange(path)) return;
@@ -130,7 +163,12 @@ internal static class AssetManager {
         });
     }
 
-    private static void HandleFileDelete(string file) => UnloadAsset(file);
+    private static void HandleFileDelete(string file) {
+
+        if (IsImportsPath(file)) return;
+
+        UnloadAsset(file);
+    }
 
     private static void ImportFile(string file) {
 
@@ -424,6 +462,194 @@ internal static class AssetManager {
         }
     }
 
+    public static string GetImportedTextureFile(string sourceFile, string guid, AssetSidecarData.TextureImportSettings? settings = null) =>
+        EnsureImportedCache(sourceFile, guid, "TextureAsset", settings);
+
+    public static string GetImportedModelFile(string sourceFile, string guid) =>
+        Path.GetFullPath(sourceFile);
+
+    private static string EnsureImportedCache(string sourceFile, string guid, string type, AssetSidecarData.TextureImportSettings? textureSettings = null) {
+
+        sourceFile = Path.GetFullPath(sourceFile);
+
+        if (string.IsNullOrWhiteSpace(guid) || !File.Exists(sourceFile) || IsImportsPath(sourceFile)) return sourceFile;
+        if (sourceFile.Contains("/resources/", StringComparison.OrdinalIgnoreCase) || sourceFile.Contains("\\resources\\", StringComparison.OrdinalIgnoreCase)) return sourceFile;
+
+        EnsureImportsRoot();
+
+        try {
+
+            return type switch {
+                "TextureAsset" => EnsureImportedTextureCache(sourceFile, guid, textureSettings ?? new AssetSidecarData.TextureImportSettings()),
+                "ModelAsset" => EnsureImportedModelCache(sourceFile, guid),
+                _ => sourceFile
+            };
+
+        } catch {
+
+            return sourceFile;
+        }
+    }
+
+    private static string EnsureImportedTextureCache(string sourceFile, string guid, AssetSidecarData.TextureImportSettings settings) {
+
+        var folder = Path.Combine(GetImportsRoot(), "Textures");
+        var importedPath = Path.Combine(folder, guid + ".stex");
+
+        DeleteLegacyTextureImports(folder, guid);
+        if (IsTextureCacheCurrent(sourceFile, importedPath, settings)) return importedPath;
+        RegisterInternalWrite(importedPath);
+        importedPath = CompiledAssetCache.EnsureTextureCache(sourceFile, importedPath, settings);
+
+        return File.Exists(importedPath) ? importedPath : sourceFile;
+    }
+
+    private static string EnsureImportedModelCache(string sourceFile, string guid) {
+
+        var importedPath = Path.Combine(GetImportsRoot(), "Models", guid + ".scymodel");
+
+        DeleteLegacyModelImports(guid);
+        RegisterInternalWrite(importedPath);
+        importedPath = CompiledAssetCache.EnsureModelCache(sourceFile, importedPath);
+        return File.Exists(importedPath) ? importedPath : sourceFile;
+    }
+
+    private static void DeleteLegacyTextureImports(string folder, string guid) {
+
+        foreach (var ext in new[] { ".png", ".jpg", ".jpeg", ".bmp", ".tga", ".import.json" }) {
+
+            var path = Path.Combine(folder, guid + ext);
+            if (!File.Exists(path)) continue;
+
+            RegisterInternalWrite(path);
+            File.Delete(path);
+        }
+    }
+
+    private static void DeleteLegacyModelImports(string guid) {
+
+        var modelsRoot = Path.Combine(GetImportsRoot(), "Models");
+        var legacyMeta = Path.Combine(modelsRoot, guid + ".import.json");
+        if (File.Exists(legacyMeta)) {
+
+            RegisterInternalWrite(legacyMeta);
+            File.Delete(legacyMeta);
+        }
+
+        var legacyFolder = Path.Combine(modelsRoot, guid);
+        if (!Directory.Exists(legacyFolder)) return;
+
+        foreach (var file in Directory.GetFiles(legacyFolder, "*", SearchOption.AllDirectories)) RegisterInternalWrite(file);
+        Directory.Delete(legacyFolder, true);
+    }
+
+    private static bool IsTextureCacheCurrent(string sourceFile, string importedPath, AssetSidecarData.TextureImportSettings settings) {
+
+        if (!File.Exists(sourceFile) || !File.Exists(importedPath)) return false;
+        if (new FileInfo(importedPath).LastWriteTimeUtc < new FileInfo(sourceFile).LastWriteTimeUtc) return false;
+        if (!CompiledAssetCache.TryReadTextureInfo(importedPath, out var info)) return false;
+        if (!string.Equals(info.Compression, settings.Compression ?? "Normal", StringComparison.OrdinalIgnoreCase)) return false;
+        if (info.MaxSize != settings.MaxSize) return false;
+        if (!string.Equals(info.ResizeFilter, settings.ResizeFilter ?? "Bilinear", StringComparison.OrdinalIgnoreCase)) return false;
+
+        return true;
+    }
+
+    private static IEnumerable<string> GetModelDependencyFiles(string sourceFile) {
+
+        var ext = Path.GetExtension(sourceFile).ToLowerInvariant();
+
+        switch (ext) {
+
+            case ".obj":
+                foreach (var file in GetObjDependencyFiles(sourceFile)) yield return file;
+                break;
+
+            case ".gltf":
+                foreach (var file in GetGltfDependencyFiles(sourceFile)) yield return file;
+                break;
+        }
+    }
+
+    private static IEnumerable<string> GetObjDependencyFiles(string sourceFile) {
+
+        var sourceDir = Path.GetDirectoryName(sourceFile);
+        if (string.IsNullOrWhiteSpace(sourceDir) || !File.Exists(sourceFile)) yield break;
+
+        foreach (var rawLine in File.ReadLines(sourceFile)) {
+
+            var line = rawLine.Trim();
+            if (!line.StartsWith("mtllib ", StringComparison.OrdinalIgnoreCase)) continue;
+
+            foreach (var mtlRef in line["mtllib ".Length..].Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)) {
+
+                var full = Path.GetFullPath(Path.Combine(sourceDir, mtlRef));
+                if (!File.Exists(full)) continue;
+
+                yield return full;
+
+                foreach (var texture in GetMtlTextureDependencies(full)) yield return texture;
+            }
+        }
+    }
+
+    private static IEnumerable<string> GetMtlTextureDependencies(string mtlFile) {
+
+        var dir = Path.GetDirectoryName(mtlFile);
+        if (string.IsNullOrWhiteSpace(dir) || !File.Exists(mtlFile)) yield break;
+
+        foreach (var rawLine in File.ReadLines(mtlFile)) {
+
+            var line = rawLine.Trim();
+            if (string.IsNullOrWhiteSpace(line) || line.StartsWith('#')) continue;
+
+            var firstSpace = line.IndexOf(' ');
+            if (firstSpace <= 0) continue;
+
+            var keyword = line[..firstSpace];
+            if (!keyword.StartsWith("map_", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(keyword, "bump", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(keyword, "disp", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(keyword, "decal", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(keyword, "refl", StringComparison.OrdinalIgnoreCase)) continue;
+
+            var tokens = line[(firstSpace + 1)..].Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            if (tokens.Length == 0) continue;
+
+            var candidate = tokens[^1];
+            var full = Path.GetFullPath(Path.Combine(dir, candidate));
+            if (File.Exists(full)) yield return full;
+        }
+    }
+
+    private static IEnumerable<string> GetGltfDependencyFiles(string sourceFile) {
+
+        var dir = Path.GetDirectoryName(sourceFile);
+        if (string.IsNullOrWhiteSpace(dir) || !File.Exists(sourceFile)) yield break;
+
+        JObject? gltf;
+
+        try {
+
+            gltf = JsonConvert.DeserializeObject<JObject>(File.ReadAllText(sourceFile));
+
+        } catch {
+
+            yield break;
+        }
+
+        if (gltf == null) yield break;
+
+        foreach (var token in gltf.SelectTokens("$.buffers[*].uri").Concat(gltf.SelectTokens("$.images[*].uri"))) {
+
+            var uri = token.Value<string>();
+            if (string.IsNullOrWhiteSpace(uri) || uri.StartsWith("data:", StringComparison.OrdinalIgnoreCase) || uri.Contains("://", StringComparison.Ordinal)) continue;
+
+            var full = Path.GetFullPath(Path.Combine(dir, uri));
+            if (File.Exists(full)) yield return full;
+        }
+    }
+
     public static void RegisterInternalWrite(string path, int ignoredEvents = 4) {
 
         var normalized = Path.GetFullPath(path).Replace('\\', '/').ToLowerInvariant();
@@ -539,6 +765,29 @@ internal static class AssetManager {
     }
 
     public static void ReloadComponentsUsing(Asset asset) => ReloadDependentComponents(asset);
+
+    public static void ReloadAsset(Asset asset) {
+
+        if (asset == null) return;
+
+        asset.Unload();
+        if (!asset.Load()) return;
+
+        NormalizeInternalReferences(asset);
+        SyncDependentComponentReferences(asset);
+        RefreshDependentAssets(asset);
+        ReloadDependentComponents(asset);
+    }
+
+    public static void DeleteImportedCache(Asset asset) {
+
+        if (asset == null || string.IsNullOrWhiteSpace(asset.ImportedFile) || !File.Exists(asset.ImportedFile)) return;
+        if (string.Equals(Path.GetFullPath(asset.ImportedFile), Path.GetFullPath(asset.File), StringComparison.OrdinalIgnoreCase)) return;
+        if (!IsImportsPath(asset.ImportedFile)) return;
+
+        RegisterInternalWrite(asset.ImportedFile);
+        File.Delete(asset.ImportedFile);
+    }
 
     private static void SyncDependentComponentReferences(Asset asset) {
 
