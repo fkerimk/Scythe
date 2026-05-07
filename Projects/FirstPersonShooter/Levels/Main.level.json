@@ -19,6 +19,7 @@
         },
         "Components": {
           "Model": {
+            "GUID": "2cd053e9959f4b91ba52c0cb4d7826a6",
             "Path": "Resources/Models/Cube.fbx",
             "Color": {
               "R": 255,
@@ -71,6 +72,7 @@
                             },
                             "Components": {
                               "Model": {
+                                "GUID": "9847c8670e4a413582f5efda90f899c5",
                                 "Path": "Collections/FPS/Models/Pistol/Pistol.fbx",
                                 "Color": {
                                   "R": 255,
@@ -82,11 +84,13 @@
                                 "CastShadows": false
                               },
                               "Animation": {
+                                "GUID": "116334fff49941a58c2aea2a58205e3d",
                                 "Path": "Collections/FPS/Models/Pistol/Pistol.fbx",
                                 "IsPlaying": true,
                                 "Looping": true
                               },
                               "Script": {
+                                "GUID": "",
                                 "Path": "Scripts/PistolAnimation.cs"
                               }
                             }
@@ -125,6 +129,7 @@
                     },
                     "Components": {
                       "Script": {
+                        "GUID": "",
                         "Path": "Scripts/HeadBob.cs"
                       }
                     }
@@ -143,6 +148,7 @@
                 },
                 "Components": {
                   "Script": {
+                    "GUID": "",
                     "Path": "Scripts/PlayerRotation.cs"
                   }
                 }
@@ -199,6 +205,7 @@
             }
           },
           "Script": {
+            "GUID": "",
             "Path": "Scripts/PlayerMovement.cs"
           }
         }
@@ -223,6 +230,7 @@
         },
         "Components": {
           "Model": {
+            "GUID": "2cd053e9959f4b91ba52c0cb4d7826a6",
             "Path": "Resources/Models/Cube.fbx",
             "Color": {
               "R": 255,
@@ -296,13 +304,13 @@
   },
   "EditorCamera": {
     "Position": {
-      "X": 0.28424254,
-      "Y": 2.1991525,
-      "Z": -0.37902132
+      "X": 0.6352556,
+      "Y": 2.4836807,
+      "Z": -2.4135363
     },
     "Rotation": {
-      "X": -0.18683274,
-      "Y": -0.1601991
+      "X": -0.40283173,
+      "Y": 0.055799887
     }
   }
 }

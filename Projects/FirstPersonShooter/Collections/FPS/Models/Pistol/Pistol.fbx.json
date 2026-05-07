@@ -1,7 +1,14 @@
 {
+  "GUID": "9847c8670e4a413582f5efda90f899c5",
+  "AnimationGUID": "116334fff49941a58c2aea2a58205e3d",
+  "AnimationPath": "Collections/FPS/Models/Pistol/Pistol.fbx",
   "MeshMaterials": {
-    "0": "",
-    "1": ""
+    "0": "01cc61aaba8b447397385f40670746b2",
+    "1": "9bed13f5578040f3b14816d53a3c3c36"
+  },
+  "MeshMaterialPaths": {
+    "0": "Collections/FPS/Models/Pistol/Hands.material.json",
+    "1": "Collections/FPS/Models/Pistol/Beretta.material.json"
   },
   "ImportScale": 0.02
 }

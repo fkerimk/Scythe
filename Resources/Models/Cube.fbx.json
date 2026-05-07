@@ -1,6 +1,10 @@
 {
+  "GUID": "2cd053e9959f4b91ba52c0cb4d7826a6",
+  "AnimationGUID": "0da2d8912ae54ec89f73a7a51d09d202",
+  "AnimationPath": "",
   "MeshMaterials": {
     "0": "Resources/Materials/Default.material.json"
   },
+  "MeshMaterialPaths": {},
   "ImportScale": 0.01
 }
