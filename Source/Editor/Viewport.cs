@@ -15,10 +15,16 @@ internal abstract class Viewport(string title) {
     public bool IsHovered;
     public bool IsFocused;
     public bool ShouldFocus;
+    public bool AutoHideWhenEmpty;
 
     public void Draw() {
 
         if (!IsOpen) return;
+        if (AutoHideWhenEmpty && !HasContent()) {
+            IsHovered = false;
+            IsFocused = false;
+            return;
+        }
 
         ImGui.PushStyleVar(ImGuiStyleVar.WindowBorderSize, 0.0f);
         if (CustomStyle != null) Style.Push(CustomStyle);
@@ -54,5 +60,6 @@ internal abstract class Viewport(string title) {
         if (CustomStyle != null) Style.Pop();
     }
 
+    protected virtual bool HasContent() => true;
     protected abstract void OnDraw();
 }

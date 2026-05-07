@@ -60,25 +60,7 @@ internal class ModelAsset : Asset {
             if (string.IsNullOrWhiteSpace(Settings.AnimationGUID)) Settings.AnimationGUID = System.Guid.NewGuid().ToString("N");
             GUID = Settings.GUID;
             ImportedFile = AssetManager.GetImportedModelFile(File, GUID);
-
-            if (string.Equals(Path.GetExtension(ResolvedFile), ".scymodel", StringComparison.OrdinalIgnoreCase) &&
-                CompiledAssetCache.LoadModel(ResolvedFile, out var compiledMeshes, out var compiledBones, out var compiledRoot, out var compiledGlobalInverse, out var compiledAnimations)) {
-
-                Meshes = compiledMeshes;
-                Bones = compiledBones;
-                RootNode = compiledRoot;
-                GlobalInverse = compiledGlobalInverse;
-                Animations = compiledAnimations;
-
-            } else {
-
-                var data = AssimpLoader.Load(ResolvedFile);
-                Meshes = data.Meshes;
-                Bones = data.Bones;
-                RootNode = data.Root;
-                GlobalInverse = data.GlobalInverse;
-                Animations = data.Animations;
-            }
+            if (!TryLoadImportedOrRebuild()) return false;
 
             BoneMap.Clear();
 
@@ -119,6 +101,48 @@ internal class ModelAsset : Asset {
         if (!AssetManager.IsInitializing) Preview.UpdateThumbnail(this);
 
         return true;
+    }
+
+    private bool TryLoadImportedOrRebuild() {
+
+        if (!string.Equals(Path.GetExtension(ResolvedFile), ".scymodel", StringComparison.OrdinalIgnoreCase)) {
+            LoadSourceModel(File);
+            return true;
+        }
+
+        if (TryLoadCompiledModel(ResolvedFile)) return true;
+
+        AssetManager.DeleteImportedCache(this);
+        ImportedFile = AssetManager.GetImportedModelFile(File, GUID);
+
+        if (string.Equals(Path.GetExtension(ResolvedFile), ".scymodel", StringComparison.OrdinalIgnoreCase) && TryLoadCompiledModel(ResolvedFile))
+            return true;
+
+        LoadSourceModel(File);
+        return true;
+    }
+
+    private bool TryLoadCompiledModel(string cacheFile) {
+
+        if (!CompiledAssetCache.LoadModel(cacheFile, out var compiledMeshes, out var compiledBones, out var compiledRoot, out var compiledGlobalInverse, out var compiledAnimations))
+            return false;
+
+        Meshes = compiledMeshes;
+        Bones = compiledBones;
+        RootNode = compiledRoot;
+        GlobalInverse = compiledGlobalInverse;
+        Animations = compiledAnimations;
+        return true;
+    }
+
+    private void LoadSourceModel(string path) {
+
+        var data = AssimpLoader.Load(path);
+        Meshes = data.Meshes;
+        Bones = data.Bones;
+        RootNode = data.Root;
+        GlobalInverse = data.GlobalInverse;
+        Animations = data.Animations;
     }
 
     public void SaveSettings() {

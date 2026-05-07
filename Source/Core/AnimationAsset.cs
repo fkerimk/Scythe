@@ -33,12 +33,7 @@ internal class AnimationAsset : Asset {
             }
 
             ImportedFile = AssetManager.GetImportedModelFile(File, GUID);
-
-            if (string.Equals(Path.GetExtension(ResolvedFile), ".scymodel", StringComparison.OrdinalIgnoreCase) &&
-                CompiledAssetCache.LoadModel(ResolvedFile, out _, out _, out _, out _, out var compiledAnimations))
-                Animations = compiledAnimations;
-            else
-                Animations = AssimpLoader.Load(ResolvedFile).Animations;
+            if (!TryLoadImportedOrRebuild()) return false;
 
         } catch {
 
@@ -56,5 +51,33 @@ internal class AnimationAsset : Asset {
 
         yield return File;
         yield return File + ".json";
+    }
+
+    private bool TryLoadImportedOrRebuild() {
+
+        if (!string.Equals(Path.GetExtension(ResolvedFile), ".scymodel", StringComparison.OrdinalIgnoreCase)) {
+            Animations = AssimpLoader.Load(File).Animations;
+            return true;
+        }
+
+        if (TryLoadCompiledAnimations(ResolvedFile)) return true;
+
+        AssetManager.DeleteImportedCache(this);
+        ImportedFile = AssetManager.GetImportedModelFile(File, GUID);
+
+        if (string.Equals(Path.GetExtension(ResolvedFile), ".scymodel", StringComparison.OrdinalIgnoreCase) && TryLoadCompiledAnimations(ResolvedFile))
+            return true;
+
+        Animations = AssimpLoader.Load(File).Animations;
+        return true;
+    }
+
+    private bool TryLoadCompiledAnimations(string cacheFile) {
+
+        if (!CompiledAssetCache.LoadModel(cacheFile, out _, out _, out _, out _, out var compiledAnimations))
+            return false;
+
+        Animations = compiledAnimations;
+        return true;
     }
 }

@@ -6,7 +6,10 @@ using static ImGuiNET.ImGui;
 
 internal class Preview : Viewport {
 
-    public Preview() : base("Preview") { CustomStyle = new CustomStyle { WindowPadding = Vector2.Zero }; }
+    public Preview() : base("Preview") {
+        CustomStyle = new CustomStyle { WindowPadding = Vector2.Zero };
+        AutoHideWhenEmpty = true;
+    }
 
     private static Mesh? _previewSphere;
     private static Mesh? _previewCube;
@@ -133,6 +136,14 @@ internal class Preview : Viewport {
 
         var tex = (IntPtr)_rt.Texture.Id;
         Image(tex, avail, new Vector2(0, 1), new Vector2(1, 0));
+    }
+
+    protected override bool HasContent() {
+
+        var selectedFile = Editor.SelectedAssetPath;
+        var selectedCamera = string.IsNullOrEmpty(selectedFile) ? LevelBrowser.SelectedObject?.Components.GetValueOrDefault("Camera") as Camera : null;
+
+        return selectedCamera != null || !string.IsNullOrEmpty(selectedFile);
     }
 
     private void DrawTexturePreview(TextureAsset tex) {

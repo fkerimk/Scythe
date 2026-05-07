@@ -15,6 +15,8 @@ internal class ObjectBrowser : Viewport {
 
     public ObjectBrowser() : base("Object") {
 
+        AutoHideWhenEmpty = true;
+
         var hideComponents = new[] { "Transform" };
 
         _addComponentTypes = Assembly.GetExecutingAssembly().GetTypes().Where(t => t.IsSubclassOf(typeof(Component)) && !t.IsAbstract && !hideComponents.Contains(t.Name));
@@ -70,6 +72,14 @@ internal class ObjectBrowser : Viewport {
         }
 
         DrawAddComponentButton(targets);
+    }
+
+    protected override bool HasContent() {
+
+        if (!string.IsNullOrEmpty(Editor.SelectedAssetPath)) return true;
+        if (Core.ActiveLevel == null) return false;
+
+        return LevelBrowser.SelectedObjects.Count > 0;
     }
 
     private void DrawAddComponentButton(List<Obj> targets) {
