@@ -11,9 +11,7 @@ internal class Animation(Obj obj) : Component(obj) {
     public string GUID { get; set; } = "";
 
     [JsonProperty("Path")]
-    private string LegacyPath {
-        set => GUID = AssetManager.GetGuid<AnimationAsset>(value) ?? value ?? "";
-    }
+    public string Path { get; set; } = "";
 
     [Label("Track"), JsonProperty, RecordHistory]
     public int Track {
@@ -67,8 +65,11 @@ internal class Animation(Obj obj) : Component(obj) {
 
     public override bool Load() {
 
-        GUID = AssetManager.NormalizeReference<AnimationAsset>(GUID);
-        var loaded = AssetManager.Get<AnimationAsset>(GUID);
+        var guid = GUID;
+        var path = Path;
+        var loaded = AssetManager.ResolveReference<AnimationAsset>(ref guid, ref path);
+        GUID = guid;
+        Path = path;
 
         if (loaded is not { IsLoaded: true }) return false;
 

@@ -1,4 +1,5 @@
-﻿using System.Numerics;
+﻿using System;
+using System.Numerics;
 using ImGuiNET;
 using Newtonsoft.Json;
 using Raylib_cs;
@@ -487,28 +488,8 @@ internal class ProjectBrowser : Viewport {
         var standardIconSize = CalcTextSize(isDirectory ? Icons.FaFolder : Icons.FaFile);
         var maxDim = Math.Max(standardIconSize.X, standardIconSize.Y);
 
-        // Thumbnail or Icon
-        var textureAsset = AssetManager.Get<TextureAsset>(path);
-        var matAsset = AssetManager.Get<MaterialAsset>(path);
-        var modelAsset = AssetManager.Get<ModelAsset>(path);
-
         var texId = IntPtr.Zero;
-        Texture2D? thumbTex = null;
-
-        if (textureAsset is { Thumbnail: not null })
-            thumbTex = textureAsset.Thumbnail.Value;
-
-        else if (matAsset != null) {
-
-            if (!matAsset.Thumbnail.HasValue) Preview.UpdateThumbnail(matAsset);
-
-            thumbTex = matAsset.Thumbnail;
-        } else if (modelAsset != null) {
-
-            if (!modelAsset.Thumbnail.HasValue) Preview.UpdateThumbnail(modelAsset);
-
-            thumbTex = modelAsset.Thumbnail;
-        }
+        var thumbTex = GetThumbnail(path);
 
         if (thumbTex.HasValue) texId = (IntPtr)thumbTex.Value.Id;
 
@@ -1022,7 +1003,12 @@ internal class ProjectBrowser : Viewport {
                           """
             );
 
-        if (MenuItem("Material")) CreateNewFile("Material", ".material.json", _ => JsonConvert.SerializeObject(new MaterialAsset.MaterialData(), Formatting.Indented));
+        if (MenuItem("Material"))
+            CreateNewFile(
+                "Material",
+                ".material.json",
+                _ => JsonConvert.SerializeObject(new MaterialAsset.MaterialData { GUID = Guid.NewGuid().ToString("N") }, Formatting.Indented)
+            );
     }
 
     // Rename Helpers
@@ -1155,6 +1141,7 @@ internal class ProjectBrowser : Viewport {
     private static bool IsLevel(string path) => path.EndsWith(".level.json", StringComparison.OrdinalIgnoreCase);
     private static bool IsMaterial(string path) => path.EndsWith(".material.json", StringComparison.OrdinalIgnoreCase);
     private static bool IsScript(string path) => path.EndsWith(".cs", StringComparison.OrdinalIgnoreCase);
+    private static bool IsTexture(string path) => path.EndsWith(".png", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".jpeg", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".tga", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".bmp", StringComparison.OrdinalIgnoreCase);
 
     private static bool IsModel(string path) {
 
@@ -1171,5 +1158,28 @@ internal class ProjectBrowser : Viewport {
         if (IsMaterial(path)) return name[..^14];
 
         return Path.GetFileNameWithoutExtension(name);
+    }
+
+    private static Texture2D? GetThumbnail(string path) {
+
+        if (IsTexture(path)) {
+
+            var textureAsset = AssetManager.GetOrImport<TextureAsset>(path);
+            if (textureAsset is { Thumbnail: not null }) return textureAsset.Thumbnail.Value;
+
+            return null;
+        }
+
+        if (IsMaterial(path)) {
+
+            return AssetManager.GetOrImport<MaterialAsset>(path)?.Thumbnail;
+        }
+
+        if (IsModel(path)) {
+
+            return AssetManager.GetOrImport<ModelAsset>(path)?.Thumbnail;
+        }
+
+        return null;
     }
 }

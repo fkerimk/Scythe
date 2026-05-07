@@ -39,7 +39,8 @@ internal class TextureAsset : Asset {
         UnloadImage(image);
 
         IsLoaded = true;
-        Preview.UpdateThumbnail(this);
+        ThumbnailDirty = true;
+        if (!AssetManager.IsInitializing) Preview.UpdateThumbnail(this);
 
         return true;
     }
@@ -57,6 +58,7 @@ internal class TextureAsset : Asset {
             }
         }
 
+        ThumbnailDirty = true;
         IsLoaded = false;
     }
 

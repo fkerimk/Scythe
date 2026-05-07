@@ -11,8 +11,12 @@ internal static class AssetManager {
     private static readonly Dictionary<Type, List<Asset>> TypeCache      = new();
     private static readonly ConcurrentQueue<Action>       PendingActions = new();
     private static readonly List<string>                  _pendingFiles  = new();
+    private static readonly Dictionary<string, int>       _ignoredChanges = new();
     private static DateTime                               _debounceTime  = DateTime.MinValue;
     private static BackgroundTask?                        _importTask;
+    private static bool                                   _isInitializing;
+
+    public static bool IsInitializing => _isInitializing;
 
     public static void Update() {
         while (PendingActions.TryDequeue(out var action)) action();
@@ -25,38 +29,50 @@ internal static class AssetManager {
 
     public static void Init() {
 
-        PathLookup.Clear();
-        GuidLookup.Clear();
-        Assets.Clear();
-        TypeCache.Clear();
+        _isInitializing = true;
 
-        var resourcesPath = "";
-        bool hasRes = PathUtil.GetPath("Resources", out resourcesPath);
-        var resFiles = hasRes ? Directory.GetFiles(resourcesPath, "*.*", SearchOption.AllDirectories).ToList() : new List<string>();
+        try {
 
-        var modPath = ScytheConfig.Current.Project;
-        var modFiles = Directory.Exists(modPath) ? Directory.GetFiles(modPath, "*.*", SearchOption.AllDirectories).Where(f => !f.Contains("/Assembly/") && !f.Contains("\\Assembly\\")).ToList() : new List<string>();
+            foreach (var watcher in Watchers) watcher.Dispose();
+            Watchers.Clear();
+            PathLookup.Clear();
+            GuidLookup.Clear();
+            Assets.Clear();
+            TypeCache.Clear();
 
-        if (hasRes) CreateWatcher(resourcesPath, "*.*", HandleFileChange, HandleFileDelete);
-        if (Directory.Exists(modPath)) CreateWatcher(modPath, "*.*", HandleFileChange, HandleFileDelete);
+            var resourcesPath = "";
+            bool hasRes = PathUtil.GetPath("Resources", out resourcesPath);
+            var resFiles = hasRes ? Directory.GetFiles(resourcesPath, "*.*", SearchOption.AllDirectories).ToList() : new List<string>();
 
-        var totalFiles = resFiles.Concat(modFiles).ToList();
-        if (totalFiles.Count == 0) return;
+            var modPath = ScytheConfig.Current.Project;
+            var modFiles = Directory.Exists(modPath) ? Directory.GetFiles(modPath, "*.*", SearchOption.AllDirectories).Where(f => !f.Contains("/Assembly/") && !f.Contains("\\Assembly\\")).ToList() : new List<string>();
 
-        var task = new BackgroundTask { Name = "Importing Assets", Status = "Working...", Progress = 0f };
-        lock (Tasks.ActiveTasks) Tasks.ActiveTasks.Add(task);
-        Notifications.ShowTask(task);
+            var totalFiles = resFiles.Concat(modFiles).ToList();
+            if (totalFiles.Count == 0) return;
 
-        for (int i = 0; i < totalFiles.Count; i++) {
-            ImportFile(Path.GetFullPath(totalFiles[i]));
-            task.Progress = (float)(i + 1) / totalFiles.Count;
-            task.Status = Path.GetFileName(totalFiles[i]);
+            var task = new BackgroundTask { Name = "Importing Assets", Status = "Working...", Progress = 0f };
+            lock (Tasks.ActiveTasks) Tasks.ActiveTasks.Add(task);
+            Notifications.ShowTask(task);
+
+            for (int i = 0; i < totalFiles.Count; i++) {
+                ImportFile(Path.GetFullPath(totalFiles[i]));
+                task.Progress = (float)(i + 1) / totalFiles.Count;
+                task.Status = Path.GetFileName(totalFiles[i]);
+            }
+
+            task.Progress = 1f;
+            task.Status = "Success";
+            task.IsDone = true;
+            task.EndTime = DateTime.Now;
+
+            FinalizeAssetGraph();
+
+            if (hasRes) CreateWatcher(resourcesPath, "*.*", HandleFileChange, HandleFileDelete);
+            if (Directory.Exists(modPath)) CreateWatcher(modPath, "*.*", HandleFileChange, HandleFileDelete);
+
+        } finally {
+            _isInitializing = false;
         }
-
-        task.Progress = 1f;
-        task.Status = "Success";
-        task.IsDone = true;
-        task.EndTime = DateTime.Now;
     }
 
     private static void ScanDirectory(string path) { }
@@ -64,6 +80,8 @@ internal static class AssetManager {
     private static void HandleFileChange(string file) {
 
         var path = file.Replace('\\', '/').ToLowerInvariant();
+        if (ShouldIgnoreChange(path)) return;
+
         var toReload = Assets.Where(kvp => kvp.Value.GetWatchedFiles().Any(watched => watched.Replace('\\', '/').ToLowerInvariant() == path)).ToList();
 
         foreach (var kvp in toReload) {
@@ -347,6 +365,95 @@ internal static class AssetManager {
 
     public static string? GetPath<T>(string? value) where T : Asset => Get<T>(value)?.File;
 
+    public static T? GetOrImport<T>(string? path) where T : Asset {
+
+        if (string.IsNullOrWhiteSpace(path)) return null;
+
+        var asset = Get<T>(path);
+        if (asset != null) return asset;
+
+        EnsureImported(path);
+        asset = Get<T>(path);
+
+        if (asset is { ThumbnailDirty: true } && asset is TextureAsset or MaterialAsset or ModelAsset)
+            Preview.UpdateThumbnail(asset);
+
+        return asset;
+    }
+
+    public static void EnsureImported(string? path) {
+
+        if (string.IsNullOrWhiteSpace(path)) return;
+
+        if (!PathUtil.GetPath(path, out var fullPath) && !File.Exists(path)) return;
+        fullPath = Path.GetFullPath(PathUtil.GetPath(path, out var resolvedPath) ? resolvedPath : path);
+
+        var normalized = fullPath.Replace('\\', '/').ToLowerInvariant();
+        var ext = Path.GetExtension(fullPath).ToLowerInvariant();
+
+        if (ext is ".png" or ".jpg" or ".jpeg" or ".tga" or ".bmp") {
+
+            if (Get<TextureAsset>(fullPath) == null) ImportTexture(fullPath);
+            return;
+        }
+
+        if (fullPath.EndsWith(".material.json", StringComparison.OrdinalIgnoreCase)) {
+
+            if (Get<MaterialAsset>(fullPath) == null) ImportMaterial(fullPath);
+            return;
+        }
+
+        if (ext is ".fbx" or ".obj" or ".gltf") {
+
+            if (Get<ModelAsset>(fullPath) == null) ImportModel(fullPath);
+            return;
+        }
+
+        if (ext == ".cs") {
+
+            if (Get<ScriptAsset>(fullPath) == null) ImportScript(fullPath);
+            return;
+        }
+
+        if (ext is ".vs" or ".fs") {
+
+            if (Get<ShaderAsset>(fullPath) == null) ImportShader(fullPath);
+        }
+    }
+
+    public static void RegisterInternalWrite(string path, int ignoredEvents = 4) {
+
+        var normalized = Path.GetFullPath(path).Replace('\\', '/').ToLowerInvariant();
+        _ignoredChanges[normalized] = _ignoredChanges.GetValueOrDefault(normalized, 0) + ignoredEvents;
+    }
+
+    public static string GetStoredPath(string? file) {
+
+        if (string.IsNullOrWhiteSpace(file)) return "";
+
+        var full = Path.GetFullPath(file);
+        var modPath = ScytheConfig.Current.Project;
+        var resPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Resources");
+
+        if (full.StartsWith(modPath, StringComparison.OrdinalIgnoreCase))
+            return Path.GetRelativePath(modPath, full).Replace('\\', '/');
+
+        if (full.StartsWith(resPath, StringComparison.OrdinalIgnoreCase))
+            return Path.GetRelativePath(AppDomain.CurrentDomain.BaseDirectory, full).Replace('\\', '/');
+
+        return full.Replace('\\', '/');
+    }
+
+    public static T? ResolveReference<T>(ref string guid, ref string path) where T : Asset {
+
+        var asset = Get<T>(guid) ?? Get<T>(path);
+        if (asset == null) return null;
+
+        guid = asset.GUID;
+        path = GetStoredPath(asset.File);
+        return asset;
+    }
+
     public static List<(string Name, string Path, string GUID)> GetNames<T>() where T : Asset {
 
         if (!TypeCache.TryGetValue(typeof(T), out var list)) return [];
@@ -412,6 +519,8 @@ internal static class AssetManager {
             ReloadDependentComponents(level.Root, asset);
     }
 
+    public static void ReloadComponentsUsing(Asset asset) => ReloadDependentComponents(asset);
+
     private static void ReloadDependentComponents(Obj obj, Asset asset) {
 
         foreach (var component in obj.Components.Values) {
@@ -435,6 +544,8 @@ internal static class AssetManager {
 
     private static void RefreshDependentAssets(Asset asset) {
 
+        if (_isInitializing) return;
+
         switch (asset) {
 
             case TextureAsset texture:
@@ -456,15 +567,41 @@ internal static class AssetManager {
         }
     }
 
+    private static void FinalizeAssetGraph() {
+
+        foreach (var texture in GetAll<TextureAsset>().ToList()) {
+
+            texture.InvalidateThumbnail();
+            Preview.UpdateThumbnail(texture);
+        }
+
+        foreach (var material in GetAll<MaterialAsset>().ToList()) {
+
+            if (material.NormalizeReferences()) material.Save();
+            material.ApplyChanges(updateThumbnail: false);
+            material.InvalidateThumbnail();
+            Preview.UpdateThumbnail(material);
+        }
+
+        foreach (var model in GetAll<ModelAsset>().ToList()) {
+
+            if (model.NormalizeReferences()) model.SaveSettings();
+            model.ApplySettings();
+            model.InvalidateThumbnail();
+            Preview.UpdateThumbnail(model);
+        }
+    }
+
     private static void RefreshMaterialsUsingTexture(string guid) {
 
         if (string.IsNullOrWhiteSpace(guid)) return;
 
-        foreach (var material in GetAll<MaterialAsset>()) {
+        foreach (var material in GetAll<MaterialAsset>().ToList()) {
 
             if (!material.Data.Textures.Values.Any(value => string.Equals(NormalizeReference< TextureAsset >(value), guid, StringComparison.OrdinalIgnoreCase))) continue;
 
             material.ApplyChanges();
+            material.InvalidateThumbnail();
             Preview.UpdateThumbnail(material);
             RefreshModelsUsingMaterial(material.GUID);
         }
@@ -474,11 +611,12 @@ internal static class AssetManager {
 
         if (string.IsNullOrWhiteSpace(guid)) return;
 
-        foreach (var material in GetAll<MaterialAsset>()) {
+        foreach (var material in GetAll<MaterialAsset>().ToList()) {
 
             if (!string.Equals(NormalizeReference<ShaderAsset>(material.Data.Shader), guid, StringComparison.OrdinalIgnoreCase)) continue;
 
             material.ApplyChanges();
+            material.InvalidateThumbnail();
             Preview.UpdateThumbnail(material);
             RefreshModelsUsingMaterial(material.GUID);
         }
@@ -488,12 +626,13 @@ internal static class AssetManager {
 
         if (string.IsNullOrWhiteSpace(guid)) return;
 
-        foreach (var model in GetAll<ModelAsset>()) {
+        foreach (var model in GetAll<ModelAsset>().ToList()) {
 
             var usesMaterial = model.MaterialPaths.Any(value => string.Equals(NormalizeReference<MaterialAsset>(value), guid, StringComparison.OrdinalIgnoreCase));
             if (!usesMaterial) continue;
 
             model.ApplySettings();
+            model.InvalidateThumbnail();
             Preview.UpdateThumbnail(model);
         }
     }
@@ -507,4 +646,16 @@ internal static class AssetManager {
         "ScriptAsset" => NormalizeReference<ScriptAsset>(value),
         _ => value
     };
+
+    private static bool ShouldIgnoreChange(string normalizedPath) {
+
+        if (!_ignoredChanges.TryGetValue(normalizedPath, out var remaining) || remaining <= 0) return false;
+
+        if (remaining == 1)
+            _ignoredChanges.Remove(normalizedPath);
+        else
+            _ignoredChanges[normalizedPath] = remaining - 1;
+
+        return true;
+    }
 }

@@ -54,6 +54,7 @@ internal static unsafe class Editor {
 
     public static void SetSelectedAsset(string? path) {
 
+        AssetManager.EnsureImported(path);
         SelectedAssetPath = path;
         ProjectBrowser.SyncExternalSelection(path);
         Collections.SyncExternalSelection(path);

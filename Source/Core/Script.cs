@@ -10,9 +10,7 @@ internal class Script(Obj obj) : Component(obj) {
     public string GUID { get; set; } = "";
 
     [JsonProperty("Path")]
-    private string LegacyPath {
-        set => GUID = AssetManager.GetGuid<ScriptAsset>(value) ?? value ?? "";
-    }
+    public string Path { get; set; } = "";
 
     public ScytheScript? Instance;
 
@@ -22,8 +20,11 @@ internal class Script(Obj obj) : Component(obj) {
 
         if (!CommandLine.Runtime && !Core.IsPlaying) return true;
 
-        GUID = AssetManager.NormalizeReference<ScriptAsset>(GUID);
-        var asset = AssetManager.Get<ScriptAsset>(GUID);
+        var guid = GUID;
+        var path = Path;
+        var asset = AssetManager.ResolveReference<ScriptAsset>(ref guid, ref path);
+        GUID = guid;
+        Path = path;
 
         if (asset == null || !asset.IsLoaded || asset.ScriptType == null) return false;
 

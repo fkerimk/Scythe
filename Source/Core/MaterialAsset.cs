@@ -15,8 +15,10 @@ internal class MaterialAsset : Asset {
 
         public string GUID = "";
         public string Shader = "Pbr";
+        public string ShaderPath = "";
 
         public Dictionary<string, string> Textures = new();
+        public Dictionary<string, string> TexturePaths = new();
 
         public Dictionary<string, float> Floats = new() {
             ["metallic_value"] = 0.0f,
@@ -36,7 +38,9 @@ internal class MaterialAsset : Asset {
             return new MaterialData {
                 Shader = Shader,
                 GUID = GUID,
+                ShaderPath = ShaderPath,
                 Textures = new Dictionary<string, string>(Textures),
+                TexturePaths = new Dictionary<string, string>(TexturePaths),
                 Floats = new Dictionary<string, float>(Floats),
                 Ints = new Dictionary<string, int>(Ints),
                 Colors = new Dictionary<string, Color>(Colors),
@@ -93,9 +97,10 @@ internal class MaterialAsset : Asset {
 
         Material = LoadMaterialDefault();
         IsLoaded = true;
+        ThumbnailDirty = true;
 
-        ApplyChanges();
-        Preview.UpdateThumbnail(this);
+        ApplyChanges(updateThumbnail: false);
+        if (!AssetManager.IsInitializing) Preview.UpdateThumbnail(this);
 
         return true;
     }
@@ -121,6 +126,7 @@ internal class MaterialAsset : Asset {
         ApplyMap("occlusion_map", MaterialMapIndex.Occlusion);
         ApplyMap("emissive_map", MaterialMapIndex.Emission);
 
+        if (updateThumbnail) ThumbnailDirty = true;
         if (updateThumbnail) Preview.UpdateThumbnail(this);
 
         return;
@@ -237,33 +243,72 @@ internal class MaterialAsset : Asset {
             Thumbnail = null;
         }
 
+        ThumbnailDirty = true;
         IsLoaded = false;
     }
 
     public void Save() {
 
+        Data.ShaderPath = AssetManager.GetStoredPath(AssetManager.GetPath<ShaderAsset>(Data.Shader) ?? Data.ShaderPath);
+        foreach (var key in Data.Textures.Keys.ToList())
+            Data.TexturePaths[key] = AssetManager.GetStoredPath(AssetManager.GetPath<TextureAsset>(Data.Textures[key]) ?? Data.TexturePaths.GetValueOrDefault(key, ""));
+
         Data.GUID = GUID;
         var json = JsonConvert.SerializeObject(Data, Formatting.Indented);
+        AssetManager.RegisterInternalWrite(File);
         System.IO.File.WriteAllText(File, json);
     }
 
     public bool NormalizeReferences() {
 
         var changed = false;
-        var shader = AssetManager.NormalizeReference<ShaderAsset>(Data.Shader);
-        if (shader != Data.Shader) {
+        var shaderGuid = Data.Shader;
+        var shaderPath = Data.ShaderPath;
+        if (AssetManager.ResolveReference<ShaderAsset>(ref shaderGuid, ref shaderPath) != null) {
 
-            Data.Shader = shader;
+            if (shaderGuid != Data.Shader) {
+
+                Data.Shader = shaderGuid;
+                changed = true;
+            }
+
+            if (shaderPath != Data.ShaderPath) {
+
+                Data.ShaderPath = shaderPath;
+                changed = true;
+            }
+        } else if (string.IsNullOrWhiteSpace(Data.ShaderPath) && !string.IsNullOrWhiteSpace(Data.Shader)) {
+
+            Data.ShaderPath = Data.Shader;
             changed = true;
         }
 
-        foreach (var key in Data.Textures.Keys.ToList()) {
+        foreach (var key in Data.Textures.Keys.Union(Data.TexturePaths.Keys).ToList()) {
 
-            var normalized = AssetManager.NormalizeReference<TextureAsset>(Data.Textures[key]);
-            if (normalized == Data.Textures[key]) continue;
+            var guid = Data.Textures.GetValueOrDefault(key, "");
+            var path = Data.TexturePaths.GetValueOrDefault(key, "");
+            if (AssetManager.ResolveReference<TextureAsset>(ref guid, ref path) != null) {
 
-            Data.Textures[key] = normalized;
-            changed = true;
+                if (guid != Data.Textures.GetValueOrDefault(key, "")) {
+
+                    Data.Textures[key] = guid;
+                    changed = true;
+                }
+
+                if (path != Data.TexturePaths.GetValueOrDefault(key, "")) {
+
+                    Data.TexturePaths[key] = path;
+                    changed = true;
+                }
+
+                continue;
+            }
+
+            if (string.IsNullOrWhiteSpace(path) && !string.IsNullOrWhiteSpace(guid)) {
+
+                Data.TexturePaths[key] = guid;
+                changed = true;
+            }
         }
 
         if (!string.Equals(GUID, Data.GUID, StringComparison.OrdinalIgnoreCase)) {

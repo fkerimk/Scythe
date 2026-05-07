@@ -18,7 +18,10 @@ internal class Preview : Viewport {
 
     private int _currentPrimitiveIndex;
     private int _currentAnimationIndex;
-    private double _animationTime;
+    private string _previewModelGuid = "";
+    private List<AssimpMesh> _previewModelMeshes = [];
+    private List<BoneInfo> _previewModelBones = [];
+    private Dictionary<string, List<BoneInfo>> _previewBoneMap = new();
 
     private RenderTexture2D _rt;
     private string _lastFile = "";
@@ -32,7 +35,9 @@ internal class Preview : Viewport {
     protected override void OnDraw() {
 
         var selectedFile = Editor.SelectedAssetPath;
-        var selectedCamera = LevelBrowser.SelectedObject?.Components.GetValueOrDefault("Camera") as Camera;
+        var selectedCamera = string.IsNullOrEmpty(selectedFile) ? LevelBrowser.SelectedObject?.Components.GetValueOrDefault("Camera") as Camera : null;
+
+        if (!string.IsNullOrEmpty(selectedFile)) AssetManager.EnsureImported(selectedFile);
 
         if (selectedCamera == null && string.IsNullOrEmpty(selectedFile)) {
 
@@ -55,11 +60,14 @@ internal class Preview : Viewport {
             _pan = Vector2.Zero;
             _rotation = new Vector2(45.0f, 45.0f);
             _currentAnimationIndex = 0;
-            _animationTime = 0;
+            _previewModelGuid = "";
+            _previewModelMeshes.Clear();
+            _previewModelBones.Clear();
+            _previewBoneMap.Clear();
 
-            var textureAsset = AssetManager.Get<TextureAsset>(selectedFile);
-            var matAsset = AssetManager.Get<MaterialAsset>(selectedFile);
-            var modelAsset = AssetManager.Get<ModelAsset>(selectedFile);
+            var textureAsset = AssetManager.GetOrImport<TextureAsset>(selectedFile);
+            var matAsset = AssetManager.GetOrImport<MaterialAsset>(selectedFile);
+            var modelAsset = AssetManager.GetOrImport<ModelAsset>(selectedFile);
 
             if (textureAsset is { IsLoaded: true }) {
 
@@ -105,9 +113,9 @@ internal class Preview : Viewport {
 
         } else {
 
-            var textureAsset = AssetManager.Get<TextureAsset>(selectedFile!);
-            var matAsset = AssetManager.Get<MaterialAsset>(selectedFile!);
-            var modelAsset = AssetManager.Get<ModelAsset>(selectedFile!);
+            var textureAsset = AssetManager.GetOrImport<TextureAsset>(selectedFile!);
+            var matAsset = AssetManager.GetOrImport<MaterialAsset>(selectedFile!);
+            var modelAsset = AssetManager.GetOrImport<ModelAsset>(selectedFile!);
 
             if (textureAsset != null)
                 DrawTexturePreview(textureAsset);
@@ -329,7 +337,6 @@ internal class Preview : Viewport {
 
                 case ModelAsset:
                     _currentAnimationIndex = (_currentAnimationIndex - 1 + count) % count;
-                    _animationTime = 0;
 
                     break;
             }
@@ -341,7 +348,6 @@ internal class Preview : Viewport {
 
                 case ModelAsset:
                     _currentAnimationIndex = (_currentAnimationIndex + 1) % count;
-                    _animationTime = 0;
 
                     break;
             }
@@ -378,19 +384,25 @@ internal class Preview : Viewport {
 
                 model.UpdateMaterialsIfDirty();
                 var matBase = Matrix4x4.Transpose(Matrix4x4.CreateScale(model.Settings.ImportScale));
+                var meshesToDraw = model.Meshes;
 
                 if (isInteractive && model.Animations.Count > 0) {
 
-                    var clip = model.Animations[_currentAnimationIndex];
-                    _animationTime += GetFrameTime() * clip.TicksPerSecond;
-                    if (_animationTime > clip.Duration) _animationTime = 0;
+                    EnsurePreviewModelCache(model);
 
-                    AssimpLoader.UpdateAnimation(model.RootNode, clip, _animationTime, Matrix4x4.Identity, model.GlobalInverse, model.BoneMap);
+                    if (_previewModelMeshes.Count == model.Meshes.Count && _previewModelBones.Count > 0) {
 
-                    foreach (var mesh in model.Meshes) AssimpLoader.SkinMesh(mesh, model.Bones);
+                        var clip = model.Animations[_currentAnimationIndex];
+                        var time = (Raylib_cs.Raylib.GetTime() * clip.TicksPerSecond) % Math.Max(clip.Duration, 0.0001);
+
+                        AssimpLoader.UpdateAnimation(model.RootNode, clip, time, Matrix4x4.Identity, model.GlobalInverse, _previewBoneMap);
+
+                        foreach (var mesh in _previewModelMeshes) AssimpLoader.SkinMesh(mesh, _previewModelBones);
+                        meshesToDraw = _previewModelMeshes;
+                    }
                 }
 
-                foreach (var mesh in model.Meshes) {
+                foreach (var mesh in meshesToDraw) {
 
                     var material = mesh.MaterialIndex >= 0 && mesh.MaterialIndex < model.Materials.Length ? model.Materials[mesh.MaterialIndex] : MaterialAsset.Default.Material;
                     var matAsset = mesh.MaterialIndex >= 0 && mesh.MaterialIndex < model.CachedMaterialAssets.Count ? model.CachedMaterialAssets[mesh.MaterialIndex] ?? MaterialAsset.Default : MaterialAsset.Default;
@@ -401,6 +413,33 @@ internal class Preview : Viewport {
 
                 break;
             }
+        }
+    }
+
+    private void EnsurePreviewModelCache(ModelAsset model) {
+
+        if (_previewModelGuid == model.GUID && _previewModelMeshes.Count == model.Meshes.Count && _previewModelBones.Count == model.Bones.Count) return;
+
+        foreach (var mesh in _previewModelMeshes)
+            Raylib.UnloadMesh(mesh.RlMesh);
+
+        _previewModelGuid = model.GUID;
+        _previewModelMeshes = model.Meshes.Select(mesh => mesh.Clone()).ToList();
+        _previewModelBones = [];
+        _previewBoneMap = new Dictionary<string, List<BoneInfo>>();
+
+        foreach (var bone in model.Bones) {
+
+            var clonedBone = new BoneInfo { Name = bone.Name, Index = bone.Index, Offset = bone.Offset, FinalTransformation = bone.FinalTransformation };
+            _previewModelBones.Add(clonedBone);
+
+            if (!_previewBoneMap.TryGetValue(clonedBone.Name, out var list)) {
+
+                list = [];
+                _previewBoneMap[clonedBone.Name] = list;
+            }
+
+            list.Add(clonedBone);
         }
     }
 
@@ -557,7 +596,9 @@ internal class Preview : Viewport {
 
     public static void UpdateThumbnail(Asset? asset) {
 
-        if (asset == null || _isProcessingThumbnail) return;
+        if (asset == null) return;
+        if (_isProcessingThumbnail) return;
+        if (!asset.ThumbnailDirty && asset.Thumbnail.HasValue) return;
 
         _isProcessingThumbnail = true;
 
@@ -601,6 +642,7 @@ internal class Preview : Viewport {
         }
 
         tex.Thumbnail = LoadTextureFromImage(img);
+        tex.ThumbnailDirty = false;
         UnloadImage(img);
     }
 
@@ -660,6 +702,7 @@ internal class Preview : Viewport {
         }
 
         asset.Thumbnail = LoadTextureFromImage(img);
+        asset.ThumbnailDirty = false;
         UnloadImage(img);
         UnloadRenderTexture(rt);
     }

@@ -12,9 +12,7 @@ internal class Model(Obj obj) : Component(obj) {
     public string GUID { get; set; } = "";
 
     [JsonProperty("Path")]
-    private string LegacyPath {
-        set => GUID = AssetManager.GetGuid<ModelAsset>(value) ?? value ?? "";
-    }
+    public string Path { get; set; } = "";
 
     [Label("Color"), JsonProperty, RecordHistory]
     public Color Color { get; set; } = Color.White;
@@ -38,8 +36,11 @@ internal class Model(Obj obj) : Component(obj) {
 
     public override bool Load() {
 
-        GUID = AssetManager.NormalizeReference<ModelAsset>(GUID);
-        var loaded = AssetManager.Get<ModelAsset>(GUID);
+        var guid = GUID;
+        var path = Path;
+        var loaded = AssetManager.ResolveReference<ModelAsset>(ref guid, ref path);
+        GUID = guid;
+        Path = path;
 
         if (loaded is not { IsLoaded: true }) return false;
 

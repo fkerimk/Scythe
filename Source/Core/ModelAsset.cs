@@ -23,10 +23,12 @@ internal class ModelAsset : Asset {
 
         public string GUID = "";
         public string AnimationGUID = "";
+        public string AnimationPath = "";
         public Dictionary<int, string> MeshMaterials = new();
+        public Dictionary<int, string> MeshMaterialPaths = new();
         public float ImportScale = 1.0f;
 
-        public object Clone() => new ModelSettings { GUID = GUID, AnimationGUID = AnimationGUID, MeshMaterials = new Dictionary<int, string>(MeshMaterials), ImportScale = ImportScale };
+        public object Clone() => new ModelSettings { GUID = GUID, AnimationGUID = AnimationGUID, AnimationPath = AnimationPath, MeshMaterials = new Dictionary<int, string>(MeshMaterials), MeshMaterialPaths = new Dictionary<int, string>(MeshMaterialPaths), ImportScale = ImportScale };
     }
 
     public void ApplySettings() {
@@ -99,8 +101,9 @@ internal class ModelAsset : Asset {
         }
 
         NormalizeReferences();
+        ThumbnailDirty = true;
 
-        Preview.UpdateThumbnail(this);
+        if (!AssetManager.IsInitializing) Preview.UpdateThumbnail(this);
 
         return true;
     }
@@ -109,7 +112,10 @@ internal class ModelAsset : Asset {
 
         var jsonPath = File + ".json";
         Settings.GUID = GUID;
+        Settings.AnimationPath = AssetManager.GetStoredPath(File);
         for (var i = 0; i < MaterialPaths.Length; i++) Settings.MeshMaterials[i] = MaterialPaths[i];
+        for (var i = 0; i < MaterialPaths.Length; i++) Settings.MeshMaterialPaths[i] = AssetManager.GetStoredPath(AssetManager.GetPath<MaterialAsset>(MaterialPaths[i]) ?? Settings.MeshMaterialPaths.GetValueOrDefault(i, ""));
+        AssetManager.RegisterInternalWrite(jsonPath);
         System.IO.File.WriteAllText(jsonPath, JsonConvert.SerializeObject(Settings, Formatting.Indented));
     }
 
@@ -120,7 +126,10 @@ internal class ModelAsset : Asset {
         MaterialPaths[index] = path;
         CachedMaterialAssets[index] = AssetManager.Get<MaterialAsset>(path);
         ApplyMaterialState(index, true);
+        ThumbnailDirty = true;
+        Preview.UpdateThumbnail(this);
         SaveSettings();
+        AssetManager.ReloadComponentsUsing(this);
     }
 
     public void UpdateMaterialsIfDirty() {
@@ -213,6 +222,7 @@ internal class ModelAsset : Asset {
             Thumbnail = null;
         }
 
+        ThumbnailDirty = true;
         IsLoaded = false;
     }
 
@@ -228,20 +238,58 @@ internal class ModelAsset : Asset {
 
         for (var i = 0; i < MaterialPaths.Length; i++) {
 
-            var normalized = AssetManager.NormalizeReference<MaterialAsset>(MaterialPaths[i]);
-            if (normalized == MaterialPaths[i]) continue;
+            var guid = MaterialPaths[i];
+            var path = Settings.MeshMaterialPaths.GetValueOrDefault(i, "");
+            if (AssetManager.ResolveReference<MaterialAsset>(ref guid, ref path) != null) {
 
-            MaterialPaths[i] = normalized;
-            changed = true;
+                if (guid != MaterialPaths[i]) {
+
+                    MaterialPaths[i] = guid;
+                    changed = true;
+                }
+
+                if (path != Settings.MeshMaterialPaths.GetValueOrDefault(i, "")) {
+
+                    Settings.MeshMaterialPaths[i] = path;
+                    changed = true;
+                }
+
+                continue;
+            }
+
+            if (string.IsNullOrWhiteSpace(path) && !string.IsNullOrWhiteSpace(guid)) {
+
+                Settings.MeshMaterialPaths[i] = guid;
+                changed = true;
+            }
         }
 
-        foreach (var key in Settings.MeshMaterials.Keys.ToList()) {
+        foreach (var key in Settings.MeshMaterials.Keys.Union(Settings.MeshMaterialPaths.Keys).ToList()) {
 
-            var normalized = AssetManager.NormalizeReference<MaterialAsset>(Settings.MeshMaterials[key]);
-            if (normalized == Settings.MeshMaterials[key]) continue;
+            var guid = Settings.MeshMaterials.GetValueOrDefault(key, "");
+            var path = Settings.MeshMaterialPaths.GetValueOrDefault(key, "");
+            if (AssetManager.ResolveReference<MaterialAsset>(ref guid, ref path) != null) {
 
-            Settings.MeshMaterials[key] = normalized;
-            changed = true;
+                if (guid != Settings.MeshMaterials.GetValueOrDefault(key, "")) {
+
+                    Settings.MeshMaterials[key] = guid;
+                    changed = true;
+                }
+
+                if (path != Settings.MeshMaterialPaths.GetValueOrDefault(key, "")) {
+
+                    Settings.MeshMaterialPaths[key] = path;
+                    changed = true;
+                }
+
+                continue;
+            }
+
+            if (string.IsNullOrWhiteSpace(path) && !string.IsNullOrWhiteSpace(guid)) {
+
+                Settings.MeshMaterialPaths[key] = guid;
+                changed = true;
+            }
         }
 
         return changed;

@@ -24,18 +24,17 @@ internal class ObjectBrowser : Viewport {
         _propIndex = 0;
 
         // Asset inspection
-        if (LevelBrowser.SelectedObjects.Count == 0) {
+        var selectedFile = Editor.SelectedAssetPath;
+        if (!string.IsNullOrEmpty(selectedFile)) {
 
-            var selectedFile = Editor.SelectedAssetPath;
-
-            if (!string.IsNullOrEmpty(selectedFile)) DrawAssetInspector(selectedFile.Replace('\\', '/'));
-
+            DrawAssetInspector(selectedFile.Replace('\\', '/'));
             return;
         }
 
         if (Core.ActiveLevel == null) return;
 
         var targets = LevelBrowser.SelectedObjects;
+        if (targets.Count == 0) return;
 
         // Header info
         PushStyleColor(ImGuiCol.Text, Colors.GuiTextDisabled.ToVector4());
@@ -468,16 +467,17 @@ internal class ObjectBrowser : Viewport {
     // Asset inspectors
     private void DrawAssetInspector(string path) {
 
+        AssetManager.EnsureImported(path);
         var ext = Path.GetExtension(path).ToLowerInvariant();
 
         if (path.EndsWith(".material.json", StringComparison.OrdinalIgnoreCase)) {
 
-            var asset = AssetManager.Get<MaterialAsset>(path);
+            var asset = AssetManager.GetOrImport<MaterialAsset>(path);
 
             if (asset != null) DrawMaterialAssetInspector(asset);
         } else if (ext is ".fbx" or ".obj" or ".gltf" or ".iqm") {
 
-            var asset = AssetManager.Get<ModelAsset>(path) ?? AssetManager.Get<ModelAsset>(Path.GetFileNameWithoutExtension(path));
+            var asset = AssetManager.GetOrImport<ModelAsset>(path) ?? AssetManager.Get<ModelAsset>(Path.GetFileNameWithoutExtension(path));
 
             if (asset != null) DrawModelAssetInspector(asset);
         }
@@ -500,6 +500,7 @@ internal class ObjectBrowser : Viewport {
 
                 model.Settings.ImportScale = (float)scale!;
                 model.SaveSettings();
+                AssetManager.ReloadComponentsUsing(model);
             }
 
             if (sDeactivated) History.StopRecording();
@@ -633,6 +634,7 @@ internal class ObjectBrowser : Viewport {
 
     private void DrawProperties(List<object> targets, bool separator, string title, bool defaultOpen = true) {
 
+        if (targets.Count == 0) return;
         var first = targets[0];
         PushID(first.GetHashCode());
 
