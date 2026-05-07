@@ -840,7 +840,14 @@ internal class ProjectBrowser : Viewport {
 
                         if (Directory.Exists(s))
                             Directory.Move(s, d);
-                        else if (File.Exists(s)) File.Move(s, d);
+                        else if (File.Exists(s)) {
+
+                            var oldMeta = s + ".json";
+                            var newMeta = d + ".json";
+                            if (File.Exists(oldMeta)) File.Move(oldMeta, newMeta);
+
+                            File.Move(s, d);
+                        }
                     }
                 );
             }
@@ -1114,12 +1121,11 @@ internal class ProjectBrowser : Viewport {
                     if (Directory.Exists(s))
                         Directory.Move(s, d);
                     else if (File.Exists(s)) {
-                        File.Move(s, d);
-
-                        // Also move associated .json meta if it exists (e.g. .fbx.json)
                         var oldMeta = s + ".json";
                         var newMeta = d + ".json";
                         if (File.Exists(oldMeta)) File.Move(oldMeta, newMeta);
+
+                        File.Move(s, d);
                     }
                 }
             );
