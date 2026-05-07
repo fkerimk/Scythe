@@ -12,6 +12,7 @@ internal static class AssetManager {
     private static readonly Dictionary<string, Asset>     PathLookup     = new();
     private static readonly Dictionary<Type, List<Asset>> TypeCache      = new();
     private static readonly ConcurrentQueue<Action>       PendingActions = new();
+    private static readonly HashSet<string>               _textureImportsInProgress = [];
     private static readonly List<string>                  _pendingFiles  = new();
     private static readonly Dictionary<string, int>       _ignoredChanges = new();
     private static DateTime                               _debounceTime  = DateTime.MinValue;
@@ -466,7 +467,7 @@ internal static class AssetManager {
         EnsureImportedCache(sourceFile, guid, "TextureAsset", settings);
 
     public static string GetImportedModelFile(string sourceFile, string guid) =>
-        Path.GetFullPath(sourceFile);
+        EnsureImportedCache(sourceFile, guid, "ModelAsset");
 
     private static string EnsureImportedCache(string sourceFile, string guid, string type, AssetSidecarData.TextureImportSettings? textureSettings = null) {
 
@@ -495,6 +496,9 @@ internal static class AssetManager {
 
         var folder = Path.Combine(GetImportsRoot(), "Textures");
         var importedPath = TextureImportProcessor.BuildImportedPath(folder, guid, sourceFile, settings);
+
+        if (IsTextureImportInProgress(guid))
+            return File.Exists(importedPath) ? importedPath : sourceFile;
 
         DeleteLegacyTextureImports(folder, guid, importedPath);
         if (IsTextureCacheCurrent(sourceFile, importedPath, settings)) return importedPath;
@@ -771,6 +775,54 @@ internal static class AssetManager {
         SyncDependentComponentReferences(asset);
         RefreshDependentAssets(asset);
         ReloadDependentComponents(asset);
+    }
+
+    public static bool IsTextureImportInProgress(string? guid) =>
+        !string.IsNullOrWhiteSpace(guid) && _textureImportsInProgress.Contains(guid);
+
+    public static void ReimportTextureAsync(TextureAsset texture) {
+
+        if (texture == null || string.IsNullOrWhiteSpace(texture.GUID)) return;
+        if (!_textureImportsInProgress.Add(texture.GUID)) return;
+
+        var sourceFile = Path.GetFullPath(texture.File);
+        var guid = texture.GUID;
+        var settings = (AssetSidecarData.TextureImportSettings)texture.ImportSettings.Clone();
+        var importedFolder = Path.Combine(GetImportsRoot(), "Textures");
+        var importedPath = TextureImportProcessor.BuildImportedPath(importedFolder, guid, sourceFile, settings);
+
+        Tasks.Run($"Import Texture {Path.GetFileName(texture.File)}", task => {
+            try {
+                task.Status = "Compressing...";
+                task.Progress = 0.15f;
+
+                DeleteLegacyTextureImports(importedFolder, guid, importedPath);
+                RegisterInternalWrite(importedPath);
+
+                if (!TextureImportProcessor.Import(sourceFile, importedPath, settings)) {
+                    task.Status = "Fail: texture import failed";
+                    return;
+                }
+
+                task.Progress = 0.85f;
+                task.Status = "Reloading...";
+
+                Tasks.RunOnMainThread(() => {
+                    try {
+                        ReloadAsset(texture);
+                    } finally {
+                        _textureImportsInProgress.Remove(guid);
+                    }
+                });
+
+                task.Progress = 1f;
+                task.Status = "Success";
+
+            } catch (Exception e) {
+                _textureImportsInProgress.Remove(guid);
+                task.Status = "Fail: " + e.Message;
+            }
+        });
     }
 
     public static void DeleteImportedCache(Asset asset) {

@@ -7,7 +7,7 @@ internal class AssetSidecarData {
 
         public int MaxSize = 0;
         public string ResizeFilter = "Bilinear";
-        public string Format = "Auto";
+        public string Format = "Source";
         public string Compression = "Balanced";
         public int Quality = 90;
 

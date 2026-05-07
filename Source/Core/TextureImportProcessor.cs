@@ -1,11 +1,12 @@
 using System.Diagnostics;
-using Raylib_cs;
-using static Raylib_cs.Raylib;
 
 internal static class TextureImportProcessor {
 
-    public static string BuildImportedPath(string importsFolder, string guid, string sourceFile, AssetSidecarData.TextureImportSettings settings) =>
-        Path.Combine(importsFolder, guid + ".dds");
+    public static string BuildImportedPath(string importsFolder, string guid, string sourceFile, AssetSidecarData.TextureImportSettings settings) {
+
+        var ext = GetOutputExtension(sourceFile, settings);
+        return Path.Combine(importsFolder, guid + ext);
+    }
 
     public static bool IsCurrent(string sourceFile, string importedFile) {
 
@@ -23,113 +24,134 @@ internal static class TextureImportProcessor {
 
         Directory.CreateDirectory(Path.GetDirectoryName(importedFile)!);
 
-        var tempSource = PrepareSourceImage(sourceFile, settings);
-        if (tempSource == null) return false;
+        var psi = new ProcessStartInfo("ffmpeg") {
+            UseShellExecute = false,
+            RedirectStandardError = true,
+            RedirectStandardOutput = true,
+            CreateNoWindow = true
+        };
 
-        try {
+        psi.ArgumentList.Add("-y");
+        psi.ArgumentList.Add("-hide_banner");
+        psi.ArgumentList.Add("-loglevel");
+        psi.ArgumentList.Add("error");
+        psi.ArgumentList.Add("-i");
+        psi.ArgumentList.Add(sourceFile);
 
-            var psi = new ProcessStartInfo("compressonatorcli") {
-                UseShellExecute = false,
-                RedirectStandardError = true,
-                RedirectStandardOutput = true,
-                CreateNoWindow = true
-            };
+        var filter = BuildScaleFilter(settings);
+        if (!string.IsNullOrWhiteSpace(filter)) {
 
-            psi.ArgumentList.Add("-silent");
-            psi.ArgumentList.Add("-noprogress");
-            psi.ArgumentList.Add("-fd");
-            psi.ArgumentList.Add(GetCodec(settings, sourceFile));
-
-            AddCodecArgs(psi.ArgumentList, settings);
-
-            psi.ArgumentList.Add(tempSource);
-            psi.ArgumentList.Add(importedFile);
-
-            using var process = Process.Start(psi);
-            if (process == null) return false;
-            process.WaitForExit();
-
-            return process.ExitCode == 0 && File.Exists(importedFile);
-
-        } finally {
-
-            SafeDelete(tempSource);
+            psi.ArgumentList.Add("-vf");
+            psi.ArgumentList.Add(filter);
         }
+
+        AddEncodingArgs(psi.ArgumentList, sourceFile, settings);
+
+        psi.ArgumentList.Add("-frames:v");
+        psi.ArgumentList.Add("1");
+        psi.ArgumentList.Add(importedFile);
+
+        using var process = Process.Start(psi);
+        if (process == null) return false;
+        process.WaitForExit();
+
+        return process.ExitCode == 0 && File.Exists(importedFile);
     }
 
-    private static unsafe string? PrepareSourceImage(string sourceFile, AssetSidecarData.TextureImportSettings settings) {
+    private static string BuildScaleFilter(AssetSidecarData.TextureImportSettings settings) {
 
-        var image = LoadImage(sourceFile);
-        if (image.Data == null) return null;
+        if (settings.MaxSize <= 0) return "";
 
-        try {
-
-            if (settings.MaxSize > 0 && (image.Width > settings.MaxSize || image.Height > settings.MaxSize)) {
-
-                var scale = Math.Min((float)settings.MaxSize / image.Width, (float)settings.MaxSize / image.Height);
-                var targetWidth = Math.Max(1, (int)MathF.Round(image.Width * scale));
-                var targetHeight = Math.Max(1, (int)MathF.Round(image.Height * scale));
-
-                if (string.Equals(settings.ResizeFilter, "Nearest", StringComparison.OrdinalIgnoreCase))
-                    ImageResizeNN(ref image, targetWidth, targetHeight);
-                else
-                    ImageResize(ref image, targetWidth, targetHeight);
-            }
-
-            var tempFile = Path.Combine(Path.GetTempPath(), $"scythe_teximport_{Guid.NewGuid():N}.png");
-            ExportImage(image, tempFile);
-            return tempFile;
-
-        } finally {
-
-            UnloadImage(image);
-        }
+        return $"scale={settings.MaxSize}:{settings.MaxSize}:force_original_aspect_ratio=decrease:flags={GetScaleFlag(settings.ResizeFilter)}";
     }
 
-    private static string GetCodec(AssetSidecarData.TextureImportSettings settings, string sourceFile) {
+    private static void AddEncodingArgs(ICollection<string> args, string sourceFile, AssetSidecarData.TextureImportSettings settings) {
 
-        if (!string.Equals(settings.Format, "Auto", StringComparison.OrdinalIgnoreCase)) return settings.Format;
+        switch (GetOutputExtension(sourceFile, settings)) {
 
-        return HasAlpha(sourceFile) ? "BC3" : "BC1";
-    }
-
-    private static bool HasAlpha(string sourceFile) {
-
-        var ext = Path.GetExtension(sourceFile).ToLowerInvariant();
-        return ext is ".png" or ".tga" or ".webp" or ".avif";
-    }
-
-    private static void AddCodecArgs(ICollection<string> args, AssetSidecarData.TextureImportSettings settings) {
-
-        switch (settings.Compression) {
-            case "Fast":
-                args.Add("-CompressionSpeed");
-                args.Add("0.2");
+            case ".png":
+                args.Add("-compression_level");
+                args.Add(settings.Compression switch {
+                    "Fast" => "1",
+                    "Best" => "9",
+                    _ => "6"
+                });
                 break;
-            case "Best":
-                args.Add("-CompressionSpeed");
+
+            case ".jpg":
+                args.Add("-q:v");
+                args.Add(MapJpegQuality(settings.Quality));
+                args.Add("-pix_fmt");
+                args.Add("yuv420p");
+                break;
+
+            case ".webp":
+                args.Add("-c:v");
+                args.Add("libwebp");
+                args.Add("-compression_level");
+                args.Add(settings.Compression switch {
+                    "Fast" => "1",
+                    "Best" => "6",
+                    _ => "4"
+                });
+                args.Add("-q:v");
+                args.Add(settings.Quality.ToString());
+                break;
+
+            case ".avif":
+                args.Add("-c:v");
+                args.Add("libaom-av1");
+                args.Add("-still-picture");
                 args.Add("1");
+                args.Add("-cpu-used");
+                args.Add(settings.Compression switch {
+                    "Fast" => "8",
+                    "Best" => "2",
+                    _ => "5"
+                });
+                args.Add("-crf");
+                args.Add(MapAvifCrf(settings.Quality));
+                args.Add("-pix_fmt");
+                args.Add("yuv420p");
                 break;
-            default:
-                args.Add("-CompressionSpeed");
-                args.Add("0.5");
-                break;
-        }
-
-        if (string.Equals(settings.Format, "BC7", StringComparison.OrdinalIgnoreCase)) {
-
-            args.Add("-Quality");
-            args.Add((Math.Clamp(settings.Quality, 1, 100) / 100f).ToString("0.00", System.Globalization.CultureInfo.InvariantCulture));
         }
     }
 
-    private static void SafeDelete(string path) {
+    private static string GetOutputExtension(string sourceFile, AssetSidecarData.TextureImportSettings settings) => settings.Format switch {
+        "Png" => ".png",
+        "Jpeg" => ".jpg",
+        "WebP" => ".webp",
+        "Avif" => ".avif",
+        _ => NormalizeSourceExtension(Path.GetExtension(sourceFile).ToLowerInvariant())
+    };
 
-        if (string.IsNullOrWhiteSpace(path) || !File.Exists(path)) return;
+    private static string NormalizeSourceExtension(string ext) => ext switch {
+        ".jpg" => ".jpg",
+        ".jpeg" => ".jpg",
+        ".png" => ".png",
+        ".webp" => ".webp",
+        ".avif" => ".avif",
+        _ => ".png"
+    };
 
-        try {
-            File.Delete(path);
-        } catch {
-        }
+    private static string GetScaleFlag(string filter) => filter switch {
+        "Nearest" => "neighbor",
+        "Bicubic" => "bicubic",
+        "Lanczos" => "lanczos",
+        _ => "bilinear"
+    };
+
+    private static string MapJpegQuality(int quality) {
+
+        quality = Math.Clamp(quality, 1, 100);
+        var q = 31 - (int)MathF.Round((quality - 1) / 99f * 29f);
+        return Math.Clamp(q, 2, 31).ToString();
+    }
+
+    private static string MapAvifCrf(int quality) {
+
+        quality = Math.Clamp(quality, 1, 100);
+        var crf = 63 - (int)MathF.Round((quality - 1) / 99f * 51f);
+        return Math.Clamp(crf, 12, 63).ToString();
     }
 }

@@ -11,6 +11,7 @@ internal class ObjectBrowser : Viewport {
     private (string Name, string Path, string GUID)[] _foundAssets = [];
     private string _searchFilter = "";
     private bool _showAnimationFrames;
+    private readonly Dictionary<string, int> _pendingTextureQuality = new();
 
     public ObjectBrowser() : base("Object") {
 
@@ -751,6 +752,7 @@ internal class ObjectBrowser : Viewport {
         DrawSectionHeader("Texture Asset", Icons.FaFileImage, Colors.GuiTypeModel, out var open);
 
         if (open) {
+            var isBusy = AssetManager.IsTextureImportInProgress(texture.GUID);
             PushStyleVar(ImGuiStyleVar.ItemSpacing, new Vector2(8, 8));
             Columns(2, "##texture_asset_props", false);
             SetColumnWidth(0, GetWindowWidth() * 0.32f);
@@ -759,9 +761,12 @@ internal class ObjectBrowser : Viewport {
             DrawInfoRow("Imported Resolution", $"{texture.ImportedWidth} x {texture.ImportedHeight}");
             DrawInfoRow("Source Size", FormatFileSize(texture.SourceFileSize));
             DrawInfoRow("Imported Size", FormatFileSize(texture.ImportedFileSize));
+            DrawInfoRow("Status", isBusy ? "Importing..." : "Ready");
 
-            DrawShadowedLabel("Codec");
-            var formatOptions = new[] { "Auto", "BC1", "BC2", "BC3", "BC4", "BC5", "BC7", "DXT1", "DXT3", "DXT5" };
+            BeginDisabled(isBusy);
+
+            DrawShadowedLabel("Format");
+            var formatOptions = new[] { "Source", "Png", "Jpeg", "WebP", "Avif" };
             var selectedFormat = Array.IndexOf(formatOptions, texture.ImportSettings.Format);
             if (selectedFormat < 0) selectedFormat = 0;
             SetNextItemWidth(GetContentRegionAvail().X);
@@ -769,8 +774,7 @@ internal class ObjectBrowser : Viewport {
 
                 texture.ImportSettings.Format = formatOptions[selectedFormat];
                 texture.SaveMeta();
-                AssetManager.DeleteImportedCache(texture);
-                AssetManager.ReloadAsset(texture);
+                AssetManager.ReimportTextureAsync(texture);
             }
             NextColumn();
 
@@ -785,13 +789,12 @@ internal class ObjectBrowser : Viewport {
 
                 texture.ImportSettings.MaxSize = maxSizeOptions[selectedMaxSize];
                 texture.SaveMeta();
-                AssetManager.DeleteImportedCache(texture);
-                AssetManager.ReloadAsset(texture);
+                AssetManager.ReimportTextureAsync(texture);
             }
             NextColumn();
 
             DrawShadowedLabel("Resize Filter");
-            var resizeOptions = new[] { "Nearest", "Bilinear" };
+            var resizeOptions = new[] { "Nearest", "Bilinear", "Bicubic", "Lanczos" };
             var selectedResize = Array.IndexOf(resizeOptions, texture.ImportSettings.ResizeFilter);
             if (selectedResize < 0) selectedResize = 1;
             SetNextItemWidth(GetContentRegionAvail().X);
@@ -799,12 +802,11 @@ internal class ObjectBrowser : Viewport {
 
                 texture.ImportSettings.ResizeFilter = resizeOptions[selectedResize];
                 texture.SaveMeta();
-                AssetManager.DeleteImportedCache(texture);
-                AssetManager.ReloadAsset(texture);
+                AssetManager.ReimportTextureAsync(texture);
             }
             NextColumn();
 
-            DrawShadowedLabel("Encode Speed");
+            DrawShadowedLabel("Compression");
             var compressionOptions = new[] { "Fast", "Balanced", "Best" };
             var selectedCompression = Array.IndexOf(compressionOptions, texture.ImportSettings.Compression);
             if (selectedCompression < 0) selectedCompression = 1;
@@ -813,23 +815,27 @@ internal class ObjectBrowser : Viewport {
 
                 texture.ImportSettings.Compression = compressionOptions[selectedCompression];
                 texture.SaveMeta();
-                AssetManager.DeleteImportedCache(texture);
-                AssetManager.ReloadAsset(texture);
+                AssetManager.ReimportTextureAsync(texture);
             }
             NextColumn();
 
-            DrawShadowedLabel("BC7 Quality");
-            var quality = texture.ImportSettings.Quality;
+            DrawShadowedLabel("Quality");
+            if (!_pendingTextureQuality.TryGetValue(texture.GUID, out var quality))
+                quality = texture.ImportSettings.Quality;
             SetNextItemWidth(GetContentRegionAvail().X);
-            if (SliderInt("##texture_quality", ref quality, 1, 100)) {
+            if (SliderInt("##texture_quality", ref quality, 1, 100))
+                _pendingTextureQuality[texture.GUID] = quality;
+
+            if (IsItemDeactivatedAfterEdit()) {
 
                 texture.ImportSettings.Quality = quality;
+                _pendingTextureQuality[texture.GUID] = quality;
                 texture.SaveMeta();
-                AssetManager.DeleteImportedCache(texture);
-                AssetManager.ReloadAsset(texture);
+                AssetManager.ReimportTextureAsync(texture);
             }
             NextColumn();
 
+            EndDisabled();
             Columns(1);
             PopStyleVar();
         }
