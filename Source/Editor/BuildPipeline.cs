@@ -187,7 +187,13 @@ internal static class BuildPipeline {
             var relative = Path.GetRelativePath(sourceDir, file);
             var destination = Path.Combine(destDir, relative);
             Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
-            File.Copy(file, destination, overwrite: true);
+            
+            var ext = Path.GetExtension(file).ToLowerInvariant();
+            if (ext is ".fbx" or ".obj" or ".gltf" or ".png" or ".jpg" or ".jpeg" or ".tga" or ".bmp" or ".webp" or ".avif" or ".cs") {
+                File.WriteAllBytes(destination, []);
+            } else {
+                File.Copy(file, destination, overwrite: true);
+            }
         }
     }
 
