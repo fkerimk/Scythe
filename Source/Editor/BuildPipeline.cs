@@ -133,7 +133,7 @@ internal static class BuildPipeline {
         if (File.Exists(bundleZip)) File.Delete(bundleZip);
 
         task.Status = "Compressing bundle...";
-        ZipFile.CreateFromDirectory(bundleRoot, bundleZip, CompressionLevel.Optimal, includeBaseDirectory: false);
+        ZipFile.CreateFromDirectory(bundleRoot, bundleZip, CompressionLevel.SmallestSize, includeBaseDirectory: false);
     }
 
     private static string PublishRuntime(string bundleZip, string publishDir) {
