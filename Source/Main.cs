@@ -8,7 +8,7 @@ if (BundleRuntime.TryActivate()) CommandLine.Runtime = true;
 
 // Initialize window
 SetTraceLogLevel(TraceLogLevel.Error);
-Window.Show(width: 1280, height: 720, maximize: false, flags: [ConfigFlags.Msaa4xHint, ConfigFlags.ResizableWindow]);
+Window.Show(width: 1280, height: 720, maximize: false, flags: [ConfigFlags.ResizableWindow]);
 
 if (!CommandLine.Runtime) CommandLine.NoSplash = false;
 

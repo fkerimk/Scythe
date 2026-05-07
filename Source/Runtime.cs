@@ -7,7 +7,7 @@ internal static class Runtime {
 
     public static void Show() {
 
-        Window.Show(fullscreen: false, flags: [ConfigFlags.Msaa4xHint, ConfigFlags.ResizableWindow], title: ProjectConfig.Current.Name);
+        Window.Show(fullscreen: false, flags: [ConfigFlags.ResizableWindow], title: ProjectConfig.Current.Name);
 
         // Setup core
         Core.Init();
