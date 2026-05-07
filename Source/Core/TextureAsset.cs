@@ -64,28 +64,17 @@ internal class TextureAsset : Asset {
 
         ImportedFile = AssetManager.GetImportedTextureFile(File, GUID, ImportSettings);
 
-        if (string.Equals(Path.GetExtension(ResolvedFile), ".stex", StringComparison.OrdinalIgnoreCase)) {
+        var image = LoadImage(ResolvedFile);
+        if (image.Data == null) {
 
-            if (!CompiledAssetCache.LoadTexture(ResolvedFile, out Texture)) {
-
-                ImportedFile = "";
-                var image = LoadImage(File);
-                if (image.Data == null) return false;
-
-                Texture = LoadTextureFromImage(image);
-                SetTextureFilter(Texture, TextureFilter.Bilinear);
-                UnloadImage(image);
-            }
-
-        } else {
-
-            var image = LoadImage(ResolvedFile);
+            ImportedFile = "";
+            image = LoadImage(File);
             if (image.Data == null) return false;
-
-            Texture = LoadTextureFromImage(image);
-            SetTextureFilter(Texture, TextureFilter.Bilinear);
-            UnloadImage(image);
         }
+
+        Texture = LoadTextureFromImage(image);
+        SetTextureFilter(Texture, TextureFilter.Bilinear);
+        UnloadImage(image);
 
         if (SourceWidth <= 0 || SourceHeight <= 0) {
 

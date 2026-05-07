@@ -494,12 +494,12 @@ internal static class AssetManager {
     private static string EnsureImportedTextureCache(string sourceFile, string guid, AssetSidecarData.TextureImportSettings settings) {
 
         var folder = Path.Combine(GetImportsRoot(), "Textures");
-        var importedPath = Path.Combine(folder, guid + ".stex");
+        var importedPath = TextureImportProcessor.BuildImportedPath(folder, guid, sourceFile, settings);
 
-        DeleteLegacyTextureImports(folder, guid);
+        DeleteLegacyTextureImports(folder, guid, importedPath);
         if (IsTextureCacheCurrent(sourceFile, importedPath, settings)) return importedPath;
         RegisterInternalWrite(importedPath);
-        importedPath = CompiledAssetCache.EnsureTextureCache(sourceFile, importedPath, settings);
+        if (!TextureImportProcessor.Import(sourceFile, importedPath, settings)) return sourceFile;
 
         return File.Exists(importedPath) ? importedPath : sourceFile;
     }
@@ -514,12 +514,13 @@ internal static class AssetManager {
         return File.Exists(importedPath) ? importedPath : sourceFile;
     }
 
-    private static void DeleteLegacyTextureImports(string folder, string guid) {
+    private static void DeleteLegacyTextureImports(string folder, string guid, string keepPath) {
 
-        foreach (var ext in new[] { ".png", ".jpg", ".jpeg", ".bmp", ".tga", ".import.json" }) {
+        foreach (var ext in new[] { ".png", ".jpg", ".jpeg", ".bmp", ".tga", ".webp", ".avif", ".dds", ".stex", ".import.json" }) {
 
             var path = Path.Combine(folder, guid + ext);
             if (!File.Exists(path)) continue;
+            if (string.Equals(Path.GetFullPath(path), Path.GetFullPath(keepPath), StringComparison.OrdinalIgnoreCase)) continue;
 
             RegisterInternalWrite(path);
             File.Delete(path);
@@ -545,14 +546,7 @@ internal static class AssetManager {
 
     private static bool IsTextureCacheCurrent(string sourceFile, string importedPath, AssetSidecarData.TextureImportSettings settings) {
 
-        if (!File.Exists(sourceFile) || !File.Exists(importedPath)) return false;
-        if (new FileInfo(importedPath).LastWriteTimeUtc < new FileInfo(sourceFile).LastWriteTimeUtc) return false;
-        if (!CompiledAssetCache.TryReadTextureInfo(importedPath, out var info)) return false;
-        if (!string.Equals(info.Compression, settings.Compression ?? "Normal", StringComparison.OrdinalIgnoreCase)) return false;
-        if (info.MaxSize != settings.MaxSize) return false;
-        if (!string.Equals(info.ResizeFilter, settings.ResizeFilter ?? "Bilinear", StringComparison.OrdinalIgnoreCase)) return false;
-
-        return true;
+        return TextureImportProcessor.IsCurrent(sourceFile, importedPath);
     }
 
     private static IEnumerable<string> GetModelDependencyFiles(string sourceFile) {

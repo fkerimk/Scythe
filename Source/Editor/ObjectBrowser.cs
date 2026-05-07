@@ -760,6 +760,20 @@ internal class ObjectBrowser : Viewport {
             DrawInfoRow("Source Size", FormatFileSize(texture.SourceFileSize));
             DrawInfoRow("Imported Size", FormatFileSize(texture.ImportedFileSize));
 
+            DrawShadowedLabel("Codec");
+            var formatOptions = new[] { "Auto", "BC1", "BC2", "BC3", "BC4", "BC5", "BC7", "DXT1", "DXT3", "DXT5" };
+            var selectedFormat = Array.IndexOf(formatOptions, texture.ImportSettings.Format);
+            if (selectedFormat < 0) selectedFormat = 0;
+            SetNextItemWidth(GetContentRegionAvail().X);
+            if (Combo("##texture_format", ref selectedFormat, formatOptions, formatOptions.Length)) {
+
+                texture.ImportSettings.Format = formatOptions[selectedFormat];
+                texture.SaveMeta();
+                AssetManager.DeleteImportedCache(texture);
+                AssetManager.ReloadAsset(texture);
+            }
+            NextColumn();
+
             var maxSizeOptions = new[] { 0, 32, 64, 128, 256, 512, 1024, 2048, 4096 };
             var maxSizeLabels = new[] { "Original", "32", "64", "128", "256", "512", "1024", "2048", "4096" };
             var selectedMaxSize = Array.IndexOf(maxSizeOptions, texture.ImportSettings.MaxSize);
@@ -777,9 +791,9 @@ internal class ObjectBrowser : Viewport {
             NextColumn();
 
             DrawShadowedLabel("Resize Filter");
-            var resizeOptions = new[] { "Bilinear", "Nearest" };
+            var resizeOptions = new[] { "Nearest", "Bilinear" };
             var selectedResize = Array.IndexOf(resizeOptions, texture.ImportSettings.ResizeFilter);
-            if (selectedResize < 0) selectedResize = 0;
+            if (selectedResize < 0) selectedResize = 1;
             SetNextItemWidth(GetContentRegionAvail().X);
             if (Combo("##texture_resize_filter", ref selectedResize, resizeOptions, resizeOptions.Length)) {
 
@@ -790,14 +804,26 @@ internal class ObjectBrowser : Viewport {
             }
             NextColumn();
 
-            DrawShadowedLabel("Compression");
-            var compressionOptions = new[] { "Fast", "Normal", "High" };
+            DrawShadowedLabel("Encode Speed");
+            var compressionOptions = new[] { "Fast", "Balanced", "Best" };
             var selectedCompression = Array.IndexOf(compressionOptions, texture.ImportSettings.Compression);
             if (selectedCompression < 0) selectedCompression = 1;
             SetNextItemWidth(GetContentRegionAvail().X);
             if (Combo("##texture_compression", ref selectedCompression, compressionOptions, compressionOptions.Length)) {
 
                 texture.ImportSettings.Compression = compressionOptions[selectedCompression];
+                texture.SaveMeta();
+                AssetManager.DeleteImportedCache(texture);
+                AssetManager.ReloadAsset(texture);
+            }
+            NextColumn();
+
+            DrawShadowedLabel("BC7 Quality");
+            var quality = texture.ImportSettings.Quality;
+            SetNextItemWidth(GetContentRegionAvail().X);
+            if (SliderInt("##texture_quality", ref quality, 1, 100)) {
+
+                texture.ImportSettings.Quality = quality;
                 texture.SaveMeta();
                 AssetManager.DeleteImportedCache(texture);
                 AssetManager.ReloadAsset(texture);
