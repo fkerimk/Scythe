@@ -16,12 +16,9 @@ internal static class ScriptCompiler {
             error = "Runtime mode cannot compile scripts.";
             return false;
         }
-
-        var scriptsDir = Path.Combine(ScytheConfig.Current.Project, "Scripts");
         var assemblyDir = Path.Combine(ScytheConfig.Current.Project, "Assembly");
         scriptOutDll = Path.Combine(assemblyDir, "Scripts.dll");
 
-        if (!Directory.Exists(scriptsDir)) return true;
 
         var exePath = Path.Combine(AppContext.BaseDirectory, "Scythe.dll");
         var projectName = new DirectoryInfo(ScytheConfig.Current.Project).Name;
@@ -85,13 +82,6 @@ internal static class ScriptCompiler {
         Tasks.Run("Compile Project Scripts", task => {
 
             try {
-                var scriptsDir = Path.Combine(ScytheConfig.Current.Project, "Scripts");
-
-                if (!Directory.Exists(scriptsDir)) {
-
-                    Tasks.RunOnMainThread(() => { _compiling = false; });
-                    return;
-                }
 
                 while (true) {
 

@@ -133,22 +133,25 @@ internal class Preview : Viewport {
 
         } else {
 
-            var textureAsset = AssetManager.GetOrImport<TextureAsset>(selectedFile!);
-            var matAsset = AssetManager.GetOrImport<MaterialAsset>(selectedFile!);
-            var modelAsset = AssetManager.GetOrImport<ModelAsset>(selectedFile!);
-
-            if (IsScript(selectedFile!))
+            if (IsScript(selectedFile!)) {
                 DrawScriptPreview();
-            else if (textureAsset != null)
-                DrawTexturePreview(textureAsset);
-            else {
+            } else {
 
-                var asset = (Asset?)matAsset ?? modelAsset;
+                var textureAsset = AssetManager.GetOrImport<TextureAsset>(selectedFile!);
+                var matAsset = AssetManager.GetOrImport<MaterialAsset>(selectedFile!);
+                var modelAsset = AssetManager.GetOrImport<ModelAsset>(selectedFile!);
 
-                if (asset != null) {
+                if (textureAsset != null)
+                    DrawTexturePreview(textureAsset);
+                else {
 
-                    Draw3DPreview(asset);
-                    DrawOverlayUi(asset);
+                    var asset = (Asset?)matAsset ?? modelAsset;
+
+                    if (asset != null) {
+
+                        Draw3DPreview(asset);
+                        DrawOverlayUi(asset);
+                    }
                 }
             }
         }
