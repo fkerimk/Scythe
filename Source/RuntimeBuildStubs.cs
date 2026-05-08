@@ -10,6 +10,15 @@ internal static class Editor {
     public static void SelectProjectSettings() { }
 }
 
+internal static class CollectionData {
+    public static bool IsLevel(string path) => path.EndsWith(".lvl", System.StringComparison.OrdinalIgnoreCase);
+    public static string GetLevelDisplayName(string value) {
+        var file = System.IO.Path.GetFileName(value.Replace('\\', '/'));
+        if (file.EndsWith(".lvl", System.StringComparison.OrdinalIgnoreCase)) return file[..^4];
+        return System.IO.Path.GetFileNameWithoutExtension(file);
+    }
+}
+
 internal class EditorRender {
     public bool IsHovered { get; set; }
     public Vector2 RelativeMouse { get; set; }
