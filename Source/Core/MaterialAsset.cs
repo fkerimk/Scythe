@@ -54,7 +54,7 @@ internal class MaterialAsset : Asset {
 
             if (field != null) return field;
 
-            var asset = AssetManager.Get<MaterialAsset>("Materials/Default.material.json");
+            var asset = AssetManager.Get<MaterialAsset>("Materials/Default.mat");
 
             if (asset != null) {
 

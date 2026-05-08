@@ -36,7 +36,6 @@
         <PackageReference Include="rlImgui-cs" Version="3.2.0" />
         <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
         <PackageReference Include="Jitter2" Version="2.8.5" />
-        <PackageReference Include="NLayer" Version="1.16.0" />
         <PackageReference Include="AssimpNet" Version="4.1.0" />
 
     </ItemGroup>

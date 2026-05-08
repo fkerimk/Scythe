@@ -3,7 +3,7 @@
   "AnimationGUID": "0da2d8912ae54ec89f73a7a51d09d202",
   "AnimationPath": "",
   "MeshMaterials": {
-    "0": "Resources/Materials/Default.material.json"
+    "0": "Resources/Materials/Default.mat"
   },
   "MeshMaterialPaths": {},
   "ImportScale": 0.01

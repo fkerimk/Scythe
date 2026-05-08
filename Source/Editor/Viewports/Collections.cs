@@ -442,8 +442,14 @@ internal class Collections : Viewport {
         var clicked = Selectable(name, isSelected, ImGuiSelectableFlags.None, new Vector2(GetContentRegionAvail().X, 0f));
         PopStyleColor();
         DrawEntryContextMenu(path, isDirectory: false);
+        var doubleClicked = IsItemHovered() && IsMouseDoubleClicked(ImGuiMouseButton.Left);
 
         if (isSelected) PopStyleColor(3);
+        if (doubleClicked && IsLevel(path)) {
+            _entryClickedThisFrame = true;
+            Editor.OpenLevel(path);
+            return;
+        }
         if (!clicked) return;
 
         _entryClickedThisFrame = true;
@@ -721,6 +727,7 @@ internal class Collections : Viewport {
 
             try {
                 Directory.Move(sourcePath, newPath);
+                Editor.OnCollectionPathMoved(sourcePath, newPath);
                 Notifications.Show($"Collection renamed to '{Path.GetFileName(newPath)}'.");
             } catch (Exception e) {
                 Notifications.Show($"Rename failed: {e.Message}");
@@ -730,7 +737,7 @@ internal class Collections : Viewport {
 
             var sidecarPath = GetSidecarMetaPathFor(sourcePath);
             var newSidecarPath = GetSidecarMetaPathFor(newPath);
-            var hasSidecar = File.Exists(sidecarPath);
+            var hasSidecar = !IsLevel(sourcePath) && File.Exists(sidecarPath);
 
             if (File.Exists(newPath) || Directory.Exists(newPath) || hasSidecar && File.Exists(newSidecarPath)) {
                 Notifications.Show($"Rename failed: '{Path.GetFileName(newPath)}' already exists.");
@@ -750,6 +757,7 @@ internal class Collections : Viewport {
                 }
 
                 if (string.Equals(_selectedPath, sourcePath, StringComparison.OrdinalIgnoreCase)) Editor.SetSelectedAsset(newPath);
+                if (IsLevel(sourcePath)) Editor.OnLevelPathMoved(sourcePath, newPath);
                 Notifications.Show($"File renamed to '{Path.GetFileName(newPath)}'.");
             } catch (Exception e) {
                 try {
@@ -959,11 +967,11 @@ internal class Collections : Viewport {
         _ => Colors.GuiText.ToVector4()
     };
 
-    private static bool IsLevel(string path) => path.EndsWith(".level.json", StringComparison.OrdinalIgnoreCase);
-    private static bool IsMaterial(string path) => path.EndsWith(".material.json", StringComparison.OrdinalIgnoreCase);
+    private static bool IsLevel(string path) => path.EndsWith(".lvl", StringComparison.OrdinalIgnoreCase);
+    private static bool IsMaterial(string path) => path.EndsWith(".mat", StringComparison.OrdinalIgnoreCase);
     private static bool IsTexture(string path) => path.EndsWith(".png", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".jpeg", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".tga", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".bmp", StringComparison.OrdinalIgnoreCase);
     private static bool IsScript(string path) => path.EndsWith(".cs", StringComparison.OrdinalIgnoreCase);
-    private static bool IsPrefab(string path) => path.EndsWith(".prefab.json", StringComparison.OrdinalIgnoreCase);
+    private static bool IsPrefab(string path) => path.EndsWith(".pre", StringComparison.OrdinalIgnoreCase);
 
     private static bool IsModel(string path) {
 
@@ -975,9 +983,9 @@ internal class Collections : Viewport {
 
         var name = Path.GetFileName(path);
 
-        if (IsLevel(path)) return name[..^11];
-        if (IsMaterial(path)) return name[..^14];
-        if (IsPrefab(path)) return name[..^12];
+        if (path.EndsWith(".lvl", StringComparison.OrdinalIgnoreCase)) return name[..^4];
+        if (path.EndsWith(".mat", StringComparison.OrdinalIgnoreCase)) return name[..^4];
+        if (IsPrefab(path)) return name[..^4];
 
         return Path.GetFileNameWithoutExtension(name);
     }
@@ -986,9 +994,9 @@ internal class Collections : Viewport {
 
         var name = Path.GetFileName(path);
 
-        if (IsLevel(path)) return name[^11..];
-        if (IsMaterial(path)) return name[^14..];
-        if (IsPrefab(path)) return name[^12..];
+        if (path.EndsWith(".lvl", StringComparison.OrdinalIgnoreCase)) return ".lvl";
+        if (path.EndsWith(".mat", StringComparison.OrdinalIgnoreCase)) return ".mat";
+        if (IsPrefab(path)) return ".pre";
 
         return Path.GetExtension(path);
     }
@@ -1004,10 +1012,10 @@ internal class Collections : Viewport {
 
     private static string GetCreateItemSuffix(CreateItemType type) => type switch {
         CreateItemType.Collection => "",
-        CreateItemType.Level => ".level.json",
-        CreateItemType.Material => ".material.json",
+        CreateItemType.Level => ".lvl",
+        CreateItemType.Material => ".mat",
         CreateItemType.Script => ".cs",
-        CreateItemType.Prefab => ".prefab.json",
+        CreateItemType.Prefab => ".pre",
         _ => ""
     };
 

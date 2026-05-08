@@ -12,10 +12,8 @@ internal static class ViewSettings {
             {
               "EditorRender": true,
               "LevelBrowser": true,
-              "ProjectBrowser": true,
               "ObjectBrowser": true,
               "ScriptEditor": true,
-              "MusicPlayer": true,
               "Preview": true,
               "RuntimeRender": true
             }

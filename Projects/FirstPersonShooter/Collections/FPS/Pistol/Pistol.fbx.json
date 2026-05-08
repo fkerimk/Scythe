@@ -7,8 +7,8 @@
     "1": "9bed13f5578040f3b14816d53a3c3c36"
   },
   "MeshMaterialPaths": {
-    "0": "Collections/FPS/Pistol/Hands.material.json",
-    "1": "Collections/FPS/Pistol/Beretta.material.json"
+    "0": "Collections/FPS/Pistol/Hands.mat",
+    "1": "Collections/FPS/Pistol/Beretta.mat"
   },
   "ImportScale": 0.02
 }

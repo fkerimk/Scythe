@@ -73,8 +73,6 @@ internal static class Core {
 
             if (!string.IsNullOrWhiteSpace(startupLevel))
                 OpenLevel(CollectionData.GetLevelDisplayName(startupLevel), startupLevel);
-            else
-                OpenLevel("Main");
         }
 
         _shadowMap = LoadShadowmapRenderTexture(ShadowMapResolution, ShadowMapResolution);
@@ -171,7 +169,7 @@ internal static class Core {
 
         if (path == null) {
 
-            if (PathUtil.GetPath($"Levels/{name}.level.json", out var levelPath) || PathUtil.GetPath($"{name}.level.json", out levelPath) || PathUtil.GetPath($"Levels/{name}.json", out levelPath) || PathUtil.GetPath($"{name}.json", out levelPath))
+            if (PathUtil.GetPath($"Levels/{name}.lvl", out var levelPath) || PathUtil.GetPath($"{name}.lvl", out levelPath))
                 level = new Level(name, levelPath);
 
             else {
@@ -203,23 +201,35 @@ internal static class Core {
 
     private static string? ResolveStartupLevelPath() {
 
-        var configured = ProjectConfig.Current.StartupLevel?.Replace('\\', '/');
+        var guid = ProjectConfig.Current.StartupLevel?.Replace('\\', '/');
+        var path = ProjectConfig.Current.StartupLevelPath?.Replace('\\', '/');
 
-        if (!string.IsNullOrWhiteSpace(configured)) {
+        if (!string.IsNullOrWhiteSpace(guid) || !string.IsNullOrWhiteSpace(path)) {
 
-            var absolute = Path.IsPathRooted(configured)
-                ? configured
-                : Path.Combine(ScytheConfig.Current.Project, configured);
+            var lookupGuid = guid ?? "";
+            var lookupPath = path ?? "";
+            var levelAsset = AssetManager.ResolveReference<LevelAsset>(ref lookupGuid, ref lookupPath);
 
-            absolute = Path.GetFullPath(absolute);
+            ProjectConfig.Current.StartupLevel = lookupGuid;
+            ProjectConfig.Current.StartupLevelPath = lookupPath;
 
-            if (File.Exists(absolute)) return absolute;
+            if (levelAsset is { IsLoaded: true } && File.Exists(levelAsset.File)) return levelAsset.File;
         }
 
-        if (PathUtil.GetPath("Levels/Main.level.json", out var levelPath)) return levelPath;
-        if (PathUtil.GetPath("Levels/Main.json", out levelPath)) return levelPath;
+        var firstLevel = FindFirstLevelPath();
+        if (!string.IsNullOrWhiteSpace(firstLevel)) return firstLevel;
 
         return null;
+    }
+
+    private static string? FindFirstLevelPath() {
+
+        if (!Directory.Exists(ScytheConfig.Current.Project)) return null;
+
+        return Directory.EnumerateFiles(ScytheConfig.Current.Project, "*", SearchOption.AllDirectories)
+            .Where(CollectionData.IsLevel)
+            .OrderBy(path => path, new NaturalStringComparer()!)
+            .FirstOrDefault();
     }
 
     public static void SetActiveLevel(int index, bool clearHistory = true) {

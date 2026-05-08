@@ -175,7 +175,7 @@ internal static class AssetManager {
 
         file = Path.GetFullPath(file);
 
-        if (!File.Exists(file) && !file.EndsWith(".material.json", StringComparison.OrdinalIgnoreCase)) return;
+        if (!File.Exists(file) && !file.EndsWith(".mat", StringComparison.OrdinalIgnoreCase)) return;
 
         var ext = Path.GetExtension(file).ToLowerInvariant();
 
@@ -188,7 +188,12 @@ internal static class AssetManager {
 
             default: {
 
-                if (file.EndsWith(".material.json", StringComparison.OrdinalIgnoreCase))
+                if (file.EndsWith(".lvl", StringComparison.OrdinalIgnoreCase)) {
+                    ImportLevel(file);
+                    break;
+                }
+
+                if (file.EndsWith(".mat", StringComparison.OrdinalIgnoreCase))
                     ImportMaterial(file);
 
                 else
@@ -235,7 +240,7 @@ internal static class AssetManager {
 
         file = Path.GetFullPath(file);
 
-        if (file.EndsWith(".material.json", StringComparison.OrdinalIgnoreCase)) {
+        if (file.EndsWith(".mat", StringComparison.OrdinalIgnoreCase)) {
 
             yield return file;
             yield break;
@@ -303,6 +308,8 @@ internal static class AssetManager {
 
         GetOrLoad<MaterialAsset>(file);
     }
+
+    private static void ImportLevel(string file) => GetOrLoad<LevelAsset>(file);
 
     private static void ImportTexture(string file) => GetOrLoad<TextureAsset>(file);
 
@@ -439,9 +446,15 @@ internal static class AssetManager {
             return;
         }
 
-        if (fullPath.EndsWith(".material.json", StringComparison.OrdinalIgnoreCase)) {
+        if (fullPath.EndsWith(".mat", StringComparison.OrdinalIgnoreCase)) {
 
             if (Get<MaterialAsset>(fullPath) == null) ImportMaterial(fullPath);
+            return;
+        }
+
+        if (fullPath.EndsWith(".lvl", StringComparison.OrdinalIgnoreCase)) {
+
+            if (Get<LevelAsset>(fullPath) == null) ImportLevel(fullPath);
             return;
         }
 

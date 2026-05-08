@@ -43,48 +43,26 @@ internal class EditorRender() : Viewport("Render (Editor)") {
 
         if (Core.OpenLevels.Count > 0) return;
 
-        var configuredStartup = ProjectConfig.Current.StartupLevel?.Replace('\\', '/');
+        var startupGuid = ProjectConfig.Current.StartupLevel?.Replace('\\', '/');
+        var startupStoredPath = ProjectConfig.Current.StartupLevelPath?.Replace('\\', '/');
 
-        if (!string.IsNullOrWhiteSpace(configuredStartup)) {
+        if (!string.IsNullOrWhiteSpace(startupGuid) || !string.IsNullOrWhiteSpace(startupStoredPath)) {
 
-            var startupPath = Path.IsPathRooted(configuredStartup)
-                ? configuredStartup
-                : Path.Combine(ScytheConfig.Current.Project, configuredStartup);
+            var lookupGuid = startupGuid ?? "";
+            var lookupPath = startupStoredPath ?? "";
+            var levelAsset = AssetManager.ResolveReference<LevelAsset>(ref lookupGuid, ref lookupPath);
 
-            startupPath = Path.GetFullPath(startupPath);
+            ProjectConfig.Current.StartupLevel = lookupGuid;
+            ProjectConfig.Current.StartupLevelPath = lookupPath;
 
-            if (File.Exists(startupPath)) {
-                Editor.OpenLevel(startupPath);
+            if (levelAsset is { IsLoaded: true } && File.Exists(levelAsset.File)) {
+                Editor.OpenLevel(levelAsset.File);
                 return;
             }
         }
 
-        if (PathUtil.GetPath("Levels/Main.level.json", out var mainLevelPath)) {
-            Editor.OpenLevel(mainLevelPath);
-            return;
-        }
-
-        if (PathUtil.GetPath("Levels/Main.json", out var mainPath)) {
-            Editor.OpenLevel(mainPath);
-        } else {
-
-            var levelsDir = Path.Join(ScytheConfig.Current.Project, "Levels");
-
-            if (Directory.Exists(levelsDir)) {
-
-                var firstJson = Directory.GetFiles(levelsDir, "*.json", SearchOption.AllDirectories).FirstOrDefault();
-
-                if (firstJson != null)
-                    Editor.OpenLevel(firstJson);
-                else
-                    Editor.CreateLevel(Path.Combine(levelsDir, "Main.json"));
-
-            } else {
-
-                Directory.CreateDirectory(levelsDir);
-                Editor.CreateLevel(Path.Combine(levelsDir, "Main.json"));
-            }
-        }
+        var firstLevel = FindFirstLevelPath();
+        if (!string.IsNullOrWhiteSpace(firstLevel)) Editor.OpenLevel(firstLevel);
     }
 
     public void Save() {
@@ -102,6 +80,16 @@ internal class EditorRender() : Viewport("Render (Editor)") {
 
         public List<string> OpenLevels { get; init; } = [];
         public int ActiveLevelIndex { get; init; } = -1;
+    }
+
+    private static string? FindFirstLevelPath() {
+
+        if (!Directory.Exists(ScytheConfig.Current.Project)) return null;
+
+        return Directory.EnumerateFiles(ScytheConfig.Current.Project, "*", SearchOption.AllDirectories)
+            .Where(CollectionData.IsLevel)
+            .OrderBy(path => path, new NaturalStringComparer()!)
+            .FirstOrDefault();
     }
 
     protected override void OnDraw() {

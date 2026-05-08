@@ -148,9 +148,7 @@ internal static class CollectionData {
         var targetPath = GetResolvedTargetPath(collectionPath);
         if (string.IsNullOrWhiteSpace(targetPath) || !IsPathCompatibleWithPicker(targetPath, pickerType)) return false;
 
-        value = pickerType == "LevelAsset"
-            ? AssetManager.GetStoredPath(targetPath)
-            : GetGuidForAssetPath(targetPath, pickerType);
+        value = GetGuidForAssetPath(targetPath, pickerType);
 
         return !string.IsNullOrWhiteSpace(value);
     }
@@ -179,7 +177,7 @@ internal static class CollectionData {
 
         if (TryGetSelectionCollectionInfo(value, pickerType, out var display, out _)) return display;
 
-        if (pickerType == "LevelAsset") return GetLevelDisplayName(value);
+        if (pickerType == "LevelAsset") return AssetManager.Get<LevelAsset>(value) is { } levelAsset ? GetLevelDisplayName(levelAsset.File) : GetLevelDisplayName(value);
         return Path.GetFileNameWithoutExtension(value);
     }
 
@@ -261,11 +259,11 @@ internal static class CollectionData {
         return File.Exists(assetPath);
     }
 
-    public static bool IsLevel(string path) => path.EndsWith(".level.json", StringComparison.OrdinalIgnoreCase);
-    public static bool IsMaterial(string path) => path.EndsWith(".material.json", StringComparison.OrdinalIgnoreCase);
+    public static bool IsLevel(string path) => path.EndsWith(".lvl", StringComparison.OrdinalIgnoreCase);
+    public static bool IsMaterial(string path) => path.EndsWith(".mat", StringComparison.OrdinalIgnoreCase);
     public static bool IsTexture(string path) => path.EndsWith(".png", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".jpeg", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".tga", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".bmp", StringComparison.OrdinalIgnoreCase);
     public static bool IsScript(string path) => path.EndsWith(".cs", StringComparison.OrdinalIgnoreCase);
-    public static bool IsPrefab(string path) => path.EndsWith(".prefab.json", StringComparison.OrdinalIgnoreCase);
+    public static bool IsPrefab(string path) => path.EndsWith(".pre", StringComparison.OrdinalIgnoreCase);
 
     public static bool IsModel(string path) {
 
@@ -277,9 +275,9 @@ internal static class CollectionData {
 
         var name = Path.GetFileName(path);
 
-        if (IsLevel(path)) return name[..^11];
-        if (IsMaterial(path)) return name[..^14];
-        if (IsPrefab(path)) return name[..^12];
+        if (path.EndsWith(".lvl", StringComparison.OrdinalIgnoreCase)) return name[..^4];
+        if (path.EndsWith(".mat", StringComparison.OrdinalIgnoreCase)) return name[..^4];
+        if (IsPrefab(path)) return name[..^4];
 
         return Path.GetFileNameWithoutExtension(name);
     }
@@ -288,9 +286,9 @@ internal static class CollectionData {
 
         var name = Path.GetFileName(path);
 
-        if (IsLevel(path)) return name[^11..];
-        if (IsMaterial(path)) return name[^14..];
-        if (IsPrefab(path)) return name[^12..];
+        if (path.EndsWith(".lvl", StringComparison.OrdinalIgnoreCase)) return ".lvl";
+        if (path.EndsWith(".mat", StringComparison.OrdinalIgnoreCase)) return ".mat";
+        if (IsPrefab(path)) return ".pre";
 
         return Path.GetExtension(path);
     }
@@ -298,13 +296,13 @@ internal static class CollectionData {
     public static string GetLevelDisplayName(string value) {
 
         var file = Path.GetFileName(value.Replace('\\', '/'));
-        if (file.EndsWith(".level.json", StringComparison.OrdinalIgnoreCase)) return file[..^11];
-        if (file.EndsWith(".json", StringComparison.OrdinalIgnoreCase)) return file[..^5];
+        if (file.EndsWith(".lvl", StringComparison.OrdinalIgnoreCase)) return file[..^4];
 
         return Path.GetFileNameWithoutExtension(file);
     }
 
     private static string GetGuidForAssetPath(string path, string pickerType) => pickerType switch {
+        "LevelAsset" => AssetManager.GetOrImport<LevelAsset>(path)?.GUID ?? "",
         "MaterialAsset" => AssetManager.GetOrImport<MaterialAsset>(path)?.GUID ?? "",
         "ModelAsset" => AssetManager.GetOrImport<ModelAsset>(path)?.GUID ?? "",
         "ScriptAsset" => AssetManager.GetOrImport<ScriptAsset>(path)?.GUID ?? "",

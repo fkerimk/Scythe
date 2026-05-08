@@ -6,6 +6,7 @@ internal class ProjectConfig {
 
     public string Name = "SCYTHE";
     public string StartupLevel = "";
+    public string StartupLevelPath = "";
 
     public static string GetPath() => Path.Combine(ScytheConfig.Current.Project, "Project.json");
 

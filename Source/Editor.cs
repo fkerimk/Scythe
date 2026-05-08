@@ -22,9 +22,7 @@ internal static unsafe class Editor {
     // ReSharper disable MemberCanBePrivate.Global
     public static EditorRender EditorRender = null!;
     public static LevelBrowser LevelBrowser = null!;
-    public static ProjectBrowser ProjectBrowser = null!;
     public static ObjectBrowser ObjectBrowser = null!;
-    public static MusicPlayer MusicPlayer = null!;
     public static Preview Preview = null!;
     public static RuntimeRender RuntimeRender = null!;
     public static Collections Collections = null!;
@@ -44,7 +42,7 @@ internal static unsafe class Editor {
 
     public static void CreateLevel(string path) {
 
-        var name = Path.GetFileNameWithoutExtension(path);
+        var name = CollectionData.GetLevelDisplayName(path);
         var level = new Level(name, path, false);
 
         Core.OpenLevels.Add(level);
@@ -58,7 +56,6 @@ internal static unsafe class Editor {
         AssetManager.EnsureImported(path);
         SelectedAssetPath = path;
         ProjectSettingsSelected = false;
-        ProjectBrowser.SyncExternalSelection(path);
         Collections.SyncExternalSelection(path);
     }
 
@@ -66,9 +63,58 @@ internal static unsafe class Editor {
 
         LevelBrowser.SelectObject(null);
         SelectedAssetPath = null;
-        ProjectBrowser.SyncExternalSelection(null);
         Collections.SyncExternalSelection(null);
         ProjectSettingsSelected = true;
+    }
+
+    public static void OnLevelPathMoved(string oldPath, string newPath) {
+
+        var oldFullPath = Path.GetFullPath(oldPath);
+        var newFullPath = Path.GetFullPath(newPath);
+
+        for (var i = 0; i < Core.OpenLevels.Count; i++) {
+
+            var level = Core.OpenLevels[i];
+            if (!Path.GetFullPath(level.JsonPath).Equals(oldFullPath, StringComparison.OrdinalIgnoreCase)) continue;
+
+            var snapshot = level.ToSnapshot();
+            File.WriteAllText(newFullPath, snapshot);
+
+            var reloaded = new Level(CollectionData.GetLevelDisplayName(newFullPath), newFullPath) {
+                IsDirty = level.IsDirty
+            };
+
+            Core.OpenLevels[i] = reloaded;
+
+            if (ReferenceEquals(_editorLevelRef, level)) _editorLevelRef = reloaded;
+            if (Core.ActiveLevelIndex == i) Core.SetActiveLevel(i, clearHistory: false);
+        }
+    }
+
+    public static void OnCollectionPathMoved(string oldPath, string newPath) {
+
+        var oldFullPath = Path.GetFullPath(oldPath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
+        var newFullPath = Path.GetFullPath(newPath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
+
+        for (var i = 0; i < Core.OpenLevels.Count; i++) {
+
+            var level = Core.OpenLevels[i];
+            var levelPath = Path.GetFullPath(level.JsonPath);
+            if (!levelPath.StartsWith(oldFullPath, StringComparison.OrdinalIgnoreCase)) continue;
+
+            var movedPath = Path.GetFullPath(newFullPath + levelPath[oldFullPath.Length..]);
+            var snapshot = level.ToSnapshot();
+            File.WriteAllText(movedPath, snapshot);
+
+            var reloaded = new Level(CollectionData.GetLevelDisplayName(movedPath), movedPath) {
+                IsDirty = level.IsDirty
+            };
+
+            Core.OpenLevels[i] = reloaded;
+
+            if (ReferenceEquals(_editorLevelRef, level)) _editorLevelRef = reloaded;
+            if (Core.ActiveLevelIndex == i) Core.SetActiveLevel(i, clearHistory: false);
+        }
     }
 
     public static void Show() {
@@ -79,9 +125,7 @@ internal static unsafe class Editor {
 
         EditorRender = new EditorRender { CustomStyle = new CustomStyle { WindowPadding = new Vector2(0, 0), CellPadding = new Vector2(0, 0), SeparatorTextPadding = new Vector2(0, 0) } };
         LevelBrowser = new LevelBrowser();
-        ProjectBrowser = new ProjectBrowser();
         ObjectBrowser = new ObjectBrowser();
-        MusicPlayer = new MusicPlayer();
         Preview = new Preview();
         RuntimeRender = new RuntimeRender();
         Collections = new Collections();
@@ -99,8 +143,6 @@ internal static unsafe class Editor {
         EditorRender.Load();
 
         ViewSettings.Load();
-        MusicPlayer.Load();
-        ProjectBrowser.Load();
 
         Core.Load();
 
@@ -134,7 +176,6 @@ internal static unsafe class Editor {
 
                 MenuBar.Draw();
                 EditorRender.Draw();
-                ProjectBrowser.Draw();
                 Preview.Draw();
 
                 PopFont();
@@ -272,8 +313,6 @@ internal static unsafe class Editor {
             RuntimeRender.Draw();
             LevelBrowser.Draw();
             ObjectBrowser.Draw();
-            ProjectBrowser.Draw();
-            MusicPlayer.Draw();
             Preview.Draw();
             Collections.Draw();
 
@@ -296,8 +335,6 @@ internal static unsafe class Editor {
         }
 
         ViewSettings.Save();
-        MusicPlayer.Save();
-        ProjectBrowser.Save();
         EditorRender.Save();
 
         Shutdown();

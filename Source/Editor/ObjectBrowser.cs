@@ -427,6 +427,9 @@ internal class ObjectBrowser : Viewport {
 
             if (levelChanged) {
                 ProjectConfig.Current.StartupLevel = (string)startupLevel!;
+                ProjectConfig.Current.StartupLevelPath = AssetManager.GetPath<LevelAsset>(ProjectConfig.Current.StartupLevel) is { } path
+                    ? AssetManager.GetStoredPath(path)
+                    : "";
                 ProjectConfig.Current.Save();
             }
         }
@@ -662,9 +665,7 @@ internal class ObjectBrowser : Viewport {
 
         if (!Selectable(CollectionData.GetNameWithoutExtension(path), false, ImGuiSelectableFlags.None, new Vector2(GetContentRegionAvail().X, 0f))) return;
 
-        var selectedValue = pickerType == "LevelAsset"
-            ? AssetManager.GetStoredPath(path)
-            : ResolvePickerAssetValue(path, pickerType);
+        var selectedValue = ResolvePickerAssetValue(path, pickerType);
 
         if (string.IsNullOrWhiteSpace(selectedValue)) return;
 
@@ -755,7 +756,7 @@ internal class ObjectBrowser : Viewport {
 
         var ext = Path.GetExtension(path).ToLowerInvariant();
 
-        if (path.EndsWith(".material.json", StringComparison.OrdinalIgnoreCase)) {
+        if (CollectionData.IsMaterial(path)) {
 
             var asset = AssetManager.GetOrImport<MaterialAsset>(path);
 
@@ -1160,8 +1161,8 @@ internal class ObjectBrowser : Viewport {
         if (SupportsCollectionPicker(pickerType) && CollectionData.TryGetSelectionCollectionInfo(value, pickerType, out var display, out _)) return display;
 
         return pickerType switch {
-            "LevelAsset" => CollectionData.GetPickerDisplayValue(value, pickerType),
             "ShaderAsset" => AssetManager.Get<ShaderAsset>(value) is { } asset ? Path.GetFileNameWithoutExtension(asset.File) : value,
+            "LevelAsset" => AssetManager.Get<LevelAsset>(value) is { } levelAsset ? CollectionData.GetLevelDisplayName(levelAsset.File) : value,
             "TextureAsset" => AssetManager.Get<TextureAsset>(value) is { } asset ? Path.GetFileNameWithoutExtension(asset.File) : value,
             "ModelAsset" => AssetManager.Get<ModelAsset>(value) is { } asset ? Path.GetFileNameWithoutExtension(asset.File) : value,
             "AnimationAsset" => AssetManager.Get<AnimationAsset>(value) is { } asset ? Path.GetFileNameWithoutExtension(asset.File) : value,
@@ -1177,7 +1178,7 @@ internal class ObjectBrowser : Viewport {
         if (SupportsCollectionPicker(pickerType) && CollectionData.TryGetSelectionCollectionInfo(value, pickerType, out _, out var tooltip)) return tooltip;
 
         return pickerType switch {
-            "LevelAsset" => value,
+            "LevelAsset" => AssetManager.GetPath<LevelAsset>(value) ?? value,
             "ShaderAsset" => AssetManager.GetPath<ShaderAsset>(value) ?? value,
             "TextureAsset" => AssetManager.GetPath<TextureAsset>(value) ?? value,
             "ModelAsset" => AssetManager.GetPath<ModelAsset>(value) ?? value,
@@ -1241,10 +1242,12 @@ internal class ObjectBrowser : Viewport {
 
                 var storedPath = AssetManager.GetStoredPath(file);
                 var label = storedPath.Replace('\\', '/');
-                if (label.EndsWith(".level.json", StringComparison.OrdinalIgnoreCase)) label = label[..^11];
-                else if (label.EndsWith(".json", StringComparison.OrdinalIgnoreCase)) label = label[..^5];
+                label = CollectionData.GetLevelDisplayName(label);
 
-                entries.Add(new PickerSearchEntry(label, storedPath, storedPath));
+                var levelGuid = AssetManager.GetOrImport<LevelAsset>(file)?.GUID;
+                if (string.IsNullOrWhiteSpace(levelGuid)) continue;
+
+                entries.Add(new PickerSearchEntry(label, storedPath, levelGuid));
             }
 
             return entries
@@ -1291,14 +1294,16 @@ internal class ObjectBrowser : Viewport {
 
     private static string TrimPickerLabelExtension(string value) {
 
-        if (value.EndsWith(".material.json", StringComparison.OrdinalIgnoreCase)) return value[..^14];
-        if (value.EndsWith(".prefab.json", StringComparison.OrdinalIgnoreCase)) return value[..^12];
-        if (value.EndsWith(".level.json", StringComparison.OrdinalIgnoreCase)) return value[..^11];
+        if (value.EndsWith(".mat", StringComparison.OrdinalIgnoreCase)) return value[..^4];
+        if (value.EndsWith(".pre", StringComparison.OrdinalIgnoreCase)) return value[..^4];
+        if (value.EndsWith(".lvl", StringComparison.OrdinalIgnoreCase)) return value[..^4];
+        if (value.EndsWith(".mat", StringComparison.OrdinalIgnoreCase)) return value[..^4];
 
         return Path.ChangeExtension(value, null) ?? value;
     }
 
     private static string ResolvePickerAssetValue(string path, string pickerType) => pickerType switch {
+        "LevelAsset" => AssetManager.GetOrImport<LevelAsset>(path)?.GUID ?? "",
         "TextureAsset" => AssetManager.GetOrImport<TextureAsset>(path)?.GUID ?? "",
         "ModelAsset" => AssetManager.GetOrImport<ModelAsset>(path)?.GUID ?? "",
         "MaterialAsset" => AssetManager.GetOrImport<MaterialAsset>(path)?.GUID ?? "",

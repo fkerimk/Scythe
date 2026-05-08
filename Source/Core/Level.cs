@@ -65,6 +65,7 @@ internal class Level {
     }
 
     public string Name { get; set; } = null!;
+    [JsonProperty] public string GUID { get; set; } = System.Guid.NewGuid().ToString("N");
     public string JsonPath { get; set; } = null!;
     public bool IsDirty { get; set; }
 
@@ -82,6 +83,7 @@ internal class Level {
 
         Root = new Obj("Root", null);
         Name = "New Level";
+        GUID = System.Guid.NewGuid().ToString("N");
         JsonPath = "";
     }
 
@@ -90,12 +92,11 @@ internal class Level {
         if (name == null) return;
 
         Name = name;
+        GUID = System.Guid.NewGuid().ToString("N");
 
-        if (!PathUtil.GetPath($"Levels/{Name}.level.json", out var path))
-            if (!PathUtil.GetPath($"{Name}.level.json", out path))
-                if (!PathUtil.GetPath($"Levels/{Name}.json", out path))
-                    if (!PathUtil.GetPath($"{Name}.json", out path))
-                        throw new FileNotFoundException($"Could not find level file {Name} with .level.json or .json extension");
+        if (!PathUtil.GetPath($"Levels/{Name}.lvl", out var path))
+            if (!PathUtil.GetPath($"{Name}.lvl", out path))
+                throw new FileNotFoundException($"Could not find level file {Name} with .lvl extension");
 
         JsonPath = path;
         Root = new Obj("Root", null);
@@ -106,6 +107,7 @@ internal class Level {
     public Level(string name, string path, bool load = true) {
 
         Name = name;
+        GUID = System.Guid.NewGuid().ToString("N");
         JsonPath = path;
         Root = new Obj("Root", null);
 
@@ -115,6 +117,7 @@ internal class Level {
     public Level(string name, string path, string jsonBody) {
 
         Name = name;
+        GUID = System.Guid.NewGuid().ToString("N");
         JsonPath = path;
         Root = new Obj("Root", null);
         LoadInternal(jsonBody);
@@ -125,6 +128,7 @@ internal class Level {
 
                 var jsonText = jsonOverride ?? File.ReadAllText(JsonPath);
                 var rawData = JObject.Parse(jsonText);
+                GUID = rawData["GUID"]?.Value<string>() ?? GUID;
 
                 if (rawData["Root"]?["Children"] is JObject children) {
 

@@ -31,7 +31,6 @@ internal static class MenuBar {
             if (MenuItem("Rename", "F2")) {
                 if (Editor.LevelBrowser.IsFocused)
                     Editor.LevelBrowser.RenameSelected();
-                else if (Editor.ProjectBrowser.IsFocused) Editor.ProjectBrowser.RenameSelected();
             }
 
             EndMenu();
