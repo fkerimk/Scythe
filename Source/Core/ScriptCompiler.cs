@@ -173,9 +173,34 @@ internal static class ScriptCompiler {
                 asset.Unload();
                 asset.AssignFromAssembly();
             }
+
+            // Hot reload: force all Script components to recreate their instances from the new assembly
+            if (Core.IsPlaying) {
+                ReloadAllScriptInstances();
+                Notifications.Show("Scripts Hot Reloaded");
+            }
         }
 
         if (assignAssetsOnMainThread) Tasks.RunOnMainThread(Assign);
         else Assign();
+    }
+
+    /// <summary>
+    /// Forces all Script components in open levels to drop their current instances
+    /// so that Core.Load() recreates them from the latest compiled assembly on the next frame.
+    /// </summary>
+    private static void ReloadAllScriptInstances() {
+
+        foreach (var level in Core.OpenLevels)
+            ReloadScripts(level.Root);
+    }
+
+    private static void ReloadScripts(Obj obj) {
+
+        foreach (var component in obj.Components.Values) {
+            if (component is Script) component.UnloadAndQuit();
+        }
+
+        foreach (var child in obj.Children.Values.ToArray()) ReloadScripts(child);
     }
 }
