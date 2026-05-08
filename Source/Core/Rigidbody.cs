@@ -213,6 +213,18 @@ internal class Rigidbody(Obj obj) : Component(obj) {
     public override void Unload() {
 
         if (Body != null) Physics.World.Remove(Body);
+        Body = null;
         Physics.Unregister(this);
+    }
+
+    public void RebuildBody() {
+
+        var wasLoaded = IsLoaded;
+
+        if (wasLoaded) UnloadAndQuit();
+
+        if (!Load()) return;
+
+        IsLoaded = true;
     }
 }

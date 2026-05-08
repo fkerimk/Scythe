@@ -6,6 +6,7 @@ internal static class ScriptCompiler {
     
     private static bool _compiling;
     private static bool _queued;
+    private static bool _pendingPlayModeRefresh;
 
     public static bool BuildProjectAssembly(bool loadIntoRuntime, out string scriptOutDll, out string error, BackgroundTask? task = null) {
 
@@ -177,6 +178,7 @@ internal static class ScriptCompiler {
             // Hot reload: force all Script components to recreate their instances from the new assembly
             if (Core.IsPlaying) {
                 ReloadAllScriptInstances();
+                _pendingPlayModeRefresh = true;
                 Notifications.Show("Scripts Hot Reloaded");
             }
         }
@@ -198,9 +200,20 @@ internal static class ScriptCompiler {
     private static void ReloadScripts(Obj obj) {
 
         foreach (var component in obj.Components.Values) {
-            if (component is Script) component.UnloadAndQuit();
+            if (component is Script script) {
+                script.PrepareForHotReload();
+                script.UnloadAndQuit();
+            }
         }
 
         foreach (var child in obj.Children.Values.ToArray()) ReloadScripts(child);
+    }
+
+    public static bool ConsumePendingPlayModeRefresh() {
+
+        if (!_pendingPlayModeRefresh) return false;
+
+        _pendingPlayModeRefresh = false;
+        return true;
     }
 }

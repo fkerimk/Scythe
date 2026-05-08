@@ -325,6 +325,9 @@ internal static class Core {
         // Robust loading of any newly added/restored components
         Load();
 
+        if ((IsPlaying || CommandLine.Runtime) && ScriptCompiler.ConsumePendingPlayModeRefresh())
+            RefreshPlayModeAfterScriptHotReload();
+
         Lights.Clear();
         TransparentRenderQueue.Clear();
 
@@ -339,6 +342,31 @@ internal static class Core {
         // Update global pbr parameters after everything is settled
         var pbr = AssetManager.Get<ShaderAsset>("pbr");
         if (pbr != null) SetShaderValue(pbr.Shader, pbr.GetLoc("view_pos"), ActiveCamera?.Position ?? Vector3.Zero, ShaderUniformDataType.Vec3);
+    }
+
+    private static void RefreshPlayModeAfterScriptHotReload() {
+
+        foreach (var level in OpenLevels) {
+            StartScripts(level.Root);
+            ReloadPhysicsBodies(level.Root);
+        }
+    }
+
+    private static void StartScripts(Obj obj) {
+
+        foreach (var component in obj.Components.Values) {
+            if (component is Script script && script.IsLoaded) script.EnsureStarted();
+        }
+
+        foreach (var child in obj.Children.Values.ToArray()) StartScripts(child);
+    }
+
+    private static void ReloadPhysicsBodies(Obj obj) {
+
+        if (obj.Components.TryGetValue("Rigidbody", out var rb) && rb is Rigidbody rigidbody && rigidbody.IsLoaded)
+            rigidbody.RebuildBody();
+
+        foreach (var child in obj.Children.Values.ToArray()) ReloadPhysicsBodies(child);
     }
 
     private static void RunLogic(Obj obj) {
