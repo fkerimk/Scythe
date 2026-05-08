@@ -128,7 +128,56 @@ internal class Obj {
 
     public void SetParent(Obj? obj, bool keepWorld = false) {
 
-        if (obj == null || obj == this || Parent == null || obj == Parent || IsAncestorOf(this, obj)) return;
+        if (obj == null || obj == this || Parent == null || IsAncestorOf(this, obj)) return;
+
+        MoveToIndex(obj, obj.Children.Count, keepWorld);
+    }
+
+    public void MoveBefore(Obj? sibling, bool keepWorld = false) {
+
+        if (sibling?.Parent == null || sibling == this || Parent == null) return;
+
+        MoveToIndex(sibling.Parent, sibling.GetSiblingIndex(), keepWorld);
+    }
+
+    public void MoveAfter(Obj? sibling, bool keepWorld = false) {
+
+        if (sibling?.Parent == null || sibling == this || Parent == null) return;
+
+        MoveToIndex(sibling.Parent, sibling.GetSiblingIndex() + 1, keepWorld);
+    }
+
+    public void RecordedMoveBefore(Obj? sibling) {
+
+        if (sibling?.Parent == null || sibling == this || Parent == null) return;
+
+        RecordedMoveToIndex(sibling.Parent, sibling.GetSiblingIndex());
+    }
+
+    public void RecordedMoveAfter(Obj? sibling) {
+
+        if (sibling?.Parent == null || sibling == this || Parent == null) return;
+
+        RecordedMoveToIndex(sibling.Parent, sibling.GetSiblingIndex() + 1);
+    }
+
+    public int GetSiblingIndex() {
+
+        if (Parent == null) return -1;
+
+        var index = 0;
+
+        foreach (var child in Parent.Children.Values) {
+            if (child == this) return index;
+            index++;
+        }
+
+        return -1;
+    }
+
+    private void MoveToIndex(Obj? obj, int insertIndex, bool keepWorld = false) {
+
+        if (obj == null || obj == this || Parent == null || IsAncestorOf(this, obj)) return;
 
         var wp = Vector3.Zero;
         var wr = Quaternion.Identity;
@@ -137,7 +186,16 @@ internal class Obj {
         if (keepWorld) DecomposeWorldMatrix(out wp, out wr, out ws);
 
         Parent.Children.Remove(Name);
-        obj.Children.Add(Name, this);
+
+        var orderedChildren = obj.Children.Values.Where(child => child != this).ToList();
+        insertIndex = Math.Clamp(insertIndex, 0, orderedChildren.Count);
+        orderedChildren.Insert(insertIndex, this);
+
+        obj.Children.Clear();
+
+        foreach (var child in orderedChildren)
+            obj.Children.Add(child.Name, child);
+
         Parent = obj;
 
         if (keepWorld) {
@@ -150,16 +208,26 @@ internal class Obj {
 
     public void RecordedSetParent(Obj? obj) {
 
-        if (obj == null || obj == this || Parent == null || obj == Parent || IsAncestorOf(this, obj)) return;
+        if (obj == null || obj == this || Parent == null || IsAncestorOf(this, obj)) return;
+
+        RecordedMoveToIndex(obj, obj.Children.Count);
+    }
+
+    private void RecordedMoveToIndex(Obj? obj, int insertIndex) {
+
+        if (obj == null || obj == this || Parent == null || IsAncestorOf(this, obj)) return;
 
         var oldParent = Parent;
+        var oldIndex = GetSiblingIndex();
         History.StartRecording(this, $"Change Parent of {Name}");
         History.StartRecording(Transform);
 
-        SetParent(obj, true);
+        MoveToIndex(obj, insertIndex, true);
 
-        History.SetUndoAction(() => SetParent(oldParent));
-        History.SetRedoAction(() => SetParent(obj, true));
+        var newIndex = GetSiblingIndex();
+
+        History.SetUndoAction(() => MoveToIndex(oldParent, oldIndex, true));
+        History.SetRedoAction(() => MoveToIndex(obj, newIndex, true));
 
         if (Core.ActiveLevel != null) Core.ActiveLevel.IsDirty = true;
         History.StopRecording();

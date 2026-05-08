@@ -15,6 +15,7 @@ internal class LevelBrowser : Viewport {
     private float? _savedScroll;
 
     internal static Obj? DragObject, DragTarget;
+    internal static DropPlacement DragPlacement;
 
     internal static Component? DragComponent;
 
@@ -55,10 +56,21 @@ internal class LevelBrowser : Viewport {
         // drag object
         if (DragObject != null && DragTarget != null) {
 
-            DragObject.RecordedSetParent(DragTarget);
+            switch (DragPlacement) {
+                case DropPlacement.Before:
+                    DragObject.RecordedMoveBefore(DragTarget);
+                    break;
+                case DropPlacement.After:
+                    DragObject.RecordedMoveAfter(DragTarget);
+                    break;
+                default:
+                    DragObject.RecordedSetParent(DragTarget);
+                    break;
+            }
 
             DragObject = null;
             DragTarget = null;
+            DragPlacement = DropPlacement.Into;
         }
 
         // Delete object
@@ -124,6 +136,7 @@ internal class LevelBrowser : Viewport {
 
         var rowMin = GetItemRectMin();
         var rowMax = GetItemRectMax();
+        var rowHovered = IsItemHovered();
         var centerY = (rowMin.Y + rowMax.Y) * 0.5f;
         var arrowSize = 8f;
         var arrowCenterX = rowMin.X + indentWidth + 10f;
@@ -167,15 +180,53 @@ internal class LevelBrowser : Viewport {
             && mousePos.Y >= arrowRectMin.Y && mousePos.Y <= arrowRectMax.Y;
 
         // Right click - context
-        if (IsItemHovered() && IsMouseReleased(ImGuiMouseButton.Right))
+        if (rowHovered && IsMouseReleased(ImGuiMouseButton.Right))
             OpenPopupOnItemClick("context##" + objId);
 
         // Left click - select
-        else if (IsItemHovered() && IsMouseReleased(ImGuiMouseButton.Left)) {
+        else if (rowHovered && IsMouseReleased(ImGuiMouseButton.Left)) {
             if (arrowHovered)
                 GetStateStorage().SetInt(openId, isOpen ? 0 : 1);
             else
                 SelectObject(obj, multi);
+        }
+
+        // drag + drop must stay bound to the row item itself
+        if (!IsDragCancelled && BeginDragDropSource()) {
+
+            DragObject = obj;
+
+            SetDragDropPayload("object", IntPtr.Zero, 0);
+            Text($"Moving {DragObject.Name}");
+            EndDragDropSource();
+        }
+
+        if (BeginDragDropTarget()) {
+
+            AcceptDragDropPayload("object");
+
+            if (DragObject != null) {
+
+                var placement = GetDropPlacementForRow(obj, rowMin, rowMax, mousePos);
+                var prospectiveParent = placement switch {
+                    DropPlacement.Before or DropPlacement.After => obj.Parent,
+                    _ => obj
+                };
+
+                if (prospectiveParent != null && DragObject != obj && !Obj.IsAncestorOf(DragObject, prospectiveParent)) {
+
+                    DrawDropPreview(drawList, rowMin, rowMax, placement);
+
+                    if (IsMouseReleased(ImGuiMouseButton.Left)) {
+
+                        DragTarget = obj;
+                        DragPlacement = placement;
+                        _savedScroll = GetScrollY();
+                    }
+                }
+            }
+
+            EndDragDropTarget();
         }
 
         // Object context
@@ -251,33 +302,6 @@ internal class LevelBrowser : Viewport {
             if (MenuItem("Delete")) _scheduledDeleteObject = obj;
 
             EndPopup();
-        }
-
-        // start drag
-        if (!IsDragCancelled && BeginDragDropSource()) {
-
-            DragObject = obj;
-
-            SetDragDropPayload("object", IntPtr.Zero, 0);
-            Text($"Moving {DragObject.Name}");
-            EndDragDropSource();
-        }
-
-        // cache drop
-        if (BeginDragDropTarget()) {
-
-            AcceptDragDropPayload("object");
-
-            if (DragObject != null && IsMouseReleased(ImGuiMouseButton.Left)) {
-
-                if (DragObject != obj && !Obj.IsAncestorOf(DragObject, obj)) {
-
-                    DragTarget   = obj;
-                    _savedScroll = GetScrollY();
-                }
-            }
-
-            EndDragDropTarget();
         }
 
         // object icon
@@ -386,6 +410,59 @@ internal class LevelBrowser : Viewport {
             point.X * cos - point.Y * sin,
             point.X * sin + point.Y * cos
         );
+    }
+
+    private static DropPlacement GetDropPlacementForRow(Obj obj, Vector2 rowMin, Vector2 rowMax, Vector2 mousePos) {
+
+        if (obj.Parent == null) return DropPlacement.Into;
+
+        var height = rowMax.Y - rowMin.Y;
+        var topThreshold = rowMin.Y + height * 0.28f;
+        var bottomThreshold = rowMax.Y - height * 0.28f;
+
+        if (mousePos.Y <= topThreshold) return DropPlacement.Before;
+        if (mousePos.Y >= bottomThreshold) return DropPlacement.After;
+        return DropPlacement.Into;
+    }
+
+    private static void DrawDropPreview(ImDrawListPtr drawList, Vector2 rowMin, Vector2 rowMax, DropPlacement placement) {
+
+        switch (placement) {
+            case DropPlacement.Before:
+                drawList.AddLine(
+                    new Vector2(rowMin.X + 8f, rowMin.Y + 1f),
+                    new Vector2(rowMax.X - 8f, rowMin.Y + 1f),
+                    GetColorU32(new Vector4(0.4f, 0.75f, 1f, 0.95f)),
+                    2f
+                );
+                break;
+
+            case DropPlacement.After:
+                drawList.AddLine(
+                    new Vector2(rowMin.X + 8f, rowMax.Y - 1f),
+                    new Vector2(rowMax.X - 8f, rowMax.Y - 1f),
+                    GetColorU32(new Vector4(0.4f, 0.75f, 1f, 0.95f)),
+                    2f
+                );
+                break;
+
+            default:
+                drawList.AddRect(
+                    rowMin + new Vector2(3f, 2f),
+                    rowMax - new Vector2(3f, 2f),
+                    GetColorU32(new Vector4(0.42f, 1f, 0.55f, 0.9f)),
+                    4f,
+                    ImDrawFlags.None,
+                    1.5f
+                );
+                break;
+        }
+    }
+
+    internal enum DropPlacement {
+        Into,
+        Before,
+        After
     }
 
     public static void SelectObject(Obj? obj, bool multiSelect = false) {
