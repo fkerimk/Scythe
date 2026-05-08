@@ -26,6 +26,9 @@ internal static class Colors {
     public static Color GuiFrameBg => new(32, 32, 48, 255);
     public static Color GuiFrameBgHovered => new(55, 55, 85, 255);
     public static Color GuiFrameBgActive => PrimarySoft;
+    public static Color GuiFieldOverride => new(78, 54, 28, 255);
+    public static Color GuiFieldOverrideHovered => new(102, 69, 35, 255);
+    public static Color GuiFieldOverrideActive => new(138, 86, 36, 255);
     public static Color GuiTitleBg => new(18, 18, 25, 255);
     public static Color GuiTitleBgActive => new(30, 30, 42, 255);
 

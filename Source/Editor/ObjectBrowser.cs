@@ -127,24 +127,25 @@ internal class ObjectBrowser : Viewport {
         EndPopup();
     }
 
-    private static void DrawShadowedLabel(string label) {
+    private static void DrawShadowedLabel(string label, bool highlighted = false) {
 
         AlignTextToFramePadding();
         PushFont(Fonts.ImMontserratRegular);
+        if (highlighted) PushStyleColor(ImGuiCol.Text, Colors.Primary.ToVector4());
         var cp = GetCursorPos();
         var cleanLabel = Generators.SplitCamelCase(label);
         Text(cleanLabel);
         SetCursorPos(cp + new Vector2(0.3f, 0));
         Text(cleanLabel);
+        if (highlighted) PopStyleColor();
         PopFont();
         NextColumn();
     }
 
-    private (bool changed, bool deactivated) DrawInspectorField(string id, ref object? value, Type type, List<object> targets, string? propName, string? pickerType = null) {
+    private (bool changed, bool deactivated) DrawInspectorField(string id, ref object? value, Type type, List<object> targets, string? propName, string? pickerType = null, bool showResetButton = false, bool highlightOverride = false, object? resetValue = null) {
 
         var changed = false;
         var deactivated = false;
-
         PushItemWidth(-1); // Fill the entire column
 
         // Asset Picker Logic
@@ -189,6 +190,17 @@ internal class ObjectBrowser : Viewport {
             SameLine();
 
             SetNextItemWidth(GetContentRegionAvail().X);
+        }
+
+        var resetButtonSize = GetFrameHeight();
+        var availableWidth = GetContentRegionAvail().X;
+        if (showResetButton) availableWidth = MathF.Max(1f, availableWidth - resetButtonSize - 4f);
+        SetNextItemWidth(availableWidth);
+
+        if (highlightOverride) {
+            PushStyleColor(ImGuiCol.FrameBg, Colors.GuiFieldOverride.ToVector4());
+            PushStyleColor(ImGuiCol.FrameBgHovered, Colors.GuiFieldOverrideHovered.ToVector4());
+            PushStyleColor(ImGuiCol.FrameBgActive, Colors.GuiFieldOverrideActive.ToVector4());
         }
 
         // Field drawing
@@ -318,7 +330,30 @@ internal class ObjectBrowser : Viewport {
 
         if (IsItemDeactivated()) deactivated = true;
 
-            if (IsItemHovered() && type == typeof(string) && !string.IsNullOrEmpty((string)value!)) SetTooltip(GetAssetTooltip((string)value!, pickerType));
+        if (IsItemHovered() && type == typeof(string) && !string.IsNullOrEmpty((string)value!)) SetTooltip(GetAssetTooltip((string)value!, pickerType));
+
+        if (highlightOverride) PopStyleColor(3);
+
+        if (showResetButton) {
+
+            SameLine();
+            BeginDisabled(!highlightOverride);
+            PushFont(Fonts.ImFontAwesomeSmall);
+
+            if (Button($"{Icons.FaRotateLeft}##{id}_reset", new Vector2(resetButtonSize, resetButtonSize))) {
+
+                if (propName != null) targets.ForEach(t => History.StartRecording(t, propName));
+                value = resetValue;
+                changed = true;
+                deactivated = true;
+            }
+
+            PopFont();
+            EndDisabled();
+
+            if (IsItemHovered())
+                SetTooltip("Reset to script default");
+        }
 
         // Picker Popup logic
         SetNextWindowSize(new Vector2(320, 0), ImGuiCond.Appearing);
@@ -1071,18 +1106,21 @@ internal class ObjectBrowser : Viewport {
 
         foreach (var field in fields) {
 
-            DrawShadowedLabel(ScriptFieldUtility.GetLabel(field));
+            var defaultValue = ScriptFieldUtility.GetCodeDefaultValue(asset.ScriptType, field);
 
             object? value;
             var picker = field.GetCustomAttribute<FindAssetAttribute>()?.TypeName ?? field.GetCustomAttribute<FilePathAttribute>()?.Category;
+            var isOverridden = false;
 
             if (kind == ScriptFieldStorageKind.Config) {
 
                 var assets = targets.Cast<ScriptAsset>().ToList();
                 var values = assets.Select(scriptAsset => scriptAsset.GetConfigFieldValue(field)).ToList();
                 value = values.All(val => ScriptFieldUtility.ValueEquals(val, values[0])) ? values[0] : null;
+                isOverridden = values.Any(val => !ScriptFieldUtility.ValueEquals(val, defaultValue));
+                DrawShadowedLabel(ScriptFieldUtility.GetLabel(field), isOverridden);
 
-                var (changed, deactivated) = DrawInspectorField($"##script_cfg_{_propIndex++}", ref value, field.FieldType, targets, field.Name, picker);
+                var (changed, deactivated) = DrawInspectorField($"##script_cfg_{_propIndex++}", ref value, field.FieldType, targets, field.Name, picker, showResetButton: true, highlightOverride: isOverridden, resetValue: defaultValue);
 
                 if (changed)
                     foreach (var scriptAsset in assets)
@@ -1095,8 +1133,10 @@ internal class ObjectBrowser : Viewport {
             var scripts = targets.Cast<Script>().ToList();
             var exposedValues = scripts.Select(script => script.GetExposeFieldValue(field, asset)).ToList();
             value = exposedValues.All(val => ScriptFieldUtility.ValueEquals(val, exposedValues[0])) ? exposedValues[0] : null;
+            isOverridden = exposedValues.Any(val => !ScriptFieldUtility.ValueEquals(val, defaultValue));
+            DrawShadowedLabel(ScriptFieldUtility.GetLabel(field), isOverridden);
 
-            var (fieldChanged, fieldDeactivated) = DrawInspectorField($"##script_exp_{_propIndex++}", ref value, field.FieldType, targets, field.Name, picker);
+            var (fieldChanged, fieldDeactivated) = DrawInspectorField($"##script_exp_{_propIndex++}", ref value, field.FieldType, targets, field.Name, picker, showResetButton: true, highlightOverride: isOverridden, resetValue: defaultValue);
 
             if (fieldChanged)
                 foreach (var script in scripts)

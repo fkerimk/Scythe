@@ -31,4 +31,5 @@ internal static class Icons {
     public const string FaXMark = "";
     public const string FaTrashAlt = "";
     public const string FaWandMagicSparkles = "";
+    public const string FaRotateLeft = "";
 }
