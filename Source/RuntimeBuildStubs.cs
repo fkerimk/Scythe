@@ -4,9 +4,10 @@ using Raylib_cs;
 
 internal static class Editor {
     public static readonly EditorRender EditorRender = new();
-    public static void OpenLevel(string path) => Core.OpenLevel(Path.GetFileNameWithoutExtension(path), path);
+    public static void OpenLevel(string path) => Core.OpenLevel(CollectionData.GetLevelDisplayName(path), path);
     public static void CreateLevel(string path) { }
     public static void SetSelectedAsset(string? path) { }
+    public static void SelectProjectSettings() { }
 }
 
 internal class EditorRender {
@@ -59,6 +60,7 @@ internal static class Icons {
     public const string FaXMark = "\uf00d";
     public const string FaFile = "\uf15b";
     public const string FaFolder = "\uf07b";
+    public const string FaArchive = "\uf187";
     public const string FaLevelUp = "\uf148";
     public const string FaDotCircleO = "\uf192";
     public const string FaCube = "\uf1b2";

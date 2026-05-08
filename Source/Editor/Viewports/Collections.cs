@@ -10,6 +10,7 @@ internal class Collections : Viewport {
 
     private readonly string _collectionsRoot;
     private const string ChildCollectionsLabel = "Collections";
+    private const string ProjectLabel = "Project";
     private const string AddPopupId = "Add Item";
 
     private string _currentPath;
@@ -30,6 +31,7 @@ internal class Collections : Viewport {
     private string? _deleteTargetPath;
     private bool _deleteTargetIsDirectory;
     private Vector2 _deletePopupPosition;
+    private bool _entryClickedThisFrame;
 
     private string RelativePath {
         get {
@@ -176,6 +178,8 @@ internal class Collections : Viewport {
 
     private void DrawBrowser() {
 
+        _entryClickedThisFrame = false;
+
         if (!BeginChild("Browser")) return;
 
         if (_showChildCollections) {
@@ -193,7 +197,7 @@ internal class Collections : Viewport {
             foreach (var file in GetFilesForCategory(activeCategory)) DrawFileEntry(file);
         }
 
-        if (IsWindowHovered() && IsMouseReleased(ImGuiMouseButton.Left) && !IsAnyItemHovered()) {
+        if (IsWindowHovered() && IsMouseReleased(ImGuiMouseButton.Left) && !IsAnyItemHovered() && !_entryClickedThisFrame) {
 
             Editor.SetSelectedAsset(null);
             LevelBrowser.SelectObject(null);
@@ -206,7 +210,11 @@ internal class Collections : Viewport {
 
         var collections = GetCollectionEntries(CollectionEntryKind.Collection);
 
-        if (IsAtCollectionsRoot) return collections.Select(BrowserEntry.CreateCollection).OrderBy(entry => entry.Name, new NaturalStringComparer()!);
+        if (IsAtCollectionsRoot)
+            return new[] { BrowserEntry.CreateProject() }
+                .Concat(collections.Select(BrowserEntry.CreateCollection))
+                .OrderBy(entry => entry.Kind == BrowserEntryKind.Project ? -1 : 0)
+                .ThenBy(entry => entry.Name, new NaturalStringComparer()!);
 
         var collectionEntry = BrowserEntry.CreateCollectionGroup(GetCollectionEntries(CollectionEntryKind.Collection).Count());
         var categories = GetCategoryStates().Select(BrowserEntry.CreateCategory);
@@ -250,6 +258,12 @@ internal class Collections : Viewport {
 
     private void DrawBrowserEntry(BrowserEntry entry) {
 
+        if (entry.Kind == BrowserEntryKind.Project) {
+
+            DrawProjectEntry();
+            return;
+        }
+
         if (entry.Kind == BrowserEntryKind.Collection) {
 
             DrawCollectionEntry(entry.EntryPath!);
@@ -265,6 +279,36 @@ internal class Collections : Viewport {
         DrawCategoryEntry(entry.CategoryState!.Value);
     }
 
+    private void DrawProjectEntry() {
+
+        const float iconWidth = 20f;
+        var startX = GetCursorPosX();
+        var color = Colors.GuiText.ToVector4();
+        var isSelected = Editor.ProjectSettingsSelected;
+
+        PushFont(Fonts.ImFontAwesomeNormal);
+        DrawIcon(Icons.FaHouse, color, startX, iconWidth);
+        PopFont();
+
+        SameLine(startX + iconWidth + 5f);
+
+        if (isSelected) {
+            PushStyleColor(ImGuiCol.Header, Colors.GuiButtonActive.ToVector4());
+            PushStyleColor(ImGuiCol.HeaderHovered, Colors.GuiButtonActive.ToVector4());
+            PushStyleColor(ImGuiCol.HeaderActive, Colors.GuiButtonActive.ToVector4());
+        }
+
+        PushStyleColor(ImGuiCol.Text, color);
+        var clicked = Selectable(ProjectLabel, isSelected, ImGuiSelectableFlags.None, new Vector2(GetContentRegionAvail().X, 0f));
+        PopStyleColor();
+
+        if (isSelected) PopStyleColor(3);
+        if (!clicked) return;
+
+        _entryClickedThisFrame = true;
+        Editor.SelectProjectSettings();
+    }
+
     private void DrawCollectionEntry(string path) {
 
         var name = Path.GetFileName(path);
@@ -276,7 +320,7 @@ internal class Collections : Viewport {
         PushFont(Fonts.ImFontAwesomeNormal);
 
         if (!TryDrawCollectionThumbnail(path, startX, iconWidth, thumbnailSize))
-            DrawIcon(Icons.FaFolder, color, startX, iconWidth);
+            DrawIcon(Icons.FaArchive, color, startX, iconWidth);
 
         PopFont();
 
@@ -288,6 +332,7 @@ internal class Collections : Viewport {
 
         if (!clicked) return;
 
+        _entryClickedThisFrame = true;
         _navigationStack.Push(new NavigationState(_currentPath, _activeCategory, _showChildCollections));
         _currentPath = path;
         _showChildCollections = false;
@@ -306,7 +351,7 @@ internal class Collections : Viewport {
             ? GetCollectionColor()
             : Colors.GuiCollectionMuted.ToVector4();
 
-        DrawIcon(Icons.FaFolder, color, startX, iconWidth);
+        DrawIcon(Icons.FaArchive, color, startX, iconWidth);
         PopFont();
 
         SameLine(startX + iconWidth + 5f);
@@ -321,6 +366,7 @@ internal class Collections : Viewport {
         if (count == 0) EndDisabled();
         if (!clicked) return;
 
+        _entryClickedThisFrame = true;
         _showChildCollections = true;
         _activeCategory = null;
         Editor.SetSelectedAsset(null);
@@ -361,6 +407,7 @@ internal class Collections : Viewport {
 
         if (!clicked) return;
 
+        _entryClickedThisFrame = true;
         _showChildCollections = false;
         _activeCategory = state.Category;
         Editor.SetSelectedAsset(null);
@@ -399,6 +446,7 @@ internal class Collections : Viewport {
         if (isSelected) PopStyleColor(3);
         if (!clicked) return;
 
+        _entryClickedThisFrame = true;
         LevelBrowser.SelectObject(null);
         Editor.SetSelectedAsset(path);
     }
@@ -590,7 +638,7 @@ internal class Collections : Viewport {
             }
             EndMenu();
         }
-        if (!isDirectory && HasCollectionPreviewCandidate(path) && MenuItem("Set as Collection Preview")) SetCollectionPreview(path);
+        if (!isDirectory && HasCollectionTargetCandidate(path) && MenuItem("Set as Target")) SetCollectionTarget(path);
         if (MenuItem("Delete")) OpenDeletePopup(path, isDirectory);
 
         EndPopup();
@@ -620,10 +668,10 @@ internal class Collections : Viewport {
         _openDeletePopup = true;
     }
 
-    private void SetCollectionPreview(string path) {
+    private void SetCollectionTarget(string path) {
 
         if (IsAtCollectionsRoot) {
-            Notifications.Show("Set preview failed: Open a collection first.");
+            Notifications.Show("Set target failed: Open a collection first.");
             return;
         }
 
@@ -631,11 +679,11 @@ internal class Collections : Viewport {
             EnsureCollectionSettings(_currentPath);
             var settingsPath = GetCollectionSettingsPath(_currentPath);
             var settings = ReadCollectionSettings(_currentPath);
-            settings.PreviewPath = Path.GetRelativePath(_currentPath, path).Replace('\\', '/');
+            settings.TargetPath = Path.GetRelativePath(_currentPath, path).Replace('\\', '/');
             File.WriteAllText(settingsPath, JsonConvert.SerializeObject(settings, Formatting.Indented));
-            Notifications.Show($"Collection preview set to '{Path.GetFileName(path)}'.");
+            Notifications.Show($"Collection target set to '{Path.GetFileName(path)}'.");
         } catch (Exception e) {
-            Notifications.Show($"Set preview failed: {e.Message}");
+            Notifications.Show($"Set target failed: {e.Message}");
         }
     }
 
@@ -1025,12 +1073,12 @@ internal class Collections : Viewport {
         EnsureCollectionSettings(collectionPath);
 
         var settings = ReadCollectionSettings(collectionPath);
-        if (string.IsNullOrWhiteSpace(settings.PreviewPath)) return null;
+        if (string.IsNullOrWhiteSpace(settings.TargetPath)) return null;
 
-        var previewPath = Path.GetFullPath(Path.Combine(collectionPath, settings.PreviewPath));
-        if (!File.Exists(previewPath)) return null;
+        var targetPath = Path.GetFullPath(Path.Combine(collectionPath, settings.TargetPath));
+        if (!File.Exists(targetPath)) return null;
 
-        return GetThumbnail(previewPath);
+        return GetThumbnail(targetPath);
     }
 
     private static Texture2D? GetThumbnail(string path) {
@@ -1049,18 +1097,20 @@ internal class Collections : Viewport {
         return null;
     }
 
-    private static bool HasCollectionPreviewCandidate(string path) => IsTexture(path) || IsMaterial(path) || IsModel(path);
+    private static bool HasCollectionTargetCandidate(string path) => IsTexture(path) || IsMaterial(path) || IsModel(path) || IsScript(path) || IsLevel(path) || IsPrefab(path);
 
     private readonly record struct CollectionCategory(string Name, Func<string, bool> Match, string Icon);
     private readonly record struct CategoryState(CollectionCategory Category, int Count);
     private readonly record struct BrowserEntry(string Name, BrowserEntryKind Kind, bool IsActive, int Count, string? EntryPath, CategoryState? CategoryState) {
 
+        public static BrowserEntry CreateProject() => new(ProjectLabel, BrowserEntryKind.Project, true, 0, null, null);
         public static BrowserEntry CreateCollection(string path) => new(System.IO.Path.GetFileName(path), BrowserEntryKind.Collection, true, 0, path, null);
         public static BrowserEntry CreateCollectionGroup(int count) => new(ChildCollectionsLabel, BrowserEntryKind.CollectionGroup, count > 0, count, null, null);
         public static BrowserEntry CreateCategory(CategoryState state) => new(state.Category.Name, BrowserEntryKind.Category, state.Count > 0, state.Count, null, state);
     }
 
     private enum BrowserEntryKind {
+        Project,
         Collection,
         CollectionGroup,
         Category
@@ -1075,7 +1125,7 @@ internal class Collections : Viewport {
     }
 
     private sealed class CollectionSettings {
-        public string PreviewPath { get; set; } = "";
+        public string TargetPath { get; set; } = "";
         public string Type { get; set; } = "Collection";
     }
 

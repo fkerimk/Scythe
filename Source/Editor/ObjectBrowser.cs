@@ -9,9 +9,11 @@ internal class ObjectBrowser : Viewport {
     private int _propIndex;
     private readonly IEnumerable<Type> _addComponentTypes;
     private (string Name, string Path, string GUID)[] _foundAssets = [];
+    private PickerSearchEntry[] _pickerEntries = [];
     private string _searchFilter = "";
     private bool _showAnimationFrames;
     private readonly Dictionary<string, int> _pendingTextureQuality = new();
+    private readonly Dictionary<string, PickerBrowserState> _pickerStates = new();
 
     public ObjectBrowser() : base("Object") {
 
@@ -31,6 +33,12 @@ internal class ObjectBrowser : Viewport {
         if (!string.IsNullOrEmpty(selectedFile)) {
 
             DrawAssetInspector(selectedFile.Replace('\\', '/'));
+            return;
+        }
+
+        if (Editor.ProjectSettingsSelected) {
+
+            DrawProjectSettings();
             return;
         }
 
@@ -77,6 +85,7 @@ internal class ObjectBrowser : Viewport {
     protected override bool HasContent() {
 
         if (!string.IsNullOrEmpty(Editor.SelectedAssetPath)) return true;
+        if (Editor.ProjectSettingsSelected) return true;
         if (Core.ActiveLevel == null) return false;
 
         return LevelBrowser.SelectedObjects.Count > 0;
@@ -157,7 +166,9 @@ internal class ObjectBrowser : Viewport {
                 };
 
                 _foundAssets = names.ToArray();
+                _pickerEntries = BuildPickerEntries(pickerType);
                 _searchFilter = "";
+                _pickerStates[id] = new PickerBrowserState();
 
                 OpenPopup($"Picker_{id}");
             }
@@ -310,40 +321,18 @@ internal class ObjectBrowser : Viewport {
             if (IsItemHovered() && type == typeof(string) && !string.IsNullOrEmpty((string)value!)) SetTooltip(GetAssetTooltip((string)value!, pickerType));
 
         // Picker Popup logic
+        SetNextWindowSize(new Vector2(320, 0), ImGuiCond.Appearing);
+
         if (BeginPopup($"Picker_{id}")) {
 
-            SetNextItemWidth(300);
+            SetNextItemWidth(-1);
             InputTextWithHint("##filter", "Search...", ref _searchFilter, 128);
-            BeginChild("##files", new Vector2(400, 400));
 
-            var nms = _foundAssets.Select(asset => asset.Name).ToList();
+            if (SupportsCollectionPicker(pickerType))
+                DrawCollectionAwarePickerPopup(id, pickerType!, ref value, targets, propName, ref changed, ref deactivated);
+            else
+                DrawFlatPickerPopup(ref value, targets, propName, ref changed, ref deactivated);
 
-            for (var i = 0; i < _foundAssets.Length; i++) {
-
-                var asset = _foundAssets[i];
-                var f = asset.Path;
-                var n = nms[i];
-
-                if (!string.IsNullOrEmpty(_searchFilter) && !f.Contains(_searchFilter, StringComparison.OrdinalIgnoreCase)) continue;
-
-                if (Selectable($"{n}##{asset.GUID}")) {
-
-                    if (targets != null && propName != null) targets.ForEach(t => History.StartRecording(t, propName));
-
-                    value = asset.GUID;
-                    changed = true;
-                    deactivated = true;
-
-                    CloseCurrentPopup();
-                }
-
-                if (string.IsNullOrEmpty(n) || nms.Count(x => x == n) <= 1) continue;
-
-                SameLine();
-                TextDisabled(f);
-            }
-
-            EndChild();
             EndPopup();
         }
 
@@ -415,6 +404,292 @@ internal class ObjectBrowser : Viewport {
         TreePop();
         Spacing();
     }
+
+    private void DrawProjectSettings() {
+
+        PushID("ProjectSettings");
+        DrawSectionHeader("Project", Icons.FaHouse, Colors.GuiText, out var open);
+
+        if (open) {
+
+            DrawShadowedLabel("Name");
+            object? name = ProjectConfig.Current.Name;
+            var (nameChanged, _) = DrawInspectorField("ProjectName", ref name, typeof(string), [], null);
+
+            if (nameChanged) {
+                ProjectConfig.Current.Name = (string)name!;
+                ProjectConfig.Current.Save();
+            }
+
+            DrawShadowedLabel("Startup Level");
+            object? startupLevel = ProjectConfig.Current.StartupLevel;
+            var (levelChanged, _) = DrawInspectorField("ProjectStartupLevel", ref startupLevel, typeof(string), [], null, "LevelAsset");
+
+            if (levelChanged) {
+                ProjectConfig.Current.StartupLevel = (string)startupLevel!;
+                ProjectConfig.Current.Save();
+            }
+        }
+
+        EndSection(open);
+        PopID();
+    }
+
+    private void DrawFlatPickerPopup(ref object? value, List<object> targets, string? propName, ref bool changed, ref bool deactivated) {
+
+        BeginChild("##files", new Vector2(0, 400));
+
+        var nms = _foundAssets.Select(asset => asset.Name).ToList();
+
+        for (var i = 0; i < _foundAssets.Length; i++) {
+
+            var asset = _foundAssets[i];
+            var path = asset.Path;
+            var name = nms[i];
+
+            if (!string.IsNullOrEmpty(_searchFilter) && !path.Contains(_searchFilter, StringComparison.OrdinalIgnoreCase)) continue;
+
+            if (Selectable($"{name}##{asset.GUID}")) {
+                ApplyPickerValue(asset.GUID, ref value, targets, propName, ref changed, ref deactivated);
+                CloseCurrentPopup();
+            }
+
+            if (string.IsNullOrEmpty(name) || nms.Count(x => x == name) <= 1) continue;
+
+            SameLine();
+            TextDisabled(path);
+        }
+
+        EndChild();
+    }
+
+    private void DrawCollectionAwarePickerPopup(string id, string pickerType, ref object? value, List<object> targets, string? propName, ref bool changed, ref bool deactivated) {
+
+        if (!_pickerStates.TryGetValue(id, out var state)) {
+            state = new PickerBrowserState();
+            _pickerStates[id] = state;
+        }
+
+        if (!string.IsNullOrWhiteSpace(_searchFilter)) {
+
+            BeginChild("##picker_search", new Vector2(0, 400));
+
+            foreach (var entry in _pickerEntries.Where(entry =>
+                         entry.Label.Contains(_searchFilter, StringComparison.OrdinalIgnoreCase)
+                         || entry.Tooltip.Contains(_searchFilter, StringComparison.OrdinalIgnoreCase))) {
+
+                if (Selectable($"{entry.Label}##{entry.Value}")) {
+                    ApplyPickerValue(entry.Value, ref value, targets, propName, ref changed, ref deactivated);
+                    CloseCurrentPopup();
+                }
+
+                if (string.IsNullOrWhiteSpace(entry.Tooltip) || string.Equals(entry.Tooltip, entry.Label, StringComparison.OrdinalIgnoreCase)) continue;
+
+                SameLine();
+                TextDisabled(entry.Tooltip);
+            }
+
+            EndChild();
+            return;
+        }
+
+        DrawPickerNavigationBar(state);
+        BeginChild("##picker_browser", new Vector2(0, 400));
+
+        var pickerKind = CollectionData.GetKindForPickerType(pickerType);
+
+        if (pickerKind == null) {
+            EndChild();
+            return;
+        }
+
+        if (CollectionData.IsRoot(state.CurrentPath)) {
+
+            foreach (var collectionPath in CollectionData.EnumerateCollections(CollectionData.RootPath, CollectionAssetKind.Collection))
+                DrawPickerCollectionEntry(collectionPath, pickerType, state, ref value, targets, propName, ref changed, ref deactivated);
+
+            EndChild();
+            return;
+        }
+
+        if (state.ShowChildCollections) {
+
+            foreach (var collectionPath in CollectionData.EnumerateCollections(state.CurrentPath, CollectionAssetKind.Collection))
+                DrawPickerCollectionEntry(collectionPath, pickerType, state, ref value, targets, propName, ref changed, ref deactivated);
+
+            EndChild();
+            return;
+        }
+
+        var childCollections = CollectionData.EnumerateCollections(state.CurrentPath, CollectionAssetKind.Collection).Count();
+        if (state.ActiveCategory == null) {
+
+            if (childCollections > 0)
+                DrawPickerVirtualEntry("Collections", childCollections, Colors.GuiCollection.ToVector4(), () => state.ShowChildCollections = true, Icons.FaArchive);
+
+            foreach (var category in CollectionData.Categories) {
+
+                var categoryCollections = CollectionData.EnumerateCollections(state.CurrentPath, category.Kind).Count();
+                var categoryFiles = GetPickerFilesForCategory(state.CurrentPath, category.PickerType).Count;
+                var categoryCount = categoryCollections + categoryFiles;
+
+                if (categoryCount == 0) continue;
+
+                DrawPickerVirtualEntry(category.Name, categoryCount, GetPickerCategoryColor(category.Kind), () => state.ActiveCategory = category.Kind, GetCategoryIcon(category.Kind));
+            }
+
+            EndChild();
+            return;
+        }
+
+        var activePickerType = GetPickerTypeForKind(state.ActiveCategory.Value);
+        var typedCollections = CollectionData.EnumerateCollections(state.CurrentPath, state.ActiveCategory.Value).ToList();
+        var files = GetPickerFilesForCategory(state.CurrentPath, activePickerType);
+
+        foreach (var collectionPath in typedCollections)
+            DrawPickerCollectionEntry(collectionPath, pickerType, state, ref value, targets, propName, ref changed, ref deactivated);
+
+        foreach (var filePath in files)
+            DrawPickerFileEntry(filePath, activePickerType, ref value, targets, propName, ref changed, ref deactivated);
+
+        EndChild();
+    }
+
+    private void DrawPickerNavigationBar(PickerBrowserState state) {
+
+        var canGoUp = !CollectionData.IsRoot(state.CurrentPath) || state.ShowChildCollections || state.ActiveCategory != null || state.NavigationStack.Count > 0;
+
+        BeginDisabled(!canGoUp);
+        PushFont(Fonts.ImFontAwesomeSmall);
+
+        if (Button($"{Icons.FaLevelUp}##picker_up")) {
+
+            if (state.ActiveCategory != null)
+                state.ActiveCategory = null;
+            else if (state.ShowChildCollections)
+                state.ShowChildCollections = false;
+            else if (state.NavigationStack.Count > 0) {
+                var nav = state.NavigationStack.Pop();
+                state.CurrentPath = nav.Path;
+                state.ShowChildCollections = nav.ShowChildCollections;
+                state.ActiveCategory = nav.ActiveCategory;
+            }
+            else
+                state.CurrentPath = Directory.GetParent(state.CurrentPath)?.FullName ?? CollectionData.RootPath;
+        }
+
+        PopFont();
+        EndDisabled();
+
+        SameLine();
+        TextDisabled(GetPickerRelativePath(state));
+    }
+
+    private static string GetPickerRelativePath(PickerBrowserState state) {
+
+        var relative = Path.GetRelativePath(CollectionData.RootPath, state.CurrentPath).Replace('\\', '/');
+        if (relative == ".") relative = "";
+
+        if (state.ShowChildCollections)
+            return string.IsNullOrEmpty(relative) ? "Collections" : $"{relative}/Collections";
+
+        if (state.ActiveCategory != null) {
+            var categoryName = CollectionData.GetKindName(state.ActiveCategory.Value);
+            return string.IsNullOrEmpty(relative) ? categoryName : $"{relative}/{categoryName}";
+        }
+
+        return string.IsNullOrEmpty(relative) ? "Collections" : relative;
+    }
+
+    private void DrawPickerVirtualEntry(string label, int count, Vector4 color, Action onClick, string icon) {
+
+        const float iconWidth = 20f;
+        var startX = GetCursorPosX();
+
+        PushFont(Fonts.ImFontAwesomeSmall);
+        DrawPickerIcon(icon, color, startX, iconWidth);
+        PopFont();
+
+        SameLine(startX + iconWidth + 5f);
+        PushStyleColor(ImGuiCol.Text, color);
+        var clicked = Selectable(label, false, ImGuiSelectableFlags.None, new Vector2(GetContentRegionAvail().X, 0f));
+        PopStyleColor();
+        DrawPickerRightAlignedCount(count, color);
+        if (!clicked) return;
+
+        onClick();
+    }
+
+    private void DrawPickerCollectionEntry(string collectionPath, string pickerType, PickerBrowserState state, ref object? value, List<object> targets, string? propName, ref bool changed, ref bool deactivated) {
+
+        const float iconWidth = 20f;
+        const float thumbnailSize = 16f;
+        var startX = GetCursorPosX();
+
+        PushFont(Fonts.ImFontAwesomeSmall);
+        if (!TryDrawPickerCollectionThumbnail(collectionPath, startX, iconWidth, thumbnailSize))
+            DrawPickerIcon(Icons.FaArchive, Colors.GuiCollection.ToVector4(), startX, iconWidth);
+        PopFont();
+        SameLine(startX + iconWidth + 5f);
+
+        if (Selectable(Path.GetFileName(collectionPath), false, ImGuiSelectableFlags.None, new Vector2(GetContentRegionAvail().X, 0f))) {
+
+            if (CollectionData.TryGetCollectionSelectionValue(collectionPath, pickerType, out var selectedValue)) {
+                ApplyPickerValue(selectedValue, ref value, targets, propName, ref changed, ref deactivated);
+                CloseCurrentPopup();
+                return;
+            }
+
+            state.NavigationStack.Push(new PickerNavigationState(state.CurrentPath, state.ActiveCategory, state.ShowChildCollections));
+            state.CurrentPath = collectionPath;
+            state.ShowChildCollections = false;
+            state.ActiveCategory = null;
+        }
+    }
+
+    private void DrawPickerFileEntry(string path, string pickerType, ref object? value, List<object> targets, string? propName, ref bool changed, ref bool deactivated) {
+
+        const float iconWidth = 20f;
+        const float thumbnailSize = 16f;
+        var startX = GetCursorPosX();
+        var color = GetPickerCategoryColor(CollectionData.GetKindForPickerType(pickerType) ?? CollectionAssetKind.Collection);
+
+        PushFont(Fonts.ImFontAwesomeSmall);
+        if (!TryDrawPickerFileThumbnail(path, startX, iconWidth, thumbnailSize))
+            DrawPickerIcon(GetPickerFileIcon(path), color, startX, iconWidth);
+        PopFont();
+        SameLine(startX + iconWidth + 5f);
+
+        if (!Selectable(CollectionData.GetNameWithoutExtension(path), false, ImGuiSelectableFlags.None, new Vector2(GetContentRegionAvail().X, 0f))) return;
+
+        var selectedValue = pickerType == "LevelAsset"
+            ? AssetManager.GetStoredPath(path)
+            : ResolvePickerAssetValue(path, pickerType);
+
+        if (string.IsNullOrWhiteSpace(selectedValue)) return;
+
+        ApplyPickerValue(selectedValue, ref value, targets, propName, ref changed, ref deactivated);
+        CloseCurrentPopup();
+    }
+
+    private static void ApplyPickerValue(string selectedValue, ref object? value, List<object> targets, string? propName, ref bool changed, ref bool deactivated) {
+
+        if (propName != null) targets.ForEach(t => History.StartRecording(t, propName));
+
+        value = selectedValue;
+        changed = true;
+        deactivated = true;
+    }
+
+    private static List<string> GetPickerFilesForCategory(string currentPath, string pickerType) =>
+        !Directory.Exists(currentPath)
+            ? []
+            : Directory.EnumerateFiles(currentPath)
+                .Where(path => !CollectionData.IsSidecarMetaFile(path))
+                .Where(path => CollectionData.IsPathCompatibleWithPicker(path, pickerType))
+                .Where(path => !CollectionData.ShouldHideAssetPath(path, pickerType))
+                .OrderBy(CollectionData.GetNameWithoutExtension, new NaturalStringComparer()!)
+                .ToList();
 
     private void DrawAnimationPreviewControls(Animation animation) {
 
@@ -882,8 +1157,10 @@ internal class ObjectBrowser : Viewport {
 
         if (string.IsNullOrWhiteSpace(value)) return "";
         if (string.IsNullOrWhiteSpace(pickerType)) return Path.GetFileNameWithoutExtension(value);
+        if (SupportsCollectionPicker(pickerType) && CollectionData.TryGetSelectionCollectionInfo(value, pickerType, out var display, out _)) return display;
 
         return pickerType switch {
+            "LevelAsset" => CollectionData.GetPickerDisplayValue(value, pickerType),
             "ShaderAsset" => AssetManager.Get<ShaderAsset>(value) is { } asset ? Path.GetFileNameWithoutExtension(asset.File) : value,
             "TextureAsset" => AssetManager.Get<TextureAsset>(value) is { } asset ? Path.GetFileNameWithoutExtension(asset.File) : value,
             "ModelAsset" => AssetManager.Get<ModelAsset>(value) is { } asset ? Path.GetFileNameWithoutExtension(asset.File) : value,
@@ -897,8 +1174,10 @@ internal class ObjectBrowser : Viewport {
     private static string GetAssetTooltip(string value, string? pickerType) {
 
         if (string.IsNullOrWhiteSpace(pickerType)) return value;
+        if (SupportsCollectionPicker(pickerType) && CollectionData.TryGetSelectionCollectionInfo(value, pickerType, out _, out var tooltip)) return tooltip;
 
         return pickerType switch {
+            "LevelAsset" => value,
             "ShaderAsset" => AssetManager.GetPath<ShaderAsset>(value) ?? value,
             "TextureAsset" => AssetManager.GetPath<TextureAsset>(value) ?? value,
             "ModelAsset" => AssetManager.GetPath<ModelAsset>(value) ?? value,
@@ -939,4 +1218,205 @@ internal class ObjectBrowser : Viewport {
 
         return $"{value:0.##} {units[unitIndex]}";
     }
+
+    private static bool SupportsCollectionPicker(string? pickerType) =>
+        !string.IsNullOrWhiteSpace(pickerType) && CollectionData.GetKindForPickerType(pickerType) != null;
+
+    private static PickerSearchEntry[] BuildPickerEntries(string pickerType) {
+
+        var entries = new List<PickerSearchEntry>();
+
+        foreach (var collectionPath in CollectionData.EnumerateAllCollections()) {
+            if (!CollectionData.TryGetCollectionSelectionValue(collectionPath, pickerType, out var value)) continue;
+
+            var logicalPath = CollectionData.GetLogicalCollectionPath(collectionPath);
+            var targetPath = CollectionData.GetResolvedTargetPath(collectionPath);
+            entries.Add(new PickerSearchEntry(logicalPath, targetPath == null ? logicalPath : AssetManager.GetStoredPath(targetPath), value));
+        }
+
+        if (pickerType == "LevelAsset") {
+
+            foreach (var file in EnumerateProjectLevels()) {
+                if (CollectionData.ShouldHideAssetPath(file, pickerType)) continue;
+
+                var storedPath = AssetManager.GetStoredPath(file);
+                var label = storedPath.Replace('\\', '/');
+                if (label.EndsWith(".level.json", StringComparison.OrdinalIgnoreCase)) label = label[..^11];
+                else if (label.EndsWith(".json", StringComparison.OrdinalIgnoreCase)) label = label[..^5];
+
+                entries.Add(new PickerSearchEntry(label, storedPath, storedPath));
+            }
+
+            return entries
+                .DistinctBy(entry => entry.Value)
+                .OrderBy(entry => entry.Label, new NaturalStringComparer()!)
+                .ToArray();
+        }
+
+        foreach (var asset in GetNamedAssetsForPicker(pickerType)) {
+            if (CollectionData.ShouldHideAssetPath(asset.Path, pickerType)) continue;
+
+            var label = asset.Path.Replace('\\', '/');
+            label = TrimPickerLabelExtension(label);
+            entries.Add(new PickerSearchEntry(label, asset.Path.Replace('\\', '/'), asset.GUID));
+        }
+
+        return entries
+            .DistinctBy(entry => entry.Value)
+            .OrderBy(entry => entry.Label, new NaturalStringComparer()!)
+            .ToArray();
+    }
+
+    private static IEnumerable<(string Name, string Path, string GUID)> GetNamedAssetsForPicker(string pickerType) => pickerType switch {
+        "TextureAsset" => AssetManager.GetNames<TextureAsset>(),
+        "ModelAsset" => AssetManager.GetNames<ModelAsset>(),
+        "MaterialAsset" => AssetManager.GetNames<MaterialAsset>(),
+        "ScriptAsset" => AssetManager.GetNames<ScriptAsset>(),
+        _ => []
+    };
+
+    private static IEnumerable<string> EnumerateProjectLevels() {
+
+        if (!Directory.Exists(ScytheConfig.Current.Project)) yield break;
+
+        foreach (var file in Directory.EnumerateFiles(ScytheConfig.Current.Project, "*.json", SearchOption.AllDirectories)) {
+            if (CollectionData.IsSidecarMetaFile(file)) continue;
+
+            var normalized = file.Replace('\\', '/');
+            if (!normalized.Contains("/Levels/", StringComparison.OrdinalIgnoreCase) && !CollectionData.IsLevel(file)) continue;
+
+            yield return file;
+        }
+    }
+
+    private static string TrimPickerLabelExtension(string value) {
+
+        if (value.EndsWith(".material.json", StringComparison.OrdinalIgnoreCase)) return value[..^14];
+        if (value.EndsWith(".prefab.json", StringComparison.OrdinalIgnoreCase)) return value[..^12];
+        if (value.EndsWith(".level.json", StringComparison.OrdinalIgnoreCase)) return value[..^11];
+
+        return Path.ChangeExtension(value, null) ?? value;
+    }
+
+    private static string ResolvePickerAssetValue(string path, string pickerType) => pickerType switch {
+        "TextureAsset" => AssetManager.GetOrImport<TextureAsset>(path)?.GUID ?? "",
+        "ModelAsset" => AssetManager.GetOrImport<ModelAsset>(path)?.GUID ?? "",
+        "MaterialAsset" => AssetManager.GetOrImport<MaterialAsset>(path)?.GUID ?? "",
+        "ScriptAsset" => AssetManager.GetOrImport<ScriptAsset>(path)?.GUID ?? "",
+        _ => ""
+    };
+
+    private static string GetPickerTypeForKind(CollectionAssetKind kind) => kind switch {
+        CollectionAssetKind.Level => "LevelAsset",
+        CollectionAssetKind.Material => "MaterialAsset",
+        CollectionAssetKind.Model => "ModelAsset",
+        CollectionAssetKind.Prefab => "PrefabAsset",
+        CollectionAssetKind.Script => "ScriptAsset",
+        CollectionAssetKind.Texture => "TextureAsset",
+        _ => ""
+    };
+
+    private static Vector4 GetPickerCategoryColor(CollectionAssetKind kind) => kind switch {
+        CollectionAssetKind.Level => Colors.GuiCollectionLevel.ToVector4(),
+        CollectionAssetKind.Material => Colors.GuiCollectionMaterial.ToVector4(),
+        CollectionAssetKind.Model => Colors.GuiCollectionModel.ToVector4(),
+        CollectionAssetKind.Prefab => Colors.GuiCollectionPrefab.ToVector4(),
+        CollectionAssetKind.Script => Colors.GuiCollectionScript.ToVector4(),
+        CollectionAssetKind.Texture => Colors.GuiCollectionTexture.ToVector4(),
+        _ => Colors.GuiText.ToVector4()
+    };
+
+    private static string GetCategoryIcon(CollectionAssetKind kind) => kind switch {
+        CollectionAssetKind.Level => Icons.FaMap,
+        CollectionAssetKind.Material => Icons.FaFileImage,
+        CollectionAssetKind.Model => Icons.FaCube,
+        CollectionAssetKind.Prefab => Icons.FaFile,
+        CollectionAssetKind.Script => Icons.FaFileCode,
+        CollectionAssetKind.Texture => Icons.FaFileImage,
+        _ => Icons.FaArchive
+    };
+
+    private static string GetPickerFileIcon(string path) {
+
+        if (CollectionData.IsScript(path)) return Icons.FaFileCode;
+        if (CollectionData.IsLevel(path)) return Icons.FaFlag;
+        if (CollectionData.IsMaterial(path) || CollectionData.IsTexture(path)) return Icons.FaFileImage;
+        if (CollectionData.IsModel(path)) return Icons.FaCube;
+
+        return Icons.FaFile;
+    }
+
+    private static void DrawPickerIcon(string icon, Vector4 color, float startX, float iconWidth) {
+
+        var iconSize = CalcTextSize(icon);
+        SetCursorPosX(startX + (iconWidth - iconSize.X) * 0.5f);
+        PushStyleColor(ImGuiCol.Text, color);
+        Text(icon);
+        PopStyleColor();
+    }
+
+    private static void DrawPickerRightAlignedCount(int count, Vector4 color) {
+
+        var text = count.ToString();
+        var textSize = CalcTextSize(text);
+        var min = GetItemRectMin();
+        var max = GetItemRectMax();
+        const float rightPadding = 10f;
+        const float countColumnWidth = 24f;
+        var columnLeft = max.X - rightPadding - countColumnWidth;
+        var pos = new Vector2(columnLeft + (countColumnWidth - textSize.X) * 0.5f, min.Y + (GetItemRectSize().Y - textSize.Y) * 0.5f);
+        color.W = 0.72f;
+
+        GetWindowDrawList().AddText(pos, ColorConvertFloat4ToU32(color), text);
+    }
+
+    private static bool TryDrawPickerCollectionThumbnail(string collectionPath, float startX, float iconWidth, float thumbnailSize) {
+
+        var targetPath = CollectionData.GetResolvedTargetPath(collectionPath);
+        if (string.IsNullOrWhiteSpace(targetPath)) return false;
+
+        return TryDrawPickerThumbnail(targetPath, startX, iconWidth, thumbnailSize);
+    }
+
+    private static bool TryDrawPickerFileThumbnail(string path, float startX, float iconWidth, float thumbnailSize) =>
+        TryDrawPickerThumbnail(path, startX, iconWidth, thumbnailSize);
+
+    private static bool TryDrawPickerThumbnail(string path, float startX, float iconWidth, float thumbnailSize) {
+
+        var tex = GetPickerThumbnail(path);
+        if (!tex.HasValue || tex.Value.Id == 0) return false;
+
+        var texture = tex.Value;
+        var ratio = texture.Width / (float)texture.Height;
+        var drawW = thumbnailSize;
+        var drawH = thumbnailSize;
+
+        if (texture.Width > texture.Height)
+            drawH = drawW / ratio;
+        else
+            drawW = drawH * ratio;
+
+        SetCursorPosX(startX + (iconWidth - drawW) * 0.5f);
+        Image((IntPtr)texture.Id, new Vector2(drawW, drawH));
+        return true;
+    }
+
+    private static Texture2D? GetPickerThumbnail(string path) {
+
+        if (CollectionData.IsTexture(path)) return AssetManager.GetOrImport<TextureAsset>(path)?.Thumbnail;
+        if (CollectionData.IsMaterial(path)) return AssetManager.GetOrImport<MaterialAsset>(path)?.Thumbnail;
+        if (CollectionData.IsModel(path)) return AssetManager.GetOrImport<ModelAsset>(path)?.Thumbnail;
+
+        return null;
+    }
+
+    private sealed class PickerBrowserState {
+        public string CurrentPath { get; set; } = CollectionData.RootPath;
+        public bool ShowChildCollections { get; set; }
+        public CollectionAssetKind? ActiveCategory { get; set; }
+        public Stack<PickerNavigationState> NavigationStack { get; } = [];
+    }
+
+    private readonly record struct PickerNavigationState(string Path, CollectionAssetKind? ActiveCategory, bool ShowChildCollections);
+    private readonly record struct PickerSearchEntry(string Label, string Tooltip, string Value);
 }

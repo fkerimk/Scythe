@@ -68,7 +68,13 @@ internal static class Core {
         if (CommandLine.Runtime) {
 
             IsPlaying = true;
-            OpenLevel("Main");
+
+            var startupLevel = ResolveStartupLevelPath();
+
+            if (!string.IsNullOrWhiteSpace(startupLevel))
+                OpenLevel(CollectionData.GetLevelDisplayName(startupLevel), startupLevel);
+            else
+                OpenLevel("Main");
         }
 
         _shadowMap = LoadShadowmapRenderTexture(ShadowMapResolution, ShadowMapResolution);
@@ -193,6 +199,27 @@ internal static class Core {
         ShouldFocusActiveLevel = true;
 
         Load();
+    }
+
+    private static string? ResolveStartupLevelPath() {
+
+        var configured = ProjectConfig.Current.StartupLevel?.Replace('\\', '/');
+
+        if (!string.IsNullOrWhiteSpace(configured)) {
+
+            var absolute = Path.IsPathRooted(configured)
+                ? configured
+                : Path.Combine(ScytheConfig.Current.Project, configured);
+
+            absolute = Path.GetFullPath(absolute);
+
+            if (File.Exists(absolute)) return absolute;
+        }
+
+        if (PathUtil.GetPath("Levels/Main.level.json", out var levelPath)) return levelPath;
+        if (PathUtil.GetPath("Levels/Main.json", out levelPath)) return levelPath;
+
+        return null;
     }
 
     public static void SetActiveLevel(int index, bool clearHistory = true) {

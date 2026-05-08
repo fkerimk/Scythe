@@ -43,6 +43,27 @@ internal class EditorRender() : Viewport("Render (Editor)") {
 
         if (Core.OpenLevels.Count > 0) return;
 
+        var configuredStartup = ProjectConfig.Current.StartupLevel?.Replace('\\', '/');
+
+        if (!string.IsNullOrWhiteSpace(configuredStartup)) {
+
+            var startupPath = Path.IsPathRooted(configuredStartup)
+                ? configuredStartup
+                : Path.Combine(ScytheConfig.Current.Project, configuredStartup);
+
+            startupPath = Path.GetFullPath(startupPath);
+
+            if (File.Exists(startupPath)) {
+                Editor.OpenLevel(startupPath);
+                return;
+            }
+        }
+
+        if (PathUtil.GetPath("Levels/Main.level.json", out var mainLevelPath)) {
+            Editor.OpenLevel(mainLevelPath);
+            return;
+        }
+
         if (PathUtil.GetPath("Levels/Main.json", out var mainPath)) {
             Editor.OpenLevel(mainPath);
         } else {

@@ -3,6 +3,7 @@ internal static class Icons {
     // https://fontawesome.com/search
     public const string FaFile = "";
     public const string FaFolder = "";
+    public const string FaArchive = "";
     public const string FaLevelUp = "";
     public const string FaDotCircleO = "";
     public const string FaCube = "";

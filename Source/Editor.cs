@@ -32,12 +32,13 @@ internal static unsafe class Editor {
 
     private static Level? _editorLevelRef;
     public static string? SelectedAssetPath { get; private set; }
+    public static bool ProjectSettingsSelected { get; private set; }
 
     public static void OpenScript(string path) => throw new NotImplementedException(Ansi.ErrorMessage("Script editor"));
 
     public static void OpenLevel(string path) {
 
-        var name = Path.GetFileNameWithoutExtension(path);
+        var name = CollectionData.GetLevelDisplayName(path);
         Core.OpenLevel(name, path);
     }
 
@@ -56,8 +57,18 @@ internal static unsafe class Editor {
 
         AssetManager.EnsureImported(path);
         SelectedAssetPath = path;
+        ProjectSettingsSelected = false;
         ProjectBrowser.SyncExternalSelection(path);
         Collections.SyncExternalSelection(path);
+    }
+
+    public static void SelectProjectSettings() {
+
+        LevelBrowser.SelectObject(null);
+        SelectedAssetPath = null;
+        ProjectBrowser.SyncExternalSelection(null);
+        Collections.SyncExternalSelection(null);
+        ProjectSettingsSelected = true;
     }
 
     public static void Show() {
