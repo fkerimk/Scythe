@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.IO.Compression;
 using NativeFileDialogNET;
+using Newtonsoft.Json;
 using static ImGuiNET.ImGui;
 
 internal static class BuildPipeline {
@@ -10,6 +11,8 @@ internal static class BuildPipeline {
     private static bool _showBuildModal;
     private static bool _isBuilding;
     private static string _outputDirectory = "";
+    private static bool _buildWindows = true;
+    private static bool _buildLinux;
 
     public static void DrawMenu() {
 
@@ -23,7 +26,7 @@ internal static class BuildPipeline {
 
     private static void OpenBuildModal() {
 
-        _outputDirectory = GetDefaultOutputDirectory();
+        LoadSettings();
         _showBuildModal = true;
     }
 
@@ -37,17 +40,26 @@ internal static class BuildPipeline {
         Spacing();
         Text("Output folder");
         SetNextItemWidth(420);
-        InputText("##BuildOutputDirectory", ref _outputDirectory, 1024);
+        if (InputText("##BuildOutputDirectory", ref _outputDirectory, 1024)) SaveSettings();
         SameLine();
         if (Button("Browse...", new System.Numerics.Vector2(100, 0))) {
             var selectedDirectory = BrowseForOutputDirectory(_outputDirectory);
-            if (!string.IsNullOrWhiteSpace(selectedDirectory)) _outputDirectory = selectedDirectory;
+            if (!string.IsNullOrWhiteSpace(selectedDirectory)) {
+                _outputDirectory = selectedDirectory;
+                SaveSettings();
+            }
         }
 
         Spacing();
-        TextWrapped($"Executable: {Path.Combine(string.IsNullOrWhiteSpace(_outputDirectory) ? "." : _outputDirectory, GetRuntimeExeName())}");
+        if (Checkbox("Windows", ref _buildWindows)) SaveSettings();
+        SameLine();
+        if (Checkbox("Linux", ref _buildLinux)) SaveSettings();
 
-        var canBuild = !_isBuilding && !string.IsNullOrWhiteSpace(_outputDirectory);
+        Spacing();
+        foreach (var platform in GetSelectedPlatforms())
+            TextWrapped($"Output: {Path.Combine(string.IsNullOrWhiteSpace(_outputDirectory) ? "." : _outputDirectory, GetRuntimeFileName(platform))}");
+
+        var canBuild = !_isBuilding && !string.IsNullOrWhiteSpace(_outputDirectory) && GetSelectedPlatforms().Count > 0;
 
         if (!canBuild) BeginDisabled();
         if (Button("Build", new System.Numerics.Vector2(160, 0))) {
@@ -88,19 +100,26 @@ internal static class BuildPipeline {
                 prepDone.Wait();
 
                 outputDirectory = NormalizeOutputDirectory(outputDirectory);
-                var outputPath = Path.Combine(outputDirectory, GetRuntimeExeName());
-                Directory.CreateDirectory(Path.GetDirectoryName(outputPath)!);
                 Directory.CreateDirectory(tempRoot);
+                SaveSettings();
 
                 var bundleZip = Path.Combine(tempRoot, "Bundle.zip");
-                CreateBundle(bundleZip, outputPath, task);
+                CreateBundle(bundleZip, outputDirectory, task);
 
-                task.Status = "Publishing runtime...";
-                var publishedExe = PublishRuntime(bundleZip, Path.Combine(tempRoot, "Publish"));
+                var platforms = GetSelectedPlatforms();
+                for (var i = 0; i < platforms.Count; i++) {
+                    var platform = platforms[i];
+                    var outputPath = Path.Combine(outputDirectory, GetRuntimeFileName(platform));
+                    Directory.CreateDirectory(Path.GetDirectoryName(outputPath)!);
 
-                File.Copy(publishedExe, outputPath, overwrite: true);
+                    task.Status = $"Publishing {platform.DisplayName} ({i + 1}/{platforms.Count})...";
+                    var publishedBinary = PublishRuntime(bundleZip, Path.Combine(tempRoot, platform.RuntimeId), platform.RuntimeId);
+
+                    File.Copy(publishedBinary, outputPath, overwrite: true);
+                }
+
                 task.Status = "Success";
-                Notifications.Show($"Build saved: {outputPath}");
+                Notifications.Show($"Build completed: {platforms.Count} target(s)");
 
             } catch (Exception e) {
                 task.Status = "Fail: " + e.Message;
@@ -113,7 +132,7 @@ internal static class BuildPipeline {
         });
     }
 
-    private static void CreateBundle(string bundleZip, string outputPath, BackgroundTask task) {
+    private static void CreateBundle(string bundleZip, string outputDirectory, BackgroundTask task) {
 
         task.Status = "Compiling scripts...";
         if (!ScriptCompiler.BuildProjectAssembly(loadIntoRuntime: false, out var scriptDll, out var error, task))
@@ -131,7 +150,7 @@ internal static class BuildPipeline {
         CopyDirectory(
             ScytheConfig.Current.Project,
             projectRoot,
-            file => ShouldIncludeProjectFile(file, outputPath)
+            file => ShouldIncludeProjectFile(file, outputDirectory)
         );
 
         if (!string.IsNullOrWhiteSpace(scriptDll) && File.Exists(scriptDll)) {
@@ -146,7 +165,7 @@ internal static class BuildPipeline {
         ZipFile.CreateFromDirectory(bundleRoot, bundleZip, CompressionLevel.SmallestSize, includeBaseDirectory: false);
     }
 
-    private static string PublishRuntime(string bundleZip, string publishDir) {
+    private static string PublishRuntime(string bundleZip, string publishDir, string runtimeId) {
 
         Directory.CreateDirectory(publishDir);
 
@@ -164,7 +183,7 @@ internal static class BuildPipeline {
         processInfo.ArgumentList.Add("-c");
         processInfo.ArgumentList.Add("Release");
         processInfo.ArgumentList.Add("-r");
-        processInfo.ArgumentList.Add("win-x64");
+        processInfo.ArgumentList.Add(runtimeId);
         processInfo.ArgumentList.Add("-o");
         processInfo.ArgumentList.Add(publishDir);
         processInfo.ArgumentList.Add("-p:ScytheRuntimeBuild=true");
@@ -181,12 +200,10 @@ internal static class BuildPipeline {
             throw new InvalidOperationException(string.IsNullOrWhiteSpace(stdErr) ? stdOut : stdErr);
         }
 
-        var exe = Directory.GetFiles(publishDir, "*.exe", SearchOption.TopDirectoryOnly)
-                           .OrderBy(path => path)
-                           .FirstOrDefault();
+        var publishedBinary = FindPublishedBinary(publishDir, runtimeId);
 
-        if (exe == null) throw new FileNotFoundException("Published exe not found.");
-        return exe;
+        if (publishedBinary == null) throw new FileNotFoundException($"Published binary not found for {runtimeId}.");
+        return publishedBinary;
     }
 
     private static void CopyDirectory(string sourceDir, string destDir, Func<string, bool> includeFile) {
@@ -210,14 +227,15 @@ internal static class BuildPipeline {
         }
     }
 
-    private static bool ShouldIncludeProjectFile(string file, string outputPath) {
+    private static bool ShouldIncludeProjectFile(string file, string outputDirectory) {
 
         var fullPath = Path.GetFullPath(file);
         var normalized = fullPath.Replace('\\', '/');
         var assemblySegment = "/Assembly/";
         var projectSegment = "/Project/";
+        var outputRoot = Path.GetFullPath(outputDirectory).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
 
-        if (string.Equals(fullPath, outputPath, StringComparison.OrdinalIgnoreCase)) return false;
+        if (fullPath.StartsWith(outputRoot, StringComparison.OrdinalIgnoreCase)) return false;
         if (normalized.Contains(assemblySegment, StringComparison.OrdinalIgnoreCase)) return false;
         if (normalized.Contains(projectSegment, StringComparison.OrdinalIgnoreCase)) return false;
         if (string.Equals(Path.GetFileName(fullPath), "Directory.Build.props", StringComparison.OrdinalIgnoreCase)) return false;
@@ -239,13 +257,17 @@ internal static class BuildPipeline {
         return Path.Combine(ScytheConfig.Current.Project, "Build");
     }
 
-    private static string GetRuntimeExeName() {
+    private static string GetRuntimeFileName(BuildTarget platform) {
 
         var projectName = string.IsNullOrWhiteSpace(ProjectConfig.Current.Name)
             ? new DirectoryInfo(ScytheConfig.Current.Project).Name
             : ProjectConfig.Current.Name;
 
-        return $"{projectName}.exe";
+        return platform.RuntimeId switch {
+            "win-x64" => $"{projectName}-windows.exe",
+            "linux-x64" => $"{projectName}-linux",
+            _ => $"{projectName}-{platform.RuntimeId}"
+        };
     }
 
     private static string? BrowseForOutputDirectory(string initialDirectory) {
@@ -265,6 +287,63 @@ internal static class BuildPipeline {
         }
     }
 
+    private static string? FindPublishedBinary(string publishDir, string runtimeId) {
+
+        var engineName = Path.GetFileNameWithoutExtension(FindEngineProjectFile());
+        var expectedName = runtimeId.StartsWith("win-", StringComparison.OrdinalIgnoreCase) ? engineName + ".exe" : engineName;
+        var expectedPath = Path.Combine(publishDir, expectedName);
+
+        if (File.Exists(expectedPath)) return expectedPath;
+
+        return Directory.GetFiles(publishDir, "*", SearchOption.TopDirectoryOnly)
+            .Where(path => !path.EndsWith(".pdb", StringComparison.OrdinalIgnoreCase))
+            .Where(path => !path.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
+            .Where(path => !path.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
+            .Where(path => !path.EndsWith(".deps.json", StringComparison.OrdinalIgnoreCase))
+            .Where(path => !path.EndsWith(".runtimeconfig.json", StringComparison.OrdinalIgnoreCase))
+            .OrderBy(path => path)
+            .FirstOrDefault();
+    }
+
+    private static List<BuildTarget> GetSelectedPlatforms() {
+
+        var targets = new List<BuildTarget>();
+
+        if (_buildWindows) targets.Add(new BuildTarget("Windows", "win-x64"));
+        if (_buildLinux) targets.Add(new BuildTarget("Linux", "linux-x64"));
+
+        return targets;
+    }
+
+    private static string GetSettingsPath() => Path.Combine(ScytheConfig.Current.Project, "Project", "BuildSettings.json");
+
+    private static void LoadSettings() {
+
+        var path = GetSettingsPath();
+        var settings = File.Exists(path)
+            ? JsonConvert.DeserializeObject<BuildSettings>(File.ReadAllText(path)) ?? new BuildSettings()
+            : new BuildSettings();
+
+        _outputDirectory = string.IsNullOrWhiteSpace(settings.OutputDirectory) ? GetDefaultOutputDirectory() : settings.OutputDirectory;
+        _buildWindows = settings.BuildWindows;
+        _buildLinux = settings.BuildLinux;
+    }
+
+    private static void SaveSettings() {
+
+        var path = GetSettingsPath();
+        var dir = Path.GetDirectoryName(path);
+        if (!string.IsNullOrWhiteSpace(dir) && !Directory.Exists(dir)) Directory.CreateDirectory(dir);
+
+        var settings = new BuildSettings {
+            OutputDirectory = _outputDirectory,
+            BuildWindows = _buildWindows,
+            BuildLinux = _buildLinux
+        };
+
+        File.WriteAllText(path, JsonConvert.SerializeObject(settings, Formatting.Indented));
+    }
+
     private static string FindEngineProjectFile() {
 
         var candidates = new[] { Directory.GetCurrentDirectory(), AppContext.BaseDirectory };
@@ -281,5 +360,14 @@ internal static class BuildPipeline {
         }
 
         throw new FileNotFoundException("Scythe.csproj could not be located.");
+    }
+
+    private sealed record BuildTarget(string DisplayName, string RuntimeId);
+
+    private sealed class BuildSettings {
+
+        public string OutputDirectory { get; init; } = "";
+        public bool BuildWindows { get; init; } = true;
+        public bool BuildLinux { get; init; }
     }
 }
