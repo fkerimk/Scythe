@@ -33,6 +33,7 @@ internal class Collections : Viewport {
     private bool _deleteTargetIsDirectory;
     private Vector2 _deletePopupPosition;
     private bool _entryClickedThisFrame;
+    private bool _hideEmptyCategories = true;
 
     private string RelativePath {
         get {
@@ -184,6 +185,17 @@ internal class Collections : Viewport {
 
         if (IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled)) SetTooltip("Up");
 
+        SameLine();
+        PushFont(Fonts.ImFontAwesomeNormal);
+
+        if (Button(_hideEmptyCategories ? Icons.FaEyeSlash : Icons.FaEye))
+            _hideEmptyCategories = !_hideEmptyCategories;
+
+        PopFont();
+
+        if (IsItemHovered())
+            SetTooltip(_hideEmptyCategories ? "Show empty types" : "Hide empty types");
+
         if (string.IsNullOrEmpty(RelativePath)) return;
 
         SameLine();
@@ -232,7 +244,9 @@ internal class Collections : Viewport {
                 .ThenBy(entry => entry.Name, new NaturalStringComparer()!);
 
         var collectionEntry = BrowserEntry.CreateCollectionGroup(GetCollectionEntries(CollectionEntryKind.Collection).Count());
-        var categories = GetCategoryStates().Select(BrowserEntry.CreateCategory);
+        var categories = GetCategoryStates()
+            .Where(state => !_hideEmptyCategories || state.Count > 0)
+            .Select(BrowserEntry.CreateCategory);
 
         return new[] { collectionEntry }
             .Concat(categories)
@@ -344,7 +358,7 @@ internal class Collections : Viewport {
 
         SameLine(startX + iconWidth + 5f);
         PushStyleColor(ImGuiCol.Text, color);
-        var clicked = Selectable(name, false, ImGuiSelectableFlags.None, new Vector2(GetContentRegionAvail().X, 0f));
+        var clicked = Selectable($"{name}##{path}", false, ImGuiSelectableFlags.None, new Vector2(GetContentRegionAvail().X, 0f));
         PopStyleColor();
 
         if (!isBuiltIn) DrawEntryContextMenu(path, isDirectory: true);
@@ -458,7 +472,7 @@ internal class Collections : Viewport {
         }
 
         PushStyleColor(ImGuiCol.Text, color);
-        var clicked = Selectable(name, isSelected, ImGuiSelectableFlags.None, new Vector2(GetContentRegionAvail().X, 0f));
+        var clicked = Selectable($"{name}##{path}", isSelected, ImGuiSelectableFlags.None, new Vector2(GetContentRegionAvail().X, 0f));
         PopStyleColor();
         DrawEntryContextMenu(path, isDirectory: false);
         var doubleClicked = IsItemHovered() && IsMouseDoubleClicked(ImGuiMouseButton.Left);
@@ -1000,16 +1014,7 @@ internal class Collections : Viewport {
         _ => Colors.GuiText.ToVector4()
     };
 
-    private static string GetNameWithoutExtension(string path) {
-
-        var name = Path.GetFileName(path);
-
-        if (CollectionData.IsLevel(path)) return name[..^4];
-        if (CollectionData.IsMaterial(path)) return name[..^4];
-        if (CollectionData.IsPrefab(path)) return name[..^4];
-
-        return Path.GetFileNameWithoutExtension(name);
-    }
+    private static string GetNameWithoutExtension(string path) => CollectionData.GetNameWithoutExtension(path);
 
     private static string GetRenameSuffix(string path) {
 

@@ -71,7 +71,7 @@ internal static class Fonts {
                     Icons.FaPlay, Icons.FaPause, Icons.FaStop, Icons.FaClock, Icons.FaFilm, Icons.FaCheck, Icons.FaXMark,
                     Icons.FaFile, Icons.FaFolder, Icons.FaArchive, Icons.FaLevelUp, Icons.FaDotCircleO, Icons.FaCube, Icons.FaArrowsAlt,
                     Icons.FaPlayCircle, Icons.FaArrows, Icons.FaLightbulbO, Icons.FaVideoCamera, Icons.FaCrosshairs,
-                    Icons.FaCode, Icons.FaFileCode, Icons.FaSearch, Icons.FaPlus, Icons.FaMap, Icons.FaFlag,
+                    Icons.FaCode, Icons.FaFileCode, Icons.FaSearch, Icons.FaEye, Icons.FaEyeSlash, Icons.FaPlus, Icons.FaMap, Icons.FaFlag,
                     Icons.FaHouse, Icons.FaFileImage, Icons.FaTrashAlt, Icons.FaWandMagicSparkles
                 ];
 

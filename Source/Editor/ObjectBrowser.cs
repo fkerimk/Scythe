@@ -737,7 +737,7 @@ internal class ObjectBrowser : Viewport {
         var label = CollectionData.GetCollectionDisplayName(collectionPath);
         PushStyleColor(ImGuiCol.Text, color);
 
-        if (Selectable(label, false, ImGuiSelectableFlags.None, new Vector2(GetContentRegionAvail().X, 0f))) {
+        if (Selectable($"{label}##{collectionPath}", false, ImGuiSelectableFlags.None, new Vector2(GetContentRegionAvail().X, 0f))) {
             PopStyleColor();
 
             if (CollectionData.TryGetCollectionSelectionValue(collectionPath, pickerType, out var selectedValue)) {
@@ -769,7 +769,8 @@ internal class ObjectBrowser : Viewport {
         PopFont();
         SameLine(startX + iconWidth + 5f);
 
-        if (!Selectable(CollectionData.GetNameWithoutExtension(path), false, ImGuiSelectableFlags.None, new Vector2(GetContentRegionAvail().X, 0f))) return;
+        var label = CollectionData.GetNameWithoutExtension(path);
+        if (!Selectable($"{label}##{path}", false, ImGuiSelectableFlags.None, new Vector2(GetContentRegionAvail().X, 0f))) return;
 
         var selectedValue = ResolvePickerAssetValue(path, pickerType);
 

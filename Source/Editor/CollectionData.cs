@@ -311,6 +311,7 @@ internal static class CollectionData {
         if (path.EndsWith(".lvl", StringComparison.OrdinalIgnoreCase)) return name[..^4];
         if (path.EndsWith(".mat", StringComparison.OrdinalIgnoreCase)) return name[..^4];
         if (IsPrefab(path)) return name[..^4];
+        if (IsShader(path)) return name;
 
         return Path.GetFileNameWithoutExtension(name);
     }

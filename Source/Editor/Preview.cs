@@ -31,8 +31,10 @@ internal class Preview : Viewport {
 
     private RenderTexture2D _rt;
     private string _lastFile = "";
-    private string _lastScriptFile = "";
+    private string _lastCodeFile = "";
     private readonly List<List<ColoredTextSegment>> _scriptPreviewLines = [];
+    private Level? _previewLevel;
+    private string _previewLevelFile = "";
     private static readonly ILanguageParser ScriptPreviewParser = new LanguageParser(
         new ColorCode.Compilation.LanguageCompiler(new Dictionary<string, ColorCode.Compilation.CompiledLanguage>(), new ReaderWriterLockSlim()),
         new ColorCode.Common.LanguageRepository(new Dictionary<string, ILanguage>())
@@ -51,6 +53,7 @@ internal class Preview : Viewport {
 
         if (selectedCamera == null && string.IsNullOrEmpty(selectedFile)) {
 
+            UnloadPreviewLevel();
             _lastFile = "";
 
             BeginChild("##empty");
@@ -64,12 +67,12 @@ internal class Preview : Viewport {
 
         if (avail.X <= 1 || avail.Y <= 1) return;
 
-        if (selectedCamera == null && !string.IsNullOrEmpty(selectedFile) && IsScript(selectedFile)) {
+        if (selectedCamera == null && !string.IsNullOrEmpty(selectedFile) && IsCodePreviewFile(selectedFile)) {
 
-            if (selectedFile != _lastScriptFile) {
+            if (selectedFile != _lastCodeFile) {
                 _pan = Vector2.Zero;
                 _zoom = 1.0f;
-                CacheScriptPreview(selectedFile);
+                CacheCodePreview(selectedFile);
                 _lastFile = selectedFile;
             }
         }
@@ -85,22 +88,33 @@ internal class Preview : Viewport {
             _previewModelBones.Clear();
             _previewBoneMap.Clear();
 
-            var textureAsset = AssetManager.GetOrImport<TextureAsset>(selectedFile);
-            var matAsset = AssetManager.GetOrImport<MaterialAsset>(selectedFile);
-            var modelAsset = AssetManager.GetOrImport<ModelAsset>(selectedFile);
-
-            if (textureAsset is { IsLoaded: true }) {
-
-                var tw = (float)textureAsset.Texture.Width;
-                var th = (float)textureAsset.Texture.Height;
-                _zoom = Math.Min(avail.X / tw, avail.Y / th) * 0.9f;
-                _distance = 2.5f;
-
-            } else {
+            if (CollectionData.IsLevel(selectedFile!)) {
 
                 _zoom = 1.0f;
-                var asset = (Asset?)matAsset ?? modelAsset;
-                if (asset != null) _distance = GetAssetAutoDistance(asset, out _) * 1.6f;
+                var level = EnsurePreviewLevel(selectedFile!);
+                if (level != null) _distance = GetLevelAutoDistance(level, out _) * 1.6f;
+
+            } else if (!IsCodePreviewFile(selectedFile!)) {
+
+                var textureAsset = AssetManager.GetOrImport<TextureAsset>(selectedFile!);
+                var matAsset = AssetManager.GetOrImport<MaterialAsset>(selectedFile!);
+                var modelAsset = AssetManager.GetOrImport<ModelAsset>(selectedFile!);
+
+                if (textureAsset is { IsLoaded: true }) {
+
+                    var tw = (float)textureAsset.Texture.Width;
+                    var th = (float)textureAsset.Texture.Height;
+                    _zoom = Math.Min(avail.X / tw, avail.Y / th) * 0.9f;
+                    _distance = 2.5f;
+
+                } else {
+
+                    _zoom = 1.0f;
+                    var asset = (Asset?)matAsset ?? modelAsset;
+                    if (asset != null) _distance = GetAssetAutoDistance(asset, out _) * 1.6f;
+                }
+            } else {
+                UnloadPreviewLevel();
             }
 
             _lastFile = selectedFile ?? "";
@@ -133,8 +147,12 @@ internal class Preview : Viewport {
 
         } else {
 
-            if (IsScript(selectedFile!)) {
+            if (IsCodePreviewFile(selectedFile!)) {
                 DrawScriptPreview();
+            } else if (CollectionData.IsLevel(selectedFile!)) {
+
+                var level = EnsurePreviewLevel(selectedFile!);
+                if (level != null) DrawLevelPreview(level);
             } else {
 
                 var textureAsset = AssetManager.GetOrImport<TextureAsset>(selectedFile!);
@@ -170,12 +188,23 @@ internal class Preview : Viewport {
         return selectedCamera != null || !string.IsNullOrEmpty(selectedFile);
     }
 
-    private void CacheScriptPreview(string path) {
+    private void CacheCodePreview(string path) {
 
         _scriptPreviewLines.Clear();
-        _lastScriptFile = path;
+        _lastCodeFile = path;
 
         if (!File.Exists(path)) return;
+
+        if (!IsScript(path)) {
+
+            foreach (var line in File.ReadAllLines(path))
+                _scriptPreviewLines.Add([new ColoredTextSegment(line, Colors.GuiCodePlain.ToVector4())]);
+
+            if (_scriptPreviewLines.Count == 0)
+                _scriptPreviewLines.Add([]);
+
+            return;
+        }
 
         var currentLine = new List<ColoredTextSegment>();
         var currentText = new System.Text.StringBuilder();
@@ -296,6 +325,7 @@ internal class Preview : Viewport {
         Math.Abs(left.W - right.W) < 0.001f;
 
     private static bool IsScript(string path) => path.EndsWith(".cs", StringComparison.OrdinalIgnoreCase);
+    private static bool IsCodePreviewFile(string path) => IsScript(path) || CollectionData.IsShader(path);
 
     private void DrawTexturePreview(TextureAsset tex) {
 
@@ -364,6 +394,192 @@ internal class Preview : Viewport {
         BeginMode3D(camera);
         RenderAsset3D(asset, camera, targetPos, _distance, true);
         EndMode3D();
+    }
+
+    private Level? EnsurePreviewLevel(string path) {
+
+        if (_previewLevel != null && string.Equals(_previewLevelFile, path, StringComparison.OrdinalIgnoreCase))
+            return _previewLevel;
+
+        UnloadPreviewLevel();
+
+        if (!File.Exists(path)) return null;
+
+        var level = new Level(CollectionData.GetLevelDisplayName(path), path);
+        LoadPreviewLevelComponents(level.Root);
+        SyncPreviewLevelTransforms(level.Root);
+
+        _previewLevel = level;
+        _previewLevelFile = path;
+
+        return _previewLevel;
+    }
+
+    private void UnloadPreviewLevel() {
+
+        if (_previewLevel == null) return;
+
+        _previewLevel.Root.Dispose();
+        _previewLevel = null;
+        _previewLevelFile = "";
+    }
+
+    private static void LoadPreviewLevelComponents(Obj obj) {
+
+        foreach (var component in obj.Components.Values) {
+
+            if (component is not Model) continue;
+            if (!component.Load()) continue;
+            component.IsLoaded = true;
+        }
+
+        foreach (var child in obj.Children.Values)
+            LoadPreviewLevelComponents(child);
+    }
+
+    private static void SyncPreviewLevelTransforms(Obj obj) {
+
+        obj.Transform.UpdateTransform();
+        obj.VisualWorldMatrix = obj.WorldMatrix;
+
+        foreach (var child in obj.Children.Values)
+            SyncPreviewLevelTransforms(child);
+    }
+
+    private void DrawLevelPreview(Level level) {
+
+        if (IsWindowHovered()) {
+
+            if (IsMouseDown(ImGuiMouseButton.Left)) {
+
+                var delta = GetMouseDelta();
+                _rotation.X += delta.X * 0.5f;
+                _rotation.Y = Math.Clamp(_rotation.Y + delta.Y * 0.5f, -89f, 89f);
+            }
+
+            _distance -= GetMouseWheelMove() * 0.5f * (_distance / 5.0f);
+            _distance = Math.Clamp(_distance, 0.01f, 1000f);
+        }
+
+        var clear = level.BackgroundColor;
+        ClearBackground(clear);
+
+        var autoDistance = GetLevelAutoDistance(level, out var targetPos);
+        if (_distance <= 0.01f) _distance = autoDistance * 1.6f;
+
+        var camPos = targetPos + new Vector3(
+            (float)(Math.Cos(_rotation.X * Math.PI / 180.0) * Math.Cos(_rotation.Y * Math.PI / 180.0) * _distance),
+            (float)(Math.Sin(_rotation.Y * Math.PI / 180.0) * _distance),
+            (float)(Math.Sin(_rotation.X * Math.PI / 180.0) * Math.Cos(_rotation.Y * Math.PI / 180.0) * _distance)
+        );
+
+        var camera = new Raylib_cs.Camera3D {
+            Position = camPos,
+            Target = targetPos,
+            Up = Vector3.UnitY,
+            FovY = 45.0f,
+            Projection = CameraProjection.Perspective
+        };
+
+        BeginMode3D(camera);
+
+        var gridCol = new Color(80, 80, 80, 100);
+        var gridSize = Math.Max(10f, _distance * 2f);
+
+        for (var i = -(int)gridSize; i <= (int)gridSize; i++) {
+
+            DrawLine3D(new Vector3(i, 0, -gridSize), new Vector3(i, 0, gridSize), gridCol);
+            DrawLine3D(new Vector3(-gridSize, 0, i), new Vector3(gridSize, 0, i), gridCol);
+        }
+
+        RenderPreviewLevelHierarchy(level.Root, camera, targetPos, _distance);
+        EndMode3D();
+    }
+
+    private void RenderPreviewLevelHierarchy(Obj obj, Raylib_cs.Camera3D camera, Vector3 target, float distance) {
+
+        obj.VisualWorldMatrix = obj.WorldMatrix;
+
+        foreach (var component in obj.Components.Values) {
+
+            if (component is not Model { IsLoaded: true } model) continue;
+
+            foreach (var matAsset in model.AssetRef.CachedMaterialAssets.Where(matAsset => matAsset is { IsLoaded: true }).Distinct())
+                SetupPreviewLighting(matAsset!, camera, target, distance);
+
+            model.Draw();
+        }
+
+        foreach (var child in obj.Children.Values)
+            RenderPreviewLevelHierarchy(child, camera, target, distance);
+    }
+
+    private static float GetLevelAutoDistance(Level level, out Vector3 center) {
+
+        var min = new Vector3(float.MaxValue);
+        var max = new Vector3(float.MinValue);
+        var hasBounds = false;
+        var hasObjects = false;
+
+        CollectLevelBounds(level.Root, ref min, ref max, ref hasBounds, ref hasObjects);
+
+        if (hasBounds) {
+
+            center = (min + max) * 0.5f;
+            return Math.Max((max - min).Length() * 1.35f, 2f);
+        }
+
+        center = hasObjects ? (min + max) * 0.5f : Vector3.Zero;
+        return 8f;
+    }
+
+    private static void CollectLevelBounds(Obj obj, ref Vector3 min, ref Vector3 max, ref bool hasBounds, ref bool hasObjects) {
+
+        if (obj.Parent != null) {
+
+            var pos = obj.Transform.WorldPos;
+            min = Vector3.Min(min, pos);
+            max = Vector3.Max(max, pos);
+            hasObjects = true;
+        }
+
+        foreach (var component in obj.Components.Values) {
+
+            if (component is not Model { IsLoaded: true } model || model.AssetRef is not { IsLoaded: true })
+                continue;
+
+            ExpandBoundsByModel(model, ref min, ref max);
+            hasBounds = true;
+        }
+
+        foreach (var child in obj.Children.Values)
+            CollectLevelBounds(child, ref min, ref max, ref hasBounds, ref hasObjects);
+    }
+
+    private static void ExpandBoundsByModel(Model model, ref Vector3 min, ref Vector3 max) {
+
+        var scale = model.AssetRef.Settings.ImportScale;
+        var localMin = model.LocalBoundsMin * scale;
+        var localMax = model.LocalBoundsMax * scale;
+        var world = model.Obj.WorldMatrix;
+
+        Span<Vector3> corners = [
+            new Vector3(localMin.X, localMin.Y, localMin.Z),
+            new Vector3(localMin.X, localMin.Y, localMax.Z),
+            new Vector3(localMin.X, localMax.Y, localMin.Z),
+            new Vector3(localMin.X, localMax.Y, localMax.Z),
+            new Vector3(localMax.X, localMin.Y, localMin.Z),
+            new Vector3(localMax.X, localMin.Y, localMax.Z),
+            new Vector3(localMax.X, localMax.Y, localMin.Z),
+            new Vector3(localMax.X, localMax.Y, localMax.Z)
+        ];
+
+        foreach (var corner in corners) {
+
+            var worldCorner = Raymath.Vector3Transform(corner, world);
+            min = Vector3.Min(min, worldCorner);
+            max = Vector3.Max(max, worldCorner);
+        }
     }
 
     private bool IsAnyArrowHovered(Asset asset) {

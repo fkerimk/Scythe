@@ -82,6 +82,8 @@ internal static class Icons {
     public const string FaCode = "\uf121";
     public const string FaFileCode = "\uf1c9";
     public const string FaSearch = "\uf002";
+    public const string FaEye = "\uf06e";
+    public const string FaEyeSlash = "\uf070";
     public const string FaPlus = "\uf067";
     public const string FaMap = "\uf279";
     public const string FaFlag = "\uf024";
