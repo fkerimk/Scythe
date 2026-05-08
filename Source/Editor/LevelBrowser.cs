@@ -1,4 +1,4 @@
-﻿using System.Numerics;
+using System.Numerics;
 using ImGuiNET;
 using static ImGuiNET.ImGui;
 
@@ -97,7 +97,7 @@ internal class LevelBrowser : Viewport {
         }
 
         // Draw objects
-        DrawObject(Core.ActiveLevel.Root, 0, []);
+        DrawObject(Core.ActiveLevel.Root, 0, [], GetWindowDrawList());
 
         if (IsWindowHovered() && IsMouseReleased(ImGuiMouseButton.Left) && !IsAnyItemHovered())
             SelectObject(null);
@@ -107,7 +107,7 @@ internal class LevelBrowser : Viewport {
 
     private static bool IsAncestorOf(Obj ancestor, Obj? target) => Obj.IsAncestorOf(ancestor, target?.Parent);
 
-    private bool DrawObject(Obj obj, int indent, List<bool> branchHasMore) {
+    private bool DrawObject(Obj obj, int indent, List<bool> branchHasMore, ImDrawListPtr mainDrawList) {
 
         if (Core.ActiveLevel == null) return true;
 
@@ -215,7 +215,7 @@ internal class LevelBrowser : Viewport {
 
                 if (prospectiveParent != null && DragObject != obj && !Obj.IsAncestorOf(DragObject, prospectiveParent)) {
 
-                    DrawDropPreview(drawList, rowMin, rowMax, placement);
+                    DrawDropPreview(mainDrawList, rowMin, rowMax, placement);
 
                     if (IsMouseReleased(ImGuiMouseButton.Left)) {
 
@@ -365,12 +365,12 @@ internal class LevelBrowser : Viewport {
 
             var childBranches = new List<bool>(branchHasMore) { i < children.Count - 1 };
 
-            if (!DrawObject(children[i], indent + 1, childBranches))
+            if (!DrawObject(children[i], indent + 1, childBranches, mainDrawList))
                 break;
         }
 
         var spacingY = GetStyle().ItemSpacing.Y;
-        _childHeights[objId] = MathF.Max(rowHeight, MathF.Max(0f, GetCursorPosY() - childStartY - spacingY));
+        _childHeights[objId] = MathF.Max(rowHeight, MathF.Max(0f, GetCursorPosY() - childStartY - spacingY)) + 1f;
         EndChild();
         PopStyleVar(3);
 
