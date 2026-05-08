@@ -332,7 +332,8 @@ internal class Collections : Viewport {
         const float iconWidth = 20f;
         const float thumbnailSize = 16f;
         var startX = GetCursorPosX();
-        var color = GetCollectionColor();
+        var isBuiltIn = CollectionData.IsBuiltInRoot(path);
+        var color = isBuiltIn ? Vector4.One : GetCollectionColor();
 
         PushFont(Fonts.ImFontAwesomeNormal);
 
@@ -345,7 +346,8 @@ internal class Collections : Viewport {
         PushStyleColor(ImGuiCol.Text, color);
         var clicked = Selectable(name, false, ImGuiSelectableFlags.None, new Vector2(GetContentRegionAvail().X, 0f));
         PopStyleColor();
-        DrawEntryContextMenu(path, isDirectory: true);
+
+        if (!isBuiltIn) DrawEntryContextMenu(path, isDirectory: true);
 
         if (!clicked) return;
 
