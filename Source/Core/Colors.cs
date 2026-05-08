@@ -79,7 +79,7 @@ internal static class Colors {
     //TableRowBgAlt,
     //TextLink,
     //TextSelectedBg,
-    public static Color GuiDragDropTarget => Primary;
+    public static Color GuiDragDropTarget => Clear;
 
     //NavCursor,
     //NavWindowingHighlight,
