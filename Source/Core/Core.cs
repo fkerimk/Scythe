@@ -19,6 +19,7 @@ internal static class Core {
     public static bool ShouldFocusActiveLevel;
     public static bool IsPreviewRender;
     public static bool IsPlaying;
+    public static bool IsLoadingLevel;
 
     public static Matrix4x4 LastProjectionMatrix = Matrix4x4.Identity;
     public static Matrix4x4 LastViewMatrix = Matrix4x4.Identity;
@@ -256,7 +257,13 @@ internal static class Core {
 
         if (ActiveLevel == null) return;
 
-        LoadObj(ActiveLevel.Root);
+        IsLoadingLevel = true;
+
+        try {
+            LoadObj(ActiveLevel.Root);
+        } finally {
+            IsLoadingLevel = false;
+        }
 
         return;
 

@@ -28,7 +28,7 @@ internal class Script(Obj obj) : Component(obj) {
         GUID = guid;
         Path = path;
 
-        if ((GUID != oldGuid || Path != oldPath) && Core.ActiveLevel != null) Core.ActiveLevel.IsDirty = true;
+        if ((GUID != oldGuid || Path != oldPath) && Core.ActiveLevel != null && !Core.IsLoadingLevel) Core.ActiveLevel.IsDirty = true;
 
         if (asset == null || !asset.IsLoaded || asset.ScriptType == null) return false;
 
