@@ -1,4 +1,4 @@
-﻿using System.Numerics;
+using System.Numerics;
 using ImGuiNET;
 using Raylib_cs;
 using Newtonsoft.Json;
@@ -103,7 +103,7 @@ internal class EditorRender() : Viewport("Render (Editor)") {
             for (var i = 0; i < Core.OpenLevels.Count; i++) {
 
                 var level = Core.OpenLevels[i];
-                var label = $"{level.Name}{(level.IsDirty ? " *" : "")}###level_{level.GetHashCode()}";
+                var label = $"{level.Name}{(level.IsDirty ? " *" : "")}###{level.GUID}";
 
                 var open = true;
                 var isSelected = Core.ActiveLevelIndex == i;
