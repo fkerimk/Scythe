@@ -73,7 +73,7 @@
                             "Components": {
                               "Model": {
                                 "GUID": "9847c8670e4a413582f5efda90f899c5",
-                                "Path": "Collections/FPS/Models/Pistol/Pistol.fbx",
+                                "Path": "Collections/FPS/Pistol/Pistol.fbx",
                                 "Color": {
                                   "R": 255,
                                   "G": 255,
@@ -85,7 +85,7 @@
                               },
                               "Animation": {
                                 "GUID": "116334fff49941a58c2aea2a58205e3d",
-                                "Path": "Collections/FPS/Models/Pistol/Pistol.fbx",
+                                "Path": "Collections/FPS/Pistol/Pistol.fbx",
                                 "IsPlaying": true,
                                 "Looping": true
                               },
@@ -304,13 +304,13 @@
   },
   "EditorCamera": {
     "Position": {
-      "X": 0.6352556,
-      "Y": 2.4836807,
-      "Z": -2.4135363
+      "X": 0.59907925,
+      "Y": 2.1553724,
+      "Z": -1.4255878
     },
     "Rotation": {
-      "X": -0.40283173,
-      "Y": 0.055799887
+      "X": -0.3188317,
+      "Y": -0.27120006
     }
   }
 }

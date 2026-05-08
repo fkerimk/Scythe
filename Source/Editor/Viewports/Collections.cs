@@ -4,30 +4,77 @@ using Raylib_cs;
 using static ImGuiNET.ImGui;
 
 namespace Viewports;
-    
+
 internal class Collections : Viewport {
 
     private readonly string _collectionsRoot;
-    
+    private const string ChildCollectionsLabel = "Collections";
+
     private string _currentPath;
     private string? _selectedPath;
-    
+    private bool _showChildCollections;
+    private CollectionCategory? _activeCategory;
+
     private string _newCollectionName = "";
     private bool _showAddPopup;
-    
-    private string RelativePath => Path.GetRelativePath(_collectionsRoot, _currentPath);
-    private int Depth => RelativePath.Split([Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar], StringSplitOptions.RemoveEmptyEntries).Length;
+    private bool _showRenamePopup;
+    private bool _openDeletePopup;
+    private string? _renameTargetPath;
+    private string _renameName = "";
+    private string _renameSuffix = "";
+    private string? _deleteTargetPath;
+    private bool _deleteTargetIsDirectory;
+    private Vector2 _deletePopupPosition;
+
+    private string RelativePath {
+        get {
+            var relative = Path.GetRelativePath(_collectionsRoot, _currentPath);
+            if (relative == ".") relative = "";
+
+            if (_showChildCollections)
+                return string.IsNullOrEmpty(relative) ? ChildCollectionsLabel : $"{relative.Replace('\\', '/')}/{ChildCollectionsLabel}";
+
+            if (_activeCategory == null) return relative;
+            return string.IsNullOrEmpty(relative) ? _activeCategory.Value.Name : $"{relative.Replace('\\', '/')}/{_activeCategory.Value.Name}";
+        }
+    }
+
+    private bool IsAtCollectionsRoot =>
+        Path.GetFullPath(_currentPath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+            .Equals(Path.GetFullPath(_collectionsRoot).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar), StringComparison.OrdinalIgnoreCase);
+
+    private static readonly CollectionCategory[] Categories = [
+        new("Levels", IsLevel, Icons.FaMap),
+        new("Materials", IsMaterial, Icons.FaFileImage),
+        new("Models", IsModel, Icons.FaCube),
+        new("Prefabs", IsPrefab, Icons.FaFile),
+        new("Scripts", IsScript, Icons.FaFileCode),
+        new("Textures", IsTexture, Icons.FaFileImage)
+    ];
 
     public Collections() : base("Collections") {
 
         _collectionsRoot = Path.Combine(ScytheConfig.Current.Project, "Collections");
-        
         _currentPath = _collectionsRoot;
 
         if (!Directory.Exists(_collectionsRoot)) Directory.CreateDirectory(_collectionsRoot);
     }
 
-    public void SyncExternalSelection(string? path) => _selectedPath = path;
+    public void SyncExternalSelection(string? path) {
+
+        _selectedPath = path;
+
+        if (string.IsNullOrEmpty(path)) return;
+        if (!IsUnderCollectionsRoot(path)) return;
+
+        _showChildCollections = false;
+        _activeCategory = Categories.FirstOrDefault(category => category.Match(path));
+
+        var parent = Path.GetDirectoryName(path);
+        if (string.IsNullOrEmpty(parent)) return;
+
+        if (Directory.Exists(parent)) _currentPath = parent;
+    }
 
     protected override void OnDraw() {
 
@@ -37,15 +84,11 @@ internal class Collections : Viewport {
         DrawBrowser();
         DrawPopups();
     }
-    
+
     private void Validate() {
-        
-        if (RelativePath == "." || Depth != 1) return;
-        
-        string[] subfolders = ["Levels", "Textures", "Materials", "Models", "Scripts", "Prefabs"];
-        
-        foreach (var subFolderPath in subfolders)
-            Directory.CreateDirectory(Path.Combine(_currentPath, subFolderPath));
+
+        if (Directory.Exists(_collectionsRoot)) return;
+        Directory.CreateDirectory(_collectionsRoot);
     }
 
     private void DrawToolbar() {
@@ -53,54 +96,70 @@ internal class Collections : Viewport {
         PushFont(Fonts.ImFontAwesomeNormal);
 
         if (Button(Icons.FaPlus)) {
-            
+
             _newCollectionName = "";
             _showAddPopup = true;
         }
-        
+
         PopFont();
-        
+
         if (IsItemHovered()) SetTooltip("Add Collection");
 
-        // Up Button
         SameLine();
-        
-        BeginDisabled(RelativePath == ".");
-        
+
+        var isRoot = Path.GetFullPath(_currentPath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+            .Equals(Path.GetFullPath(_collectionsRoot).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar), StringComparison.OrdinalIgnoreCase);
+
+        BeginDisabled(isRoot && _activeCategory == null);
+
         PushFont(Fonts.ImFontAwesomeNormal);
-        
+
         if (Button(Icons.FaLevelUp)) {
-            
-            var parent = Directory.GetParent(_currentPath);
-            if (parent != null) _currentPath = parent.FullName;
+
+            if (_activeCategory != null) {
+
+                _activeCategory = null;
+                _showChildCollections = false;
+
+            } else if (_showChildCollections) {
+
+                _showChildCollections = false;
+
+            } else {
+
+                var parent = Directory.GetParent(_currentPath);
+                if (parent != null && IsUnderCollectionsRoot(parent.FullName)) _currentPath = parent.FullName;
+            }
         }
-        
+
         PopFont();
-        
+
         EndDisabled();
-        
+
         if (IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled)) SetTooltip("Up");
 
-        if (RelativePath == ".") return;
-        
+        if (string.IsNullOrEmpty(RelativePath)) return;
+
         SameLine();
-        
         TextColored(new Vector4(0.7f, 0.7f, 0.7f, 1.0f), RelativePath);
     }
 
     private void DrawBrowser() {
-        
+
         if (!BeginChild("Browser")) return;
 
-        var entries = Directory
-            .GetFileSystemEntries(_currentPath)
-            .Where(entry => !IsSidecarMetaFile(entry))
-            .OrderByDescending(Directory.Exists)
-            .ThenBy(Path.GetFileName, new NaturalStringComparer()!)
-            .ToArray();
+        if (_showChildCollections) {
 
-        foreach (var entry in entries)
-            DrawEntry(entry);
+            foreach (var collection in GetCollectionEntries()) DrawCollectionEntry(collection);
+
+        } else if (_activeCategory == null) {
+
+            foreach (var entry in GetBrowserEntries()) DrawBrowserEntry(entry);
+
+        } else {
+
+            foreach (var file in GetFilesForCategory(_activeCategory.Value)) DrawFileEntry(file);
+        }
 
         if (IsWindowHovered() && IsMouseReleased(ImGuiMouseButton.Left) && !IsAnyItemHovered()) {
 
@@ -111,10 +170,152 @@ internal class Collections : Viewport {
         EndChild();
     }
 
-    private void DrawEntry(string path) {
+    private IEnumerable<BrowserEntry> GetBrowserEntries() {
+
+        var collections = GetCollectionEntries();
+
+        if (IsAtCollectionsRoot) return collections.Select(BrowserEntry.CreateCollection).OrderBy(entry => entry.Name, new NaturalStringComparer()!);
+
+        var collectionEntry = BrowserEntry.CreateCollectionGroup(GetCollectionEntries().Count());
+        var categories = GetCategoryStates().Select(BrowserEntry.CreateCategory);
+
+        return new[] { collectionEntry }
+            .Concat(categories)
+            .OrderByDescending(entry => entry.IsActive)
+            .ThenBy(entry => entry.Name, new NaturalStringComparer()!);
+    }
+
+    private IEnumerable<string> GetCollectionEntries() =>
+        Directory.EnumerateDirectories(_currentPath)
+            .Where(path => !IsCategoryFolderName(Path.GetFileName(path)))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(Path.GetFileName, new NaturalStringComparer()!);
+
+    private IEnumerable<CategoryState> GetCategoryStates() =>
+        Categories
+            .Select(category => new CategoryState(category, CountFilesForCategory(category)))
+            .OrderBy(state => state.Category.Name, new NaturalStringComparer()!);
+
+    private int CountFilesForCategory(CollectionCategory category) => GetFilesForCategory(category).Count();
+
+    private IEnumerable<string> GetFilesForCategory(CollectionCategory category) {
+
+        return Directory.EnumerateFiles(_currentPath)
+            .Where(path => !IsSidecarMetaFile(path))
+            .Where(category.Match)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(GetNameWithoutExtension, new NaturalStringComparer()!);
+    }
+
+    private void DrawBrowserEntry(BrowserEntry entry) {
+
+        if (entry.Kind == BrowserEntryKind.Collection) {
+
+            DrawCollectionEntry(entry.EntryPath!);
+            return;
+        }
+
+        if (entry.Kind == BrowserEntryKind.CollectionGroup) {
+
+            DrawCollectionGroupEntry(entry.Count);
+            return;
+        }
+
+        DrawCategoryEntry(entry.CategoryState!.Value);
+    }
+
+    private void DrawCollectionEntry(string path) {
+
+        var name = Path.GetFileName(path);
+        const float iconWidth = 20f;
+        var startX = GetCursorPosX();
+
+        PushFont(Fonts.ImFontAwesomeNormal);
+        DrawIcon(Icons.FaFolder, new Vector4(1f, 0.8f, 0.2f, 1f), startX, iconWidth);
+        PopFont();
+
+        SameLine(startX + iconWidth + 5f);
+        var clicked = Selectable(name, false, ImGuiSelectableFlags.None, new Vector2(GetContentRegionAvail().X, 0f));
+        DrawEntryContextMenu(path, isDirectory: true);
+
+        if (!clicked) return;
+
+        _currentPath = path;
+        _showChildCollections = false;
+        _activeCategory = null;
+        Editor.SetSelectedAsset(null);
+    }
+
+    private void DrawCollectionGroupEntry(int count) {
+
+        const float iconWidth = 20f;
+        var startX = GetCursorPosX();
+
+        PushFont(Fonts.ImFontAwesomeNormal);
+
+        var color = count > 0
+            ? new Vector4(0.75f, 0.9f, 1f, 1f)
+            : new Vector4(0.45f, 0.45f, 0.45f, 1f);
+
+        DrawIcon(Icons.FaFolder, color, startX, iconWidth);
+        PopFont();
+
+        SameLine(startX + iconWidth + 5f);
+
+        if (count == 0) BeginDisabled();
+
+        var clicked = Selectable(ChildCollectionsLabel, _showChildCollections, ImGuiSelectableFlags.None, new Vector2(GetContentRegionAvail().X, 0f));
+        DrawRightAlignedCount(count);
+
+        if (count == 0) EndDisabled();
+        if (!clicked) return;
+
+        _showChildCollections = true;
+        _activeCategory = null;
+        Editor.SetSelectedAsset(null);
+    }
+
+    private void DrawCategoryEntry(CategoryState state) {
+
+        const float iconWidth = 20f;
+        var startX = GetCursorPosX();
+
+        PushFont(Fonts.ImFontAwesomeNormal);
+
+        var color = state.Count > 0
+            ? new Vector4(0.75f, 0.9f, 1f, 1f)
+            : new Vector4(0.45f, 0.45f, 0.45f, 1f);
+
+        DrawIcon(state.Category.Icon, color, startX, iconWidth);
+        PopFont();
+
+        SameLine(startX + iconWidth + 5f);
+
+        if (state.Count == 0) BeginDisabled();
+
+        var isSelected = _activeCategory?.Name == state.Category.Name;
+        if (isSelected) {
+            PushStyleColor(ImGuiCol.Header, Colors.GuiButtonActive.ToVector4());
+            PushStyleColor(ImGuiCol.HeaderHovered, Colors.GuiButtonActive.ToVector4());
+            PushStyleColor(ImGuiCol.HeaderActive, Colors.GuiButtonActive.ToVector4());
+        }
+
+        var clicked = Selectable(state.Category.Name, isSelected, ImGuiSelectableFlags.None, new Vector2(GetContentRegionAvail().X, 0f));
+        DrawRightAlignedCount(state.Count);
+
+        if (isSelected) PopStyleColor(3);
+        if (state.Count == 0) EndDisabled();
+
+        if (!clicked) return;
+
+        _showChildCollections = false;
+        _activeCategory = state.Category;
+        Editor.SetSelectedAsset(null);
+    }
+
+    private void DrawFileEntry(string path) {
 
         var name = GetNameWithoutExtension(path);
-        var isDirectory = Directory.Exists(path);
         var startX = GetCursorPosX();
 
         const float iconWidth = 20f;
@@ -123,7 +324,7 @@ internal class Collections : Viewport {
         PushFont(Fonts.ImFontAwesomeNormal);
 
         if (!TryDrawThumbnail(path, startX, iconWidth, thumbnailSize))
-            DrawIcon(path, isDirectory, startX, iconWidth);
+            DrawFileIcon(path, startX, iconWidth);
 
         PopFont();
 
@@ -137,18 +338,10 @@ internal class Collections : Viewport {
         }
 
         var clicked = Selectable(name, isSelected, ImGuiSelectableFlags.None, new Vector2(GetContentRegionAvail().X, 0f));
+        DrawEntryContextMenu(path, isDirectory: false);
 
         if (isSelected) PopStyleColor(3);
-
         if (!clicked) return;
-
-        if (isDirectory) {
-
-            _currentPath = path;
-            Editor.SetSelectedAsset(null);
-
-            return;
-        }
 
         LevelBrowser.SelectObject(null);
         Editor.SetSelectedAsset(path);
@@ -179,75 +372,285 @@ internal class Collections : Viewport {
         return true;
     }
 
-    private void DrawIcon(string path, bool isDirectory, float startX, float iconWidth) {
+    private void DrawFileIcon(string path, float startX, float iconWidth) {
 
-        var icon = GetIcon(path, isDirectory);
+        var icon = GetFileIcon(path);
         var iconSize = CalcTextSize(icon);
         SetCursorPosX(startX + (iconWidth - iconSize.X) * 0.5f);
-
-        if (isDirectory) PushStyleColor(ImGuiCol.Text, new Vector4(1f, 0.8f, 0.2f, 1f));
         Text(icon);
-        if (isDirectory) PopStyleColor();
+    }
+
+    private void DrawIcon(string icon, Vector4 color, float startX, float iconWidth) {
+
+        var iconSize = CalcTextSize(icon);
+        SetCursorPosX(startX + (iconWidth - iconSize.X) * 0.5f);
+        PushStyleColor(ImGuiCol.Text, color);
+        Text(icon);
+        PopStyleColor();
+    }
+
+    private void DrawRightAlignedCount(int count) {
+
+        var text = count.ToString();
+        var textSize = CalcTextSize(text);
+        var min = GetItemRectMin();
+        var max = GetItemRectMax();
+        const float rightPadding = 10f;
+        const float countColumnWidth = 24f;
+        var columnLeft = max.X - rightPadding - countColumnWidth;
+        var pos = new Vector2(columnLeft + (countColumnWidth - textSize.X) * 0.5f, min.Y + (GetItemRectSize().Y - textSize.Y) * 0.5f);
+        var color = new Vector4(0.7f, 0.7f, 0.7f, 0.65f);
+
+        GetWindowDrawList().AddText(pos, ColorConvertFloat4ToU32(color), text);
     }
 
     private void DrawPopups() {
 
         if (_showAddPopup) OpenPopup("Add Collection");
 
-        if (!BeginPopupModal("Add Collection", ref _showAddPopup, ImGuiWindowFlags.AlwaysAutoResize)) return;
-        
-        Text("Enter collection name:");
-            
+        if (Modal.Begin("Add Collection", ref _showAddPopup)) {
+
+            Text("Enter collection name:");
+
+            if (IsWindowAppearing()) SetKeyboardFocusHere();
+
+            if (InputText("##name", ref _newCollectionName, 64, ImGuiInputTextFlags.EnterReturnsTrue)) {
+
+                CreateCollection(_newCollectionName);
+                _showAddPopup = false;
+                CloseCurrentPopup();
+            }
+
+            Spacing();
+            Separator();
+            Spacing();
+
+            if (Button("Create", new Vector2(120, 0))) {
+
+                CreateCollection(_newCollectionName);
+                _showAddPopup = false;
+                CloseCurrentPopup();
+            }
+
+            SameLine();
+
+            if (Button("Cancel", new Vector2(120, 0))) {
+
+                _showAddPopup = false;
+                CloseCurrentPopup();
+            }
+
+            Modal.End();
+        }
+
+        DrawRenamePopup();
+        DrawDeletePopup();
+    }
+
+    private void DrawRenamePopup() {
+
+        if (_showRenamePopup) OpenPopup("Rename Item");
+
+        if (!Modal.Begin("Rename Item", ref _showRenamePopup)) return;
+
+        Text("Enter new name:");
+
         if (IsWindowAppearing()) SetKeyboardFocusHere();
-            
-        if (InputText("##name", ref _newCollectionName, 64, ImGuiInputTextFlags.EnterReturnsTrue)) {
-                
-            CreateCollection(_newCollectionName);
-            _showAddPopup = false;
+
+        if (InputText("##rename", ref _renameName, 128, ImGuiInputTextFlags.EnterReturnsTrue)) {
+
+            ApplyRename();
+            _showRenamePopup = false;
             CloseCurrentPopup();
         }
+
+        if (!string.IsNullOrEmpty(_renameSuffix))
+            TextColored(new Vector4(0.7f, 0.7f, 0.7f, 1f), $"Extension: {_renameSuffix}");
 
         Spacing();
         Separator();
         Spacing();
 
-        if (Button("Create", new Vector2(120, 0))) {
-                
-            CreateCollection(_newCollectionName);
-            _showAddPopup = false;
-            CloseCurrentPopup();
-        }
-            
-        SameLine();
-            
-        if (Button("Cancel", new Vector2(120, 0))) {
-                
-            _showAddPopup = false;
+        if (Button("Rename", new Vector2(120, 0))) {
+
+            ApplyRename();
+            _showRenamePopup = false;
             CloseCurrentPopup();
         }
 
+        SameLine();
+
+        if (Button("Cancel", new Vector2(120, 0))) {
+
+            _showRenamePopup = false;
+            CloseCurrentPopup();
+        }
+
+        Modal.End();
+    }
+
+    private void DrawDeletePopup() {
+
+        if (_openDeletePopup) {
+            OpenPopup("Delete Confirm");
+            _openDeletePopup = false;
+        }
+
+        if (!Modal.BeginPopup("Delete Confirm", _deletePopupPosition)) return;
+
+        Text("Are you sure?");
+        TextColored(new Vector4(0.7f, 0.7f, 0.7f, 1f), _deleteTargetIsDirectory ? "This collection will be deleted permanently." : "This file will be deleted permanently.");
+
+        Spacing();
+
+        if (Button("Delete", new Vector2(120, 0))) {
+
+            DeleteTarget();
+            CloseCurrentPopup();
+        }
+
+        SameLine();
+
+        if (Button("Cancel", new Vector2(120, 0))) CloseCurrentPopup();
+
+        Modal.End();
+    }
+
+    private void DrawEntryContextMenu(string path, bool isDirectory) {
+
+        if (!BeginPopupContextItem($"Context::{path}")) return;
+
+        if (MenuItem("Rename")) OpenRenamePopup(path, isDirectory);
+        if (MenuItem("Delete")) OpenDeletePopup(path, isDirectory);
+
         EndPopup();
+    }
+
+    private void OpenRenamePopup(string path, bool isDirectory) {
+
+        _renameTargetPath = path;
+        _renameSuffix = isDirectory ? "" : GetRenameSuffix(path);
+        _renameName = isDirectory ? Path.GetFileName(path) : GetNameWithoutExtension(path);
+        _showRenamePopup = true;
+    }
+
+    private void OpenDeletePopup(string path, bool isDirectory) {
+
+        _deleteTargetPath = path;
+        _deleteTargetIsDirectory = isDirectory;
+        _deletePopupPosition = GetMousePos() + new Vector2(0f, 4f);
+        _openDeletePopup = true;
+    }
+
+    private void ApplyRename() {
+
+        if (string.IsNullOrWhiteSpace(_renameTargetPath) || string.IsNullOrWhiteSpace(_renameName)) return;
+
+        var sourcePath = _renameTargetPath;
+        var parentDir = Path.GetDirectoryName(sourcePath);
+        if (string.IsNullOrEmpty(parentDir)) return;
+
+        var newPath = Path.Combine(parentDir, _renameName.Trim() + _renameSuffix);
+        if (string.Equals(sourcePath, newPath, StringComparison.OrdinalIgnoreCase)) return;
+
+        if (Directory.Exists(sourcePath)) {
+
+            if (File.Exists(newPath) || Directory.Exists(newPath)) {
+                Notifications.Show($"Rename failed: '{Path.GetFileName(newPath)}' already exists.");
+                return;
+            }
+
+            try {
+                Directory.Move(sourcePath, newPath);
+                Notifications.Show($"Collection renamed to '{Path.GetFileName(newPath)}'.");
+            } catch (Exception e) {
+                Notifications.Show($"Rename failed: {e.Message}");
+            }
+
+        } else if (File.Exists(sourcePath)) {
+
+            var sidecarPath = GetSidecarMetaPathFor(sourcePath);
+            var newSidecarPath = GetSidecarMetaPathFor(newPath);
+            var hasSidecar = File.Exists(sidecarPath);
+
+            if (File.Exists(newPath) || Directory.Exists(newPath) || hasSidecar && File.Exists(newSidecarPath)) {
+                Notifications.Show($"Rename failed: '{Path.GetFileName(newPath)}' already exists.");
+                return;
+            }
+
+            var movedMain = false;
+            var movedSidecar = false;
+
+            try {
+                File.Move(sourcePath, newPath);
+                movedMain = true;
+
+                if (hasSidecar) {
+                    File.Move(sidecarPath, newSidecarPath);
+                    movedSidecar = true;
+                }
+
+                if (string.Equals(_selectedPath, sourcePath, StringComparison.OrdinalIgnoreCase)) Editor.SetSelectedAsset(newPath);
+                Notifications.Show($"File renamed to '{Path.GetFileName(newPath)}'.");
+            } catch (Exception e) {
+                try {
+                    if (movedSidecar && File.Exists(newSidecarPath) && !File.Exists(sidecarPath)) File.Move(newSidecarPath, sidecarPath);
+                    if (movedMain && File.Exists(newPath) && !File.Exists(sourcePath)) File.Move(newPath, sourcePath);
+                } catch {
+                    // Best-effort rollback only.
+                }
+
+                Notifications.Show($"Rename failed: {e.Message}");
+            }
+        }
+    }
+
+    private void DeleteTarget() {
+
+        if (string.IsNullOrWhiteSpace(_deleteTargetPath)) return;
+
+        var targetPath = _deleteTargetPath;
+
+        if (_deleteTargetIsDirectory) {
+
+            if (Directory.Exists(targetPath)) Directory.Delete(targetPath, true);
+            Notifications.Show($"Collection '{Path.GetFileName(targetPath)}' deleted.");
+
+        } else {
+
+            var sidecarPath = GetSidecarMetaPath(targetPath);
+
+            if (File.Exists(targetPath)) File.Delete(targetPath);
+            if (sidecarPath != null && File.Exists(sidecarPath)) File.Delete(sidecarPath);
+
+            if (string.Equals(_selectedPath, targetPath, StringComparison.OrdinalIgnoreCase)) Editor.SetSelectedAsset(null);
+            Notifications.Show($"File '{Path.GetFileName(targetPath)}' deleted.");
+        }
     }
 
     private void CreateCollection(string name) {
 
         if (string.IsNullOrWhiteSpace(name)) return;
 
-        var path = Path.Combine(_collectionsRoot, name);
-        
+        var path = Path.Combine(_currentPath, name);
         if (Directory.Exists(path)) return;
 
         Directory.CreateDirectory(path);
-        
-        string[] subfolders = ["Levels", "Textures", "Materials", "Models", "Scripts", "Prefabs"];
-        
-        foreach (var sub in subfolders) {
-            
-            Directory.CreateDirectory(Path.Combine(path, sub));
-        }
-
         Notifications.Show($"Collection '{name}' created.");
     }
+
+    private bool IsUnderCollectionsRoot(string path) {
+
+        var fullPath = Path.GetFullPath(path).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        var rootPath = Path.GetFullPath(_collectionsRoot).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+
+        return fullPath.Equals(rootPath, StringComparison.OrdinalIgnoreCase)
+               || fullPath.StartsWith(rootPath + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
+               || fullPath.StartsWith(rootPath + Path.AltDirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsCategoryFolderName(string? name) =>
+        !string.IsNullOrEmpty(name) && Categories.Any(category => string.Equals(category.Name, name, StringComparison.OrdinalIgnoreCase));
 
     private static bool IsSidecarMetaFile(string path) {
 
@@ -257,23 +660,17 @@ internal class Collections : Viewport {
         return File.Exists(assetPath);
     }
 
-    private string GetIcon(string path, bool isDirectory) {
+    private static string? GetSidecarMetaPath(string path) => Directory.Exists(path) ? null : File.Exists(GetSidecarMetaPathFor(path)) ? GetSidecarMetaPathFor(path) : null;
 
-        if (isDirectory) {
+    private static string GetSidecarMetaPathFor(string path) => path + ".json";
 
-            var name = Path.GetFileName(path);
-            return name switch {
-                "Materials" when Depth == 1 => Icons.FaFileImage,
-                "Models" when Depth == 1 => Icons.FaCube,
-                "Scripts" when Depth == 1 => Icons.FaFileCode,
-                "Levels" when Depth == 1 => Icons.FaMap,
-                _ => Icons.FaFolder
-            };
-        }
+    private static string GetFileIcon(string path) {
 
         if (IsScript(path)) return Icons.FaFileCode;
         if (IsLevel(path)) return Icons.FaFlag;
         if (IsMaterial(path)) return Icons.FaFileImage;
+        if (IsTexture(path)) return Icons.FaFileImage;
+        if (IsPrefab(path)) return Icons.FaFile;
         if (IsModel(path)) return Icons.FaCube;
 
         return Icons.FaFile;
@@ -283,6 +680,7 @@ internal class Collections : Viewport {
     private static bool IsMaterial(string path) => path.EndsWith(".material.json", StringComparison.OrdinalIgnoreCase);
     private static bool IsTexture(string path) => path.EndsWith(".png", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".jpeg", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".tga", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".bmp", StringComparison.OrdinalIgnoreCase);
     private static bool IsScript(string path) => path.EndsWith(".cs", StringComparison.OrdinalIgnoreCase);
+    private static bool IsPrefab(string path) => path.EndsWith(".prefab.json", StringComparison.OrdinalIgnoreCase);
 
     private static bool IsModel(string path) {
 
@@ -296,8 +694,20 @@ internal class Collections : Viewport {
 
         if (IsLevel(path)) return name[..^11];
         if (IsMaterial(path)) return name[..^14];
+        if (IsPrefab(path)) return name[..^12];
 
         return Path.GetFileNameWithoutExtension(name);
+    }
+
+    private static string GetRenameSuffix(string path) {
+
+        var name = Path.GetFileName(path);
+
+        if (IsLevel(path)) return name[^11..];
+        if (IsMaterial(path)) return name[^14..];
+        if (IsPrefab(path)) return name[^12..];
+
+        return Path.GetExtension(path);
     }
 
     private static Texture2D? GetThumbnail(string path) {
@@ -310,16 +720,24 @@ internal class Collections : Viewport {
             return null;
         }
 
-        if (IsMaterial(path)) {
-
-            return AssetManager.GetOrImport<MaterialAsset>(path)?.Thumbnail;
-        }
-
-        if (IsModel(path)) {
-
-            return AssetManager.GetOrImport<ModelAsset>(path)?.Thumbnail;
-        }
+        if (IsMaterial(path)) return AssetManager.GetOrImport<MaterialAsset>(path)?.Thumbnail;
+        if (IsModel(path)) return AssetManager.GetOrImport<ModelAsset>(path)?.Thumbnail;
 
         return null;
+    }
+
+    private readonly record struct CollectionCategory(string Name, Func<string, bool> Match, string Icon);
+    private readonly record struct CategoryState(CollectionCategory Category, int Count);
+    private readonly record struct BrowserEntry(string Name, BrowserEntryKind Kind, bool IsActive, int Count, string? EntryPath, CategoryState? CategoryState) {
+
+        public static BrowserEntry CreateCollection(string path) => new(System.IO.Path.GetFileName(path), BrowserEntryKind.Collection, true, 0, path, null);
+        public static BrowserEntry CreateCollectionGroup(int count) => new(ChildCollectionsLabel, BrowserEntryKind.CollectionGroup, count > 0, count, null, null);
+        public static BrowserEntry CreateCategory(CategoryState state) => new(state.Category.Name, BrowserEntryKind.Category, state.Count > 0, state.Count, null, state);
+    }
+
+    private enum BrowserEntryKind {
+        Collection,
+        CollectionGroup,
+        Category
     }
 }

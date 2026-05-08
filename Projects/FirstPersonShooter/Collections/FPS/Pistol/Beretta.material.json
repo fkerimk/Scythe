@@ -10,11 +10,11 @@
     "normal_map": "6f07468e01d74330ba49e361e066bd3b"
   },
   "TexturePaths": {
-    "albedo_map": "Collections/FPS/Models/Pistol/Beretta_C.png",
-    "metallic_map": "Collections/FPS/Models/Pistol/Beretta_M.png",
-    "roughness_map": "Collections/FPS/Models/Pistol/Beretta_R.png",
-    "occlusion_map": "Collections/FPS/Models/Pistol/Berettaa_O.png",
-    "normal_map": "Collections/FPS/Models/Pistol/Beretta_N.png"
+    "albedo_map": "Collections/FPS/Pistol/Beretta_C.png",
+    "metallic_map": "Collections/FPS/Pistol/Beretta_M.png",
+    "roughness_map": "Collections/FPS/Pistol/Beretta_R.png",
+    "occlusion_map": "Collections/FPS/Pistol/Berettaa_O.png",
+    "normal_map": "Collections/FPS/Pistol/Beretta_N.png"
   },
   "Floats": {
     "metallic_value": 0.0,

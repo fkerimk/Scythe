@@ -7,8 +7,8 @@
     "normal_map": "695f1ccfc5e548b4be5e20569412a386"
   },
   "TexturePaths": {
-    "albedo_map": "Collections/FPS/Models/Pistol/Hands_C.png",
-    "normal_map": "Collections/FPS/Models/Pistol/Hands_N.png"
+    "albedo_map": "Collections/FPS/Pistol/Hands_C.png",
+    "normal_map": "Collections/FPS/Pistol/Hands_N.png"
   },
   "Floats": {
     "metallic_value": 0.0,

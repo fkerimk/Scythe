@@ -30,11 +30,11 @@ internal static class BuildPipeline {
 
         if (_showBuildModal) OpenPopup(BuildPopupId);
 
-        if (!BeginPopupModal(BuildPopupId, ref _showBuildModal, ImGuiNET.ImGuiWindowFlags.AlwaysAutoResize)) return;
+        if (!Modal.Begin(BuildPopupId, ref _showBuildModal)) return;
 
-        TextWrapped("Tek dosya bir runtime exe uretir. Scriptler Assembly/Scripts.dll uzerinden, assetler proje dosyalari ve Imports cache'i uzerinden pakete gomulur.");
+        TextWrapped("Build a single runtime executable. Scripts are bundled from Assembly/Scripts.dll, and assets are packed from the project files and the Imports cache.");
         Spacing();
-        Text("Output exe");
+        Text("Output executable");
         SetNextItemWidth(520);
         InputText("##BuildOutputPath", ref _outputPath, 1024);
 
@@ -54,7 +54,7 @@ internal static class BuildPipeline {
             CloseCurrentPopup();
         }
 
-        EndPopup();
+        Modal.End();
     }
 
     private static void StartBuild(string outputPath) {

@@ -299,23 +299,9 @@ internal static unsafe class Editor {
 
         if (!_showExitModal) return;
 
-        OpenPopup("Save Changes?###SaveExitModal");
+        OpenPopup("Unsaved Changes###SaveExitModal");
 
-        var viewport = GetMainViewport();
-        SetNextWindowPos(viewport.GetCenter(), ImGuiCond.Appearing, new Vector2(0.5f, 0.5f));
-
-        PushStyleVar(ImGuiStyleVar.WindowPadding, new Vector2(24, 24));
-        PushStyleVar(ImGuiStyleVar.FramePadding, new Vector2(10, 8));
-        PushStyleVar(ImGuiStyleVar.ItemSpacing, new Vector2(8, 12));
-        PushStyleColor(ImGuiCol.ModalWindowDimBg, new Vector4(0f, 0f, 0f, 0.75f));
-
-        if (BeginPopupModal("Save Changes?###SaveExitModal", ref _showExitModal, ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoMove | ImGuiWindowFlags.NoTitleBar)) {
-
-            PushFont(Fonts.ImMontserratRegular);
-
-            TextColored(ColorNormalize(Colors.Primary), Icons.FaAsterisk + "  Unsaved Changes");
-            Separator();
-            Spacing();
+        if (Modal.Begin("Unsaved Changes###SaveExitModal", ref _showExitModal)) {
 
             Text("You have unsaved changes in your scripts or scenes.");
             Text("Would you like to save them before exiting?");
@@ -346,13 +332,8 @@ internal static unsafe class Editor {
                 _showExitModal = false;
                 CloseCurrentPopup();
             }
-
-            PopFont();
-            EndPopup();
+            Modal.End();
         }
-
-        PopStyleColor();
-        PopStyleVar(3);
     }
 
     public static void TogglePlayMode(Vector2? mouseCenter = null) {
