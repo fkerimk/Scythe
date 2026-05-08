@@ -94,4 +94,24 @@ internal static class Colors {
     public static Color GuiTypeLight => new(0.9f, 0.9f, 0.5f);
     public static Color GuiTypeCamera => new(0.5f, 0.9f, 0.9f);
     public static Color GuiTypePhysics => new(78, 207, 113);
+
+    // collections
+    public static Color GuiCollection => new(255, 204, 51, 255);
+    public static Color GuiCollectionMuted => new(115, 115, 115, 255);
+    public static Color GuiCollectionLevel => new(237, 150, 94, 255);
+    public static Color GuiCollectionMaterial => new(214, 96, 66, 255);
+    public static Color GuiCollectionModel => new(133, 219, 245, 255);
+    public static Color GuiCollectionPrefab => new(209, 148, 237, 255);
+    public static Color GuiCollectionScript => new(120, 199, 242, 255);
+    public static Color GuiCollectionTexture => new(120, 224, 158, 255);
+
+    // preview code
+    public static Color GuiCodeText => new(220, 220, 230, 255);
+    public static Color GuiCodeKeyword => new(86, 156, 214, 255);
+    public static Color GuiCodeType => new(78, 201, 176, 255);
+    public static Color GuiCodeString => new(214, 157, 133, 255);
+    public static Color GuiCodeComment => new(106, 153, 85, 255);
+    public static Color GuiCodeNumber => new(181, 206, 168, 255);
+    public static Color GuiCodePreprocessor => new(198, 120, 221, 255);
+    public static Color GuiCodePlain => new(212, 212, 212, 255);
 }

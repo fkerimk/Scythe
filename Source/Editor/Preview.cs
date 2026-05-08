@@ -1,4 +1,7 @@
 using System.Numerics;
+using System.Threading;
+using ColorCode;
+using ColorCode.Parsing;
 using ImGuiNET;
 using Raylib_cs;
 using static Raylib_cs.Raylib;
@@ -28,6 +31,12 @@ internal class Preview : Viewport {
 
     private RenderTexture2D _rt;
     private string _lastFile = "";
+    private string _lastScriptFile = "";
+    private readonly List<List<ColoredTextSegment>> _scriptPreviewLines = [];
+    private static readonly ILanguageParser ScriptPreviewParser = new LanguageParser(
+        new ColorCode.Compilation.LanguageCompiler(new Dictionary<string, ColorCode.Compilation.CompiledLanguage>(), new ReaderWriterLockSlim()),
+        new ColorCode.Common.LanguageRepository(new Dictionary<string, ILanguage>())
+    );
 
     // Interactive Preview State
     private float _zoom = 1.0f;
@@ -54,6 +63,16 @@ internal class Preview : Viewport {
         var avail = GetContentRegionAvail();
 
         if (avail.X <= 1 || avail.Y <= 1) return;
+
+        if (selectedCamera == null && !string.IsNullOrEmpty(selectedFile) && IsScript(selectedFile)) {
+
+            if (selectedFile != _lastScriptFile) {
+                _pan = Vector2.Zero;
+                _zoom = 1.0f;
+                CacheScriptPreview(selectedFile);
+                _lastFile = selectedFile;
+            }
+        }
 
         // Reset view when switching assets (only if no camera is selected)
         if (selectedCamera == null && selectedFile != _lastFile) {
@@ -118,7 +137,9 @@ internal class Preview : Viewport {
             var matAsset = AssetManager.GetOrImport<MaterialAsset>(selectedFile!);
             var modelAsset = AssetManager.GetOrImport<ModelAsset>(selectedFile!);
 
-            if (textureAsset != null)
+            if (IsScript(selectedFile!))
+                DrawScriptPreview();
+            else if (textureAsset != null)
                 DrawTexturePreview(textureAsset);
             else {
 
@@ -145,6 +166,133 @@ internal class Preview : Viewport {
 
         return selectedCamera != null || !string.IsNullOrEmpty(selectedFile);
     }
+
+    private void CacheScriptPreview(string path) {
+
+        _scriptPreviewLines.Clear();
+        _lastScriptFile = path;
+
+        if (!File.Exists(path)) return;
+
+        var currentLine = new List<ColoredTextSegment>();
+        var currentText = new System.Text.StringBuilder();
+        var currentColor = Colors.GuiCodePlain.ToVector4();
+
+        var source = File.ReadAllText(path).Replace("\r\n", "\n");
+
+        ScriptPreviewParser.Parse(source, Languages.CSharp, (parsedSource, scopes) => {
+            var chunkColors = Enumerable.Repeat(Colors.GuiCodePlain.ToVector4(), parsedSource.Length).ToArray();
+
+            foreach (var scope in scopes) ApplyScopeColorRecursive(scope, chunkColors, parsedSource.Length);
+
+            for (var i = 0; i < parsedSource.Length; i++) {
+                var c = parsedSource[i];
+
+                if (c == '\n') {
+                    FlushScriptSegment(currentLine, currentText, currentColor);
+                    _scriptPreviewLines.Add(currentLine);
+                    currentLine = [];
+                    continue;
+                }
+
+                var color = chunkColors[i];
+                if (!ApproximatelyEqual(color, currentColor) && currentText.Length > 0) {
+                    FlushScriptSegment(currentLine, currentText, currentColor);
+                    currentColor = color;
+                } else if (currentText.Length == 0) {
+                    currentColor = color;
+                }
+
+                currentText.Append(c);
+            }
+        });
+
+        FlushScriptSegment(currentLine, currentText, currentColor);
+        _scriptPreviewLines.Add(currentLine);
+    }
+
+    private void ApplyScopeColorRecursive(Scope scope, Vector4[] charColors, int sourceLength) {
+
+        var color = GetFallbackCodeColor(scope.Name);
+        var start = Math.Clamp(scope.Index, 0, sourceLength);
+        var end = Math.Clamp(scope.Index + scope.Length, 0, sourceLength);
+
+        for (var i = start; i < end; i++) charColors[i] = color;
+        foreach (var child in scope.Children) ApplyScopeColorRecursive(child, charColors, sourceLength);
+    }
+
+    private static void FlushScriptSegment(List<ColoredTextSegment> line, System.Text.StringBuilder text, Vector4 color) {
+
+        if (text.Length == 0) return;
+        line.Add(new ColoredTextSegment(text.ToString(), color));
+        text.Clear();
+    }
+
+    private void DrawScriptPreview() {
+
+        if (IsWindowHovered()) {
+
+            _zoom += GetMouseWheelMove() * 0.1f * _zoom;
+            _zoom = Math.Clamp(_zoom, 0.4f, 6f);
+            if (IsMouseDown(ImGuiMouseButton.Left)) _pan += GetMouseDelta() / _zoom;
+        }
+
+        var font = Fonts.RlCascadiaCode;
+        const float baseFontSize = 20f;
+        const float spacing = 1f;
+        var fontSize = baseFontSize * _zoom;
+        var lineHeight = fontSize + 6f * _zoom;
+
+        float maxWidth = 0f;
+        foreach (var line in _scriptPreviewLines) {
+            float lineWidth = 0f;
+            foreach (var segment in line) lineWidth += MeasureTextEx(font, segment.Text, fontSize, spacing).X;
+            if (lineWidth > maxWidth) maxWidth = lineWidth;
+        }
+
+        var totalHeight = Math.Max(lineHeight * _scriptPreviewLines.Count, lineHeight);
+        var origin = new Vector2(
+            ((_rt.Texture.Width - maxWidth) * 0.5f) + _pan.X * _zoom,
+            ((_rt.Texture.Height - totalHeight) * 0.5f) + _pan.Y * _zoom
+        );
+
+        DrawRectangle(0, 0, _rt.Texture.Width, _rt.Texture.Height, new Color(18, 18, 24, 255));
+
+        for (var i = 0; i < _scriptPreviewLines.Count; i++) {
+            var y = origin.Y + i * lineHeight;
+            var x = origin.X;
+
+            foreach (var segment in _scriptPreviewLines[i]) {
+                if (!string.IsNullOrEmpty(segment.Text))
+                    DrawTextEx(font, segment.Text, new Vector2(x, y), fontSize, spacing, new Color(segment.Color.X, segment.Color.Y, segment.Color.Z, segment.Color.W));
+
+                x += MeasureTextEx(font, segment.Text, fontSize, spacing).X;
+            }
+        }
+    }
+
+    private static Vector4 GetFallbackCodeColor(string scopeName) {
+
+        var name = scopeName.ToLowerInvariant();
+
+        if (name.Contains("comment")) return Colors.GuiCodeComment.ToVector4();
+        if (name.Contains("string")) return Colors.GuiCodeString.ToVector4();
+        if (name.Contains("char")) return Colors.GuiCodeString.ToVector4();
+        if (name.Contains("keyword")) return Colors.GuiCodeKeyword.ToVector4();
+        if (name.Contains("number") || name.Contains("numeric")) return Colors.GuiCodeNumber.ToVector4();
+        if (name.Contains("preprocessor")) return Colors.GuiCodePreprocessor.ToVector4();
+        if (name.Contains("class") || name.Contains("type") || name.Contains("interface") || name.Contains("namespace")) return Colors.GuiCodeType.ToVector4();
+
+        return Colors.GuiCodeText.ToVector4();
+    }
+
+    private static bool ApproximatelyEqual(Vector4 left, Vector4 right) =>
+        Math.Abs(left.X - right.X) < 0.001f &&
+        Math.Abs(left.Y - right.Y) < 0.001f &&
+        Math.Abs(left.Z - right.Z) < 0.001f &&
+        Math.Abs(left.W - right.W) < 0.001f;
+
+    private static bool IsScript(string path) => path.EndsWith(".cs", StringComparison.OrdinalIgnoreCase);
 
     private void DrawTexturePreview(TextureAsset tex) {
 
@@ -752,4 +900,6 @@ internal class Preview : Viewport {
             }
         }
     }
+
+    private readonly record struct ColoredTextSegment(string Text, Vector4 Color);
 }

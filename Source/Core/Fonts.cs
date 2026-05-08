@@ -14,7 +14,7 @@ internal static class Fonts {
     private const int SmallSize = 11, NormalSize = 16, LargeSize = 32;
 
 #if !SCYTHE_RUNTIME_BUILD
-    public static ImFontPtr ImMontserratRegular, ImFontAwesomeSmall, ImFontAwesomeNormal, ImFontAwesomeLarge;
+    public static ImFontPtr ImMontserratRegular, ImCascadiaCode, ImFontAwesomeSmall, ImFontAwesomeNormal, ImFontAwesomeLarge;
 #endif
 
     public static Font RlMontserratRegular, RlCascadiaCode, RlFontAwesome;
@@ -36,6 +36,7 @@ internal static class Fonts {
             _imFontConfigPtr.OversampleV = 3;
 
             ImMontserratRegular = LoadFont<ImFontPtr>("Fonts/montserrat-regular.otf");
+            ImCascadiaCode      = LoadFont<ImFontPtr>("Fonts/CascadiaCode-Regular.ttf");
             ImFontAwesomeSmall  = LoadFont<ImFontPtr>("Fonts/fa7-free-solid.otf", SmallSize,  true);
             ImFontAwesomeNormal = LoadFont<ImFontPtr>("Fonts/fa7-free-solid.otf", NormalSize, true);
             ImFontAwesomeLarge  = LoadFont<ImFontPtr>("Fonts/fa7-free-solid.otf", LargeSize,  true);

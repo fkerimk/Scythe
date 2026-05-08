@@ -16,6 +16,7 @@ internal class Collections : Viewport {
     private string? _selectedPath;
     private bool _showChildCollections;
     private CollectionCategory? _activeCategory;
+    private readonly Stack<NavigationState> _navigationStack = [];
 
     private string _newItemName = "";
     private bool _showAddPopup;
@@ -73,6 +74,7 @@ internal class Collections : Viewport {
 
         _showChildCollections = false;
         _activeCategory = Categories.FirstOrDefault(category => category.Match(path));
+        _navigationStack.Clear();
 
         var parent = Path.GetDirectoryName(path);
         if (string.IsNullOrEmpty(parent)) return;
@@ -145,6 +147,13 @@ internal class Collections : Viewport {
             } else if (_showChildCollections) {
 
                 _showChildCollections = false;
+
+            } else if (_navigationStack.Count > 0) {
+
+                var state = _navigationStack.Pop();
+                _currentPath = state.Path;
+                _activeCategory = state.Category;
+                _showChildCollections = state.ShowChildCollections;
 
             } else {
 
@@ -279,6 +288,7 @@ internal class Collections : Viewport {
 
         if (!clicked) return;
 
+        _navigationStack.Push(new NavigationState(_currentPath, _activeCategory, _showChildCollections));
         _currentPath = path;
         _showChildCollections = false;
         _activeCategory = null;
@@ -294,7 +304,7 @@ internal class Collections : Viewport {
 
         var color = count > 0
             ? GetCollectionColor()
-            : new Vector4(0.45f, 0.45f, 0.45f, 1f);
+            : Colors.GuiCollectionMuted.ToVector4();
 
         DrawIcon(Icons.FaFolder, color, startX, iconWidth);
         PopFont();
@@ -325,7 +335,7 @@ internal class Collections : Viewport {
 
         var color = state.Count > 0
             ? GetCategoryColor(state.Category)
-            : new Vector4(0.45f, 0.45f, 0.45f, 1f);
+            : Colors.GuiCollectionMuted.ToVector4();
 
         DrawIcon(state.Category.Icon, color, startX, iconWidth);
         PopFont();
@@ -879,26 +889,26 @@ internal class Collections : Viewport {
 
     private static Vector4 GetFileColor(string path) {
 
-        if (IsLevel(path)) return new Vector4(0.93f, 0.59f, 0.37f, 1f);
-        if (IsMaterial(path)) return new Vector4(0.95f, 0.77f, 0.33f, 1f);
-        if (IsTexture(path)) return new Vector4(0.47f, 0.88f, 0.62f, 1f);
-        if (IsScript(path)) return new Vector4(0.47f, 0.78f, 0.95f, 1f);
-        if (IsPrefab(path)) return new Vector4(0.82f, 0.58f, 0.93f, 1f);
-        if (IsModel(path)) return new Vector4(0.52f, 0.86f, 0.96f, 1f);
+        if (IsLevel(path)) return Colors.GuiCollectionLevel.ToVector4();
+        if (IsMaterial(path)) return Colors.GuiCollectionMaterial.ToVector4();
+        if (IsTexture(path)) return Colors.GuiCollectionTexture.ToVector4();
+        if (IsScript(path)) return Colors.GuiCollectionScript.ToVector4();
+        if (IsPrefab(path)) return Colors.GuiCollectionPrefab.ToVector4();
+        if (IsModel(path)) return Colors.GuiCollectionModel.ToVector4();
 
-        return new Vector4(0.8f, 0.8f, 0.8f, 1f);
+        return Colors.GuiText.ToVector4();
     }
 
-    private static Vector4 GetCollectionColor() => new(1f, 0.8f, 0.2f, 1f);
+    private static Vector4 GetCollectionColor() => Colors.GuiCollection.ToVector4();
 
     private static Vector4 GetCategoryColor(CollectionCategory category) => category.Name switch {
-        "Levels" => new Vector4(0.93f, 0.59f, 0.37f, 1f),
-        "Materials" => new Vector4(0.95f, 0.77f, 0.33f, 1f),
-        "Textures" => new Vector4(0.47f, 0.88f, 0.62f, 1f),
-        "Scripts" => new Vector4(0.47f, 0.78f, 0.95f, 1f),
-        "Prefabs" => new Vector4(0.82f, 0.58f, 0.93f, 1f),
-        "Models" => new Vector4(0.52f, 0.86f, 0.96f, 1f),
-        _ => new Vector4(0.75f, 0.9f, 1f, 1f)
+        "Levels" => Colors.GuiCollectionLevel.ToVector4(),
+        "Materials" => Colors.GuiCollectionMaterial.ToVector4(),
+        "Textures" => Colors.GuiCollectionTexture.ToVector4(),
+        "Scripts" => Colors.GuiCollectionScript.ToVector4(),
+        "Prefabs" => Colors.GuiCollectionPrefab.ToVector4(),
+        "Models" => Colors.GuiCollectionModel.ToVector4(),
+        _ => Colors.GuiText.ToVector4()
     };
 
     private static bool IsLevel(string path) => path.EndsWith(".level.json", StringComparison.OrdinalIgnoreCase);
@@ -1068,6 +1078,8 @@ internal class Collections : Viewport {
         public string PreviewPath { get; set; } = "";
         public string Type { get; set; } = "Collection";
     }
+
+    private readonly record struct NavigationState(string Path, CollectionCategory? Category, bool ShowChildCollections);
 
     private enum CollectionEntryKind {
         Collection,
