@@ -243,7 +243,6 @@ internal static class PostProcessing {
 
     public static void Shutdown() {
 
-        foreach (var shader in _shaders.Values) UnloadShader(shader);
         if (_tempRt.Texture.Id    != 0) UnloadRenderTexture(_tempRt);
         if (_tempRt2.Texture.Id   != 0) UnloadRenderTexture(_tempRt2);
         if (_historyRt.Texture.Id != 0) UnloadRenderTexture(_historyRt);
