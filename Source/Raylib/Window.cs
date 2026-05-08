@@ -44,7 +44,7 @@ internal static class Window {
             SetExitKey(KeyboardKey.Null);
 
             // Window icon
-            if (PathUtil.GetPath("Images/Icon.png", out var iconPath)) {
+            if (PathUtil.GetPath("Collection/Icon.png", out var iconPath)) {
                 var img = LoadImage(iconPath);
                 SetWindowIcon(img);
                 UnloadImage(img);

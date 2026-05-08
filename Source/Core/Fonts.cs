@@ -35,19 +35,19 @@ internal static class Fonts {
             _imFontConfigPtr.OversampleH = 3;
             _imFontConfigPtr.OversampleV = 3;
 
-            ImMontserratRegular = LoadFont<ImFontPtr>("Fonts/montserrat-regular.otf");
-            ImCascadiaCode      = LoadFont<ImFontPtr>("Fonts/CascadiaCode-Regular.ttf");
-            ImFontAwesomeSmall  = LoadFont<ImFontPtr>("Fonts/fa7-free-solid.otf", SmallSize,  true);
-            ImFontAwesomeNormal = LoadFont<ImFontPtr>("Fonts/fa7-free-solid.otf", NormalSize, true);
-            ImFontAwesomeLarge  = LoadFont<ImFontPtr>("Fonts/fa7-free-solid.otf", LargeSize,  true);
+            ImMontserratRegular = LoadFont<ImFontPtr>("Collection/montserrat-regular.otf");
+            ImCascadiaCode      = LoadFont<ImFontPtr>("Collection/CascadiaCode-Regular.ttf");
+            ImFontAwesomeSmall  = LoadFont<ImFontPtr>("Collection/fa7-free-solid.otf", SmallSize,  true);
+            ImFontAwesomeNormal = LoadFont<ImFontPtr>("Collection/fa7-free-solid.otf", NormalSize, true);
+            ImFontAwesomeLarge  = LoadFont<ImFontPtr>("Collection/fa7-free-solid.otf", LargeSize,  true);
 
             ReloadFonts();
         }
 #endif
 
-        RlMontserratRegular = LoadFont<Font>("Fonts/montserrat-regular.otf");
-        RlCascadiaCode      = LoadFont<Font>("Fonts/CascadiaCode-Regular.ttf");
-        RlFontAwesome       = LoadFont<Font>("Fonts/fa7-free-solid.otf", NormalSize, true);
+        RlMontserratRegular = LoadFont<Font>("Collection/montserrat-regular.otf");
+        RlCascadiaCode      = LoadFont<Font>("Collection/CascadiaCode-Regular.ttf");
+        RlFontAwesome       = LoadFont<Font>("Collection/fa7-free-solid.otf", NormalSize, true);
     }
 
     public static void UnloadRlFonts() {

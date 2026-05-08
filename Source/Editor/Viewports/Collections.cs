@@ -11,6 +11,7 @@ internal class Collections : Viewport {
     private readonly string _collectionsRoot;
     private const string ChildCollectionsLabel = "Collections";
     private const string ProjectLabel = "Project";
+    private const string BuiltInLabel = CollectionData.BuiltInCollectionLabel;
     private const string AddPopupId = "Add Item";
 
     private string _currentPath;
@@ -35,6 +36,14 @@ internal class Collections : Viewport {
 
     private string RelativePath {
         get {
+            if (CollectionData.IsBuiltInRoot(_currentPath)) {
+                if (_showChildCollections)
+                    return $"{BuiltInLabel}/{ChildCollectionsLabel}";
+
+                if (_activeCategory == null) return BuiltInLabel;
+                return $"{BuiltInLabel}/{_activeCategory.Value.Name}";
+            }
+
             var relative = Path.GetRelativePath(_collectionsRoot, _currentPath);
             if (relative == ".") relative = "";
 
@@ -51,12 +60,14 @@ internal class Collections : Viewport {
             .Equals(Path.GetFullPath(_collectionsRoot).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar), StringComparison.OrdinalIgnoreCase);
 
     private static readonly CollectionCategory[] Categories = [
-        new("Levels", IsLevel, Icons.FaMap),
-        new("Materials", IsMaterial, Icons.FaFileImage),
-        new("Models", IsModel, Icons.FaCube),
-        new("Prefabs", IsPrefab, Icons.FaFile),
-        new("Scripts", IsScript, Icons.FaFileCode),
-        new("Textures", IsTexture, Icons.FaFileImage)
+        new("Fonts", CollectionData.IsFont, Icons.FaFile),
+        new("Levels", CollectionData.IsLevel, Icons.FaMap),
+        new("Materials", CollectionData.IsMaterial, Icons.FaFileImage),
+        new("Models", CollectionData.IsModel, Icons.FaCube),
+        new("Prefabs", CollectionData.IsPrefab, Icons.FaFile),
+        new("Scripts", CollectionData.IsScript, Icons.FaFileCode),
+        new("Shaders", CollectionData.IsShader, Icons.FaCode),
+        new("Textures", CollectionData.IsTexture, Icons.FaFileImage)
     ];
 
     public Collections() : base("Collections") {
@@ -132,8 +143,7 @@ internal class Collections : Viewport {
 
         SameLine();
 
-        var isRoot = Path.GetFullPath(_currentPath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
-            .Equals(Path.GetFullPath(_collectionsRoot).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar), StringComparison.OrdinalIgnoreCase);
+        var isRoot = IsAtCollectionsRoot;
 
         BeginDisabled(isRoot && _activeCategory == null);
 
@@ -156,6 +166,10 @@ internal class Collections : Viewport {
                 _currentPath = state.Path;
                 _activeCategory = state.Category;
                 _showChildCollections = state.ShowChildCollections;
+
+            } else if (CollectionData.IsBuiltInRoot(_currentPath)) {
+
+                _currentPath = _collectionsRoot;
 
             } else {
 
@@ -212,6 +226,7 @@ internal class Collections : Viewport {
 
         if (IsAtCollectionsRoot)
             return new[] { BrowserEntry.CreateProject() }
+                .Concat(Directory.Exists(CollectionData.BuiltInRootPath) ? new[] { BrowserEntry.CreateCollection(CollectionData.BuiltInRootPath) } : [])
                 .Concat(collections.Select(BrowserEntry.CreateCollection))
                 .OrderBy(entry => entry.Kind == BrowserEntryKind.Project ? -1 : 0)
                 .ThenBy(entry => entry.Name, new NaturalStringComparer()!);
@@ -237,7 +252,9 @@ internal class Collections : Viewport {
             .OrderBy(Path.GetFileName, new NaturalStringComparer()!);
 
     private IEnumerable<string> GetCollectionEntriesForCategory(CollectionCategory category) =>
-        GetCollectionEntries(GetCollectionEntryKind(category));
+        GetCollectionEntryKind(category) == CollectionEntryKind.Collection && (category.Name is "Fonts" or "Shaders")
+            ? []
+            : GetCollectionEntries(GetCollectionEntryKind(category));
 
     private IEnumerable<CategoryState> GetCategoryStates() =>
         Categories
@@ -311,7 +328,7 @@ internal class Collections : Viewport {
 
     private void DrawCollectionEntry(string path) {
 
-        var name = Path.GetFileName(path);
+        var name = CollectionData.GetCollectionDisplayName(path);
         const float iconWidth = 20f;
         const float thumbnailSize = 16f;
         var startX = GetCursorPosX();
@@ -445,7 +462,7 @@ internal class Collections : Viewport {
         var doubleClicked = IsItemHovered() && IsMouseDoubleClicked(ImGuiMouseButton.Left);
 
         if (isSelected) PopStyleColor(3);
-        if (doubleClicked && IsLevel(path)) {
+        if (doubleClicked && CollectionData.IsLevel(path)) {
             _entryClickedThisFrame = true;
             Editor.OpenLevel(path);
             return;
@@ -636,16 +653,18 @@ internal class Collections : Viewport {
 
         if (!BeginPopupContextItem($"Context::{path}")) return;
 
-        if (MenuItem("Rename")) OpenRenamePopup(path, isDirectory);
-        if (isDirectory && !IsAtCollectionsRoot && BeginMenu("Set As")) {
+        var isBuiltInRoot = CollectionData.IsBuiltInRoot(path);
+
+        if (!isBuiltInRoot && MenuItem("Rename")) OpenRenamePopup(path, isDirectory);
+        if (!isBuiltInRoot && isDirectory && !IsAtCollectionsRoot && BeginMenu("Set As")) {
             if (MenuItem("Collection")) SetCollectionType(path, CollectionEntryKind.Collection);
             foreach (var category in Categories) {
                 if (MenuItem(category.Name[..^1])) SetCollectionType(path, GetCollectionEntryKind(category));
             }
             EndMenu();
         }
-        if (!isDirectory && !IsAtCollectionsRoot && HasCollectionTargetCandidate(path) && MenuItem("Set as Target")) SetCollectionTarget(path);
-        if (MenuItem("Delete")) OpenDeletePopup(path, isDirectory);
+        if (!isBuiltInRoot && !isDirectory && !IsAtCollectionsRoot && HasCollectionTargetCandidate(path) && MenuItem("Set as Target")) SetCollectionTarget(path);
+        if (!isBuiltInRoot && MenuItem("Delete")) OpenDeletePopup(path, isDirectory);
 
         EndPopup();
     }
@@ -737,7 +756,7 @@ internal class Collections : Viewport {
 
             var sidecarPath = GetSidecarMetaPathFor(sourcePath);
             var newSidecarPath = GetSidecarMetaPathFor(newPath);
-            var hasSidecar = !IsLevel(sourcePath) && File.Exists(sidecarPath);
+            var hasSidecar = !CollectionData.IsLevel(sourcePath) && File.Exists(sidecarPath);
 
             if (File.Exists(newPath) || Directory.Exists(newPath) || hasSidecar && File.Exists(newSidecarPath)) {
                 Notifications.Show($"Rename failed: '{Path.GetFileName(newPath)}' already exists.");
@@ -757,7 +776,7 @@ internal class Collections : Viewport {
                 }
 
                 if (string.Equals(_selectedPath, sourcePath, StringComparison.OrdinalIgnoreCase)) Editor.SetSelectedAsset(newPath);
-                if (IsLevel(sourcePath)) Editor.OnLevelPathMoved(sourcePath, newPath);
+                if (CollectionData.IsLevel(sourcePath)) Editor.OnLevelPathMoved(sourcePath, newPath);
                 Notifications.Show($"File renamed to '{Path.GetFileName(newPath)}'.");
             } catch (Exception e) {
                 try {
@@ -850,10 +869,14 @@ internal class Collections : Viewport {
 
         var fullPath = Path.GetFullPath(path).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
         var rootPath = Path.GetFullPath(_collectionsRoot).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        var builtInRootPath = Path.GetFullPath(CollectionData.BuiltInRootPath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
 
         return fullPath.Equals(rootPath, StringComparison.OrdinalIgnoreCase)
                || fullPath.StartsWith(rootPath + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
-               || fullPath.StartsWith(rootPath + Path.AltDirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
+               || fullPath.StartsWith(rootPath + Path.AltDirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
+               || fullPath.Equals(builtInRootPath, StringComparison.OrdinalIgnoreCase)
+               || fullPath.StartsWith(builtInRootPath + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
+               || fullPath.StartsWith(builtInRootPath + Path.AltDirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool IsCategoryFolderName(string? name) =>
@@ -862,7 +885,7 @@ internal class Collections : Viewport {
     private void EnsureCollectionSettings(string collectionPath) {
 
         if (!Directory.Exists(collectionPath)) return;
-        if (string.Equals(Path.GetFullPath(collectionPath), Path.GetFullPath(_collectionsRoot), StringComparison.OrdinalIgnoreCase)) return;
+        if (CollectionData.IsRoot(collectionPath)) return;
 
         var settingsPath = GetCollectionSettingsPath(collectionPath);
         if (File.Exists(settingsPath)) return;
@@ -890,11 +913,13 @@ internal class Collections : Viewport {
     }
 
     private static CollectionEntryKind GetCollectionEntryKind(CollectionCategory category) => category.Name switch {
+        "Fonts" => CollectionEntryKind.Collection,
         "Levels" => CollectionEntryKind.Level,
         "Materials" => CollectionEntryKind.Material,
         "Models" => CollectionEntryKind.Model,
         "Prefabs" => CollectionEntryKind.Prefab,
         "Scripts" => CollectionEntryKind.Script,
+        "Shaders" => CollectionEntryKind.Collection,
         "Textures" => CollectionEntryKind.Texture,
         _ => CollectionEntryKind.Collection
     };
@@ -933,24 +958,28 @@ internal class Collections : Viewport {
 
     private static string GetFileIcon(string path) {
 
-        if (IsScript(path)) return Icons.FaFileCode;
-        if (IsLevel(path)) return Icons.FaFlag;
-        if (IsMaterial(path)) return Icons.FaFileImage;
-        if (IsTexture(path)) return Icons.FaFileImage;
-        if (IsPrefab(path)) return Icons.FaFile;
-        if (IsModel(path)) return Icons.FaCube;
+        if (CollectionData.IsShader(path)) return Icons.FaCode;
+        if (CollectionData.IsFont(path)) return Icons.FaFile;
+        if (CollectionData.IsScript(path)) return Icons.FaFileCode;
+        if (CollectionData.IsLevel(path)) return Icons.FaFlag;
+        if (CollectionData.IsMaterial(path)) return Icons.FaFileImage;
+        if (CollectionData.IsTexture(path)) return Icons.FaFileImage;
+        if (CollectionData.IsPrefab(path)) return Icons.FaFile;
+        if (CollectionData.IsModel(path)) return Icons.FaCube;
 
         return Icons.FaFile;
     }
 
     private static Vector4 GetFileColor(string path) {
 
-        if (IsLevel(path)) return Colors.GuiCollectionLevel.ToVector4();
-        if (IsMaterial(path)) return Colors.GuiCollectionMaterial.ToVector4();
-        if (IsTexture(path)) return Colors.GuiCollectionTexture.ToVector4();
-        if (IsScript(path)) return Colors.GuiCollectionScript.ToVector4();
-        if (IsPrefab(path)) return Colors.GuiCollectionPrefab.ToVector4();
-        if (IsModel(path)) return Colors.GuiCollectionModel.ToVector4();
+        if (CollectionData.IsShader(path)) return Colors.Primary.ToVector4();
+        if (CollectionData.IsFont(path)) return Colors.GuiText.ToVector4();
+        if (CollectionData.IsLevel(path)) return Colors.GuiCollectionLevel.ToVector4();
+        if (CollectionData.IsMaterial(path)) return Colors.GuiCollectionMaterial.ToVector4();
+        if (CollectionData.IsTexture(path)) return Colors.GuiCollectionTexture.ToVector4();
+        if (CollectionData.IsScript(path)) return Colors.GuiCollectionScript.ToVector4();
+        if (CollectionData.IsPrefab(path)) return Colors.GuiCollectionPrefab.ToVector4();
+        if (CollectionData.IsModel(path)) return Colors.GuiCollectionModel.ToVector4();
 
         return Colors.GuiText.ToVector4();
     }
@@ -958,34 +987,24 @@ internal class Collections : Viewport {
     private static Vector4 GetCollectionColor() => Colors.GuiCollection.ToVector4();
 
     private static Vector4 GetCategoryColor(CollectionCategory category) => category.Name switch {
+        "Fonts" => Colors.GuiText.ToVector4(),
         "Levels" => Colors.GuiCollectionLevel.ToVector4(),
         "Materials" => Colors.GuiCollectionMaterial.ToVector4(),
         "Textures" => Colors.GuiCollectionTexture.ToVector4(),
         "Scripts" => Colors.GuiCollectionScript.ToVector4(),
         "Prefabs" => Colors.GuiCollectionPrefab.ToVector4(),
         "Models" => Colors.GuiCollectionModel.ToVector4(),
+        "Shaders" => Colors.Primary.ToVector4(),
         _ => Colors.GuiText.ToVector4()
     };
-
-    private static bool IsLevel(string path) => path.EndsWith(".lvl", StringComparison.OrdinalIgnoreCase);
-    private static bool IsMaterial(string path) => path.EndsWith(".mat", StringComparison.OrdinalIgnoreCase);
-    private static bool IsTexture(string path) => path.EndsWith(".png", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".jpeg", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".tga", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".bmp", StringComparison.OrdinalIgnoreCase);
-    private static bool IsScript(string path) => path.EndsWith(".cs", StringComparison.OrdinalIgnoreCase);
-    private static bool IsPrefab(string path) => path.EndsWith(".pre", StringComparison.OrdinalIgnoreCase);
-
-    private static bool IsModel(string path) {
-
-        var ext = Path.GetExtension(path).ToLowerInvariant();
-        return ext is ".fbx" or ".obj" or ".gltf" or ".glb" or ".iqm";
-    }
 
     private static string GetNameWithoutExtension(string path) {
 
         var name = Path.GetFileName(path);
 
-        if (path.EndsWith(".lvl", StringComparison.OrdinalIgnoreCase)) return name[..^4];
-        if (path.EndsWith(".mat", StringComparison.OrdinalIgnoreCase)) return name[..^4];
-        if (IsPrefab(path)) return name[..^4];
+        if (CollectionData.IsLevel(path)) return name[..^4];
+        if (CollectionData.IsMaterial(path)) return name[..^4];
+        if (CollectionData.IsPrefab(path)) return name[..^4];
 
         return Path.GetFileNameWithoutExtension(name);
     }
@@ -994,9 +1013,9 @@ internal class Collections : Viewport {
 
         var name = Path.GetFileName(path);
 
-        if (path.EndsWith(".lvl", StringComparison.OrdinalIgnoreCase)) return ".lvl";
-        if (path.EndsWith(".mat", StringComparison.OrdinalIgnoreCase)) return ".mat";
-        if (IsPrefab(path)) return ".pre";
+        if (CollectionData.IsLevel(path)) return ".lvl";
+        if (CollectionData.IsMaterial(path)) return ".mat";
+        if (CollectionData.IsPrefab(path)) return ".pre";
 
         return Path.GetExtension(path);
     }
@@ -1091,7 +1110,7 @@ internal class Collections : Viewport {
 
     private static Texture2D? GetThumbnail(string path) {
 
-        if (IsTexture(path)) {
+        if (CollectionData.IsTexture(path)) {
 
             var textureAsset = AssetManager.GetOrImport<TextureAsset>(path);
             if (textureAsset is { Thumbnail: not null }) return textureAsset.Thumbnail.Value;
@@ -1099,20 +1118,20 @@ internal class Collections : Viewport {
             return null;
         }
 
-        if (IsMaterial(path)) return AssetManager.GetOrImport<MaterialAsset>(path)?.Thumbnail;
-        if (IsModel(path)) return AssetManager.GetOrImport<ModelAsset>(path)?.Thumbnail;
+        if (CollectionData.IsMaterial(path)) return AssetManager.GetOrImport<MaterialAsset>(path)?.Thumbnail;
+        if (CollectionData.IsModel(path)) return AssetManager.GetOrImport<ModelAsset>(path)?.Thumbnail;
 
         return null;
     }
 
-    private static bool HasCollectionTargetCandidate(string path) => IsTexture(path) || IsMaterial(path) || IsModel(path) || IsScript(path) || IsLevel(path) || IsPrefab(path);
+    private static bool HasCollectionTargetCandidate(string path) => CollectionData.IsTexture(path) || CollectionData.IsMaterial(path) || CollectionData.IsModel(path) || CollectionData.IsScript(path) || CollectionData.IsLevel(path) || CollectionData.IsPrefab(path);
 
     private readonly record struct CollectionCategory(string Name, Func<string, bool> Match, string Icon);
     private readonly record struct CategoryState(CollectionCategory Category, int Count);
     private readonly record struct BrowserEntry(string Name, BrowserEntryKind Kind, bool IsActive, int Count, string? EntryPath, CategoryState? CategoryState) {
 
         public static BrowserEntry CreateProject() => new(ProjectLabel, BrowserEntryKind.Project, true, 0, null, null);
-        public static BrowserEntry CreateCollection(string path) => new(System.IO.Path.GetFileName(path), BrowserEntryKind.Collection, true, 0, path, null);
+        public static BrowserEntry CreateCollection(string path) => new(CollectionData.GetCollectionDisplayName(path), BrowserEntryKind.Collection, true, 0, path, null);
         public static BrowserEntry CreateCollectionGroup(int count) => new(ChildCollectionsLabel, BrowserEntryKind.CollectionGroup, count > 0, count, null, null);
         public static BrowserEntry CreateCategory(CategoryState state) => new(state.Category.Name, BrowserEntryKind.Category, state.Count > 0, state.Count, null, state);
     }

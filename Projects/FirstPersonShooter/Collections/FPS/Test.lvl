@@ -20,7 +20,7 @@
         "Components": {
           "Model": {
             "GUID": "2cd053e9959f4b91ba52c0cb4d7826a7",
-            "Path": "Resources/Models/Cube.fbx",
+            "Path": "Collection/Cube.fbx",
             "Color": {
               "R": 255,
               "G": 255,
@@ -231,7 +231,7 @@
         "Components": {
           "Model": {
             "GUID": "2cd053e9959f4b91ba52c0cb4d7826a6",
-            "Path": "Resources/Models/Cube.fbx",
+            "Path": "Collection/Cube.fbx",
             "Color": {
               "R": 255,
               "G": 255,

@@ -54,7 +54,7 @@ internal class MaterialAsset : Asset {
 
             if (field != null) return field;
 
-            var asset = AssetManager.Get<MaterialAsset>("Materials/Default.mat");
+            var asset = AssetManager.Get<MaterialAsset>("Collection/Default.mat");
 
             if (asset != null) {
 
@@ -115,8 +115,8 @@ internal class MaterialAsset : Asset {
             Version++;
         }
 
-        var shaderName = string.IsNullOrEmpty(Data.Shader) ? "pbr" : Data.Shader;
-        var shaderAsset = AssetManager.Get<ShaderAsset>(shaderName) ?? AssetManager.Get<ShaderAsset>("pbr");
+        var shaderName = string.IsNullOrEmpty(Data.Shader) ? "Collection/pbr.vs" : Data.Shader;
+        var shaderAsset = AssetManager.Get<ShaderAsset>(shaderName) ?? AssetManager.Get<ShaderAsset>("Collection/pbr.vs");
         if (shaderAsset != null) Material.Shader = shaderAsset.Shader;
 
         ApplyMap("albedo_map", MaterialMapIndex.Albedo);
@@ -147,7 +147,7 @@ internal class MaterialAsset : Asset {
 
     public void ApplyUniforms(Shader shader) {
 
-        var shaderName = string.IsNullOrEmpty(Data.Shader) ? "pbr" : Data.Shader;
+        var shaderName = string.IsNullOrEmpty(Data.Shader) ? "Collection/pbr.vs" : Data.Shader;
         var shaderAsset = AssetManager.Get<ShaderAsset>(shaderName);
 
         if (shaderAsset == null) return;

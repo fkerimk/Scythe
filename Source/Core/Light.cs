@@ -34,7 +34,7 @@ internal class Light(Obj obj) : Component(obj) {
 
     public void Update(int index) {
 
-        var pbr = AssetManager.Get<ShaderAsset>("pbr");
+        var pbr = AssetManager.Get<ShaderAsset>("Collection/pbr.vs");
 
         if (pbr == null) return;
 

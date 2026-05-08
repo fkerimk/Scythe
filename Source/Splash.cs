@@ -13,7 +13,7 @@ internal static class Splash {
 
     public static unsafe void Init() {
         if (_tex.Id != 0 || _image.Data != null) return;
-        if (!PathUtil.GetPath("Images/Splash.gif", out var splashPath)) return;
+        if (!PathUtil.GetPath("Collection/Splash.gif", out var splashPath)) return;
 
         _image = LoadImageAnim(splashPath, out _animFrames);
         if (_image.Data == null) return;

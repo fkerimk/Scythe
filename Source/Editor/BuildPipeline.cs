@@ -140,13 +140,13 @@ internal static class BuildPipeline {
 
         var bundleRoot = Path.Combine(Path.GetDirectoryName(bundleZip)!, "Bundle");
         var projectRoot = Path.Combine(bundleRoot, "Project");
-        var resourcesRoot = Path.Combine(bundleRoot, "Resources");
+        var builtInRoot = Path.Combine(bundleRoot, "Collection");
 
         Directory.CreateDirectory(projectRoot);
-        Directory.CreateDirectory(resourcesRoot);
+        Directory.CreateDirectory(builtInRoot);
 
         task.Status = "Packing project files...";
-        CopyDirectory(PathUtil.GetResourcesRoot(), resourcesRoot, _ => true);
+        CopyDirectory(PathUtil.GetBuiltInCollectionRoot(), builtInRoot, _ => true);
         CopyDirectory(
             ScytheConfig.Current.Project,
             projectRoot,
@@ -217,9 +217,9 @@ internal static class BuildPipeline {
             
             var ext = Path.GetExtension(file).ToLowerInvariant();
             var isImport = file.Contains("/Imports/", StringComparison.OrdinalIgnoreCase) || file.Contains("\\Imports\\", StringComparison.OrdinalIgnoreCase);
-            var isResource = file.Contains("/Resources/", StringComparison.OrdinalIgnoreCase) || file.Contains("\\Resources\\", StringComparison.OrdinalIgnoreCase);
+            var isBuiltIn = file.Contains("/Collection/", StringComparison.OrdinalIgnoreCase) || file.Contains("\\Collection\\", StringComparison.OrdinalIgnoreCase);
             
-            if (!isImport && !isResource && ext is ".fbx" or ".obj" or ".gltf" or ".png" or ".jpg" or ".jpeg" or ".tga" or ".bmp" or ".webp" or ".avif" or ".cs") {
+            if (!isImport && !isBuiltIn && ext is ".fbx" or ".obj" or ".gltf" or ".png" or ".jpg" or ".jpeg" or ".tga" or ".bmp" or ".webp" or ".avif" or ".cs") {
                 File.WriteAllBytes(destination, []);
             } else {
                 File.Copy(file, destination, overwrite: true);

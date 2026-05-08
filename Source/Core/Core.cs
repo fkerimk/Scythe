@@ -54,7 +54,7 @@ internal static class Core {
         else while (Splash.IsLoading) Tasks.Update();
 
         // Setup Global PBR Uniforms
-        var pbr = AssetManager.Get<ShaderAsset>("pbr");
+        var pbr = AssetManager.Get<ShaderAsset>("Collection/pbr.vs");
 
         if (pbr != null) {
 
@@ -81,10 +81,10 @@ internal static class Core {
         var cube = GenMeshCube(1.0f, 1.0f, 1.0f);
         _skyboxModel = LoadModelFromMesh(cube);
 
-        var skybox = AssetManager.Get<ShaderAsset>("skybox");
+        var skybox = AssetManager.Get<ShaderAsset>("Collection/skybox.vs");
         if (skybox != null) _skyboxModel.Materials[0].Shader = skybox.Shader;
 
-        var skyTex = AssetManager.Get<TextureAsset>("Skybox");
+        var skyTex = AssetManager.Get<TextureAsset>("Collection/Skybox.png");
 
         if (skyTex == null) return;
 
@@ -340,7 +340,7 @@ internal static class Core {
         SyncHierarchy(ActiveLevel.Root);
 
         // Update global pbr parameters after everything is settled
-        var pbr = AssetManager.Get<ShaderAsset>("pbr");
+        var pbr = AssetManager.Get<ShaderAsset>("Collection/pbr.vs");
         if (pbr != null) SetShaderValue(pbr.Shader, pbr.GetLoc("view_pos"), ActiveCamera?.Position ?? Vector3.Zero, ShaderUniformDataType.Vec3);
     }
 
@@ -444,7 +444,7 @@ internal static class Core {
 
         if (renderCamera == null) return;
 
-        var pbr = AssetManager.Get<ShaderAsset>("pbr");
+        var pbr = AssetManager.Get<ShaderAsset>("Collection/pbr.vs");
 
         if (pbr == null) return;
 
@@ -481,7 +481,7 @@ internal static class Core {
             var lightVp = Raymath.MatrixMultiply(lightView, lightProj);
 
             // Draw objects for shadow depth
-            var depth = AssetManager.Get<ShaderAsset>("depth");
+            var depth = AssetManager.Get<ShaderAsset>("Collection/depth.vs");
 
             if (depth != null) {
 

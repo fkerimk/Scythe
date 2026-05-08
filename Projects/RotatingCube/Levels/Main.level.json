@@ -50,7 +50,7 @@
         },
         "Components": {
           "Model": {
-            "Path": "Resources/Models/Cube.fbx",
+            "Path": "Collection/Cube.fbx",
             "Color": {
               "R": 255,
               "G": 255,
@@ -116,7 +116,7 @@
         },
         "Components": {
           "Model": {
-            "Path": "Resources/Models/Cube.fbx",
+            "Path": "Collection/Cube.fbx",
             "Color": {
               "R": 255,
               "G": 255,

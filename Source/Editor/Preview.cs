@@ -671,7 +671,7 @@ internal class Preview : Viewport {
 
     private static void SetupPreviewLighting(MaterialAsset mat, Raylib_cs.Camera3D camera, Vector3 target, float distance) {
 
-        var shaderAsset = AssetManager.Get<ShaderAsset>(mat.Data.Shader) ?? AssetManager.Get<ShaderAsset>("pbr");
+        var shaderAsset = AssetManager.Get<ShaderAsset>(mat.Data.Shader) ?? AssetManager.Get<ShaderAsset>("Collection/pbr.vs");
 
         if (shaderAsset is not { IsLoaded: true }) return;
 

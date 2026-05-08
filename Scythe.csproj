@@ -18,7 +18,7 @@
         <PublishTrimmed>false</PublishTrimmed>
         <TrimMode>link</TrimMode>
 
-        <ApplicationIcon>Resources/Images/Icon.ico</ApplicationIcon>
+        <ApplicationIcon>Collection/Icon.ico</ApplicationIcon>
 
         <NoWarn>SYSLIB1045</NoWarn>
         

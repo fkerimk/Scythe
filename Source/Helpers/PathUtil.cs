@@ -1,14 +1,18 @@
 internal static class PathUtil {
 
     public static string GetBaseRoot() => BundleRuntime.GetBaseRoot();
+    public static string GetBuiltInCollectionRoot() {
+
+        if (BundleRuntime.IsActive) return BundleRuntime.GetCollectionRoot();
+
+        var workingDirCollection = Path.GetFullPath("Collection");
+        if (Directory.Exists(workingDirCollection)) return workingDirCollection;
+
+        return Path.Combine(AppContext.BaseDirectory, "Collection");
+    }
+
     public static string GetResourcesRoot() {
-
-        if (BundleRuntime.IsActive) return BundleRuntime.GetResourcesRoot();
-
-        var workingDirResources = Path.GetFullPath("Resources");
-        if (Directory.Exists(workingDirResources)) return workingDirResources;
-
-        return Path.Combine(AppContext.BaseDirectory, "Resources");
+        return GetBuiltInCollectionRoot();
     }
 
     public static void ValidateFile(string path, out string validPath, string content = "", bool project = false) {
@@ -67,13 +71,16 @@ internal static class PathUtil {
 
         if (File.Exists(fullPath) || Directory.Exists(fullPath)) return true;
 
-        var normalized = relativePath.Replace('\\', '/');
-        if (normalized.Equals("Resources", StringComparison.OrdinalIgnoreCase))
-            fullPath = GetResourcesRoot();
-        else if (normalized.StartsWith("Resources/", StringComparison.OrdinalIgnoreCase))
-            fullPath = Path.Join(GetBaseRoot(), relativePath);
-        else
-            fullPath = Path.Join(GetResourcesRoot(), relativePath);
+        var normalized = relativePath.Replace('\\', '/').TrimStart('/');
+        if (normalized.Equals("Collection", StringComparison.OrdinalIgnoreCase) || normalized.Equals("Resources", StringComparison.OrdinalIgnoreCase)) {
+            fullPath = GetBuiltInCollectionRoot();
+        } else if (normalized.StartsWith("Collection/", StringComparison.OrdinalIgnoreCase)) {
+            fullPath = Path.Join(GetBaseRoot(), normalized);
+        } else if (normalized.StartsWith("Resources/", StringComparison.OrdinalIgnoreCase)) {
+            fullPath = Path.Join(GetBaseRoot(), "Collection", Path.GetFileName(normalized));
+        } else {
+            fullPath = Path.Join(GetBuiltInCollectionRoot(), relativePath);
+        }
 
         if (File.Exists(fullPath) || Directory.Exists(fullPath)) return true;
 

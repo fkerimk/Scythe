@@ -22,7 +22,7 @@ internal class Level {
             // Try asset lookup
             if (Path.IsPathRooted(val)) return val;
 
-            // If it's relative, assume it's relative to Mod Root or Resources
+            // If it's relative, assume it's relative to Mod Root or the built-in collection
             if (PathUtil.GetPath(val, out var bestPath)) return bestPath;
 
             return val;
@@ -49,14 +49,15 @@ internal class Level {
             if (!string.IsNullOrEmpty(modPath) && val.StartsWith(modPath, StringComparison.OrdinalIgnoreCase)) {
                 val = Path.GetRelativePath(modPath, val).Replace('\\', '/');
             } else {
-                // Resources Heuristic: If it contains "/Resources/", relative to Parent of Resources
-                // This covers both Source and Bin locations and ensures we output "Resources/..." 
-                var resIndex = val.IndexOf("/Resources/", StringComparison.OrdinalIgnoreCase);
+                var builtInIndex = val.IndexOf("/Collection/", StringComparison.OrdinalIgnoreCase);
 
-                if (resIndex != -1) {
-                    // Keep "Resources/" prefix
-                    // val is ".../Resources/Models/..." -> index points to first slash
-                    val = val[(resIndex + 1)..];
+                if (builtInIndex != -1) {
+                    val = val[(builtInIndex + 1)..];
+                } else {
+                    var legacyIndex = val.IndexOf("/Resources/", StringComparison.OrdinalIgnoreCase);
+
+                    if (legacyIndex != -1)
+                        val = "Collection/" + Path.GetFileName(val);
                 }
             }
 

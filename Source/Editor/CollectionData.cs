@@ -19,6 +19,8 @@ internal readonly record struct CollectionDataCategory(CollectionAssetKind Kind,
 
 internal static class CollectionData {
 
+    public const string BuiltInCollectionLabel = "Built In";
+
     public static readonly CollectionDataCategory[] Categories = [
         new(CollectionAssetKind.Level, "Levels", "LevelAsset"),
         new(CollectionAssetKind.Material, "Materials", "MaterialAsset"),
@@ -29,20 +31,45 @@ internal static class CollectionData {
     ];
 
     public static string RootPath => Path.Combine(ScytheConfig.Current.Project, "Collections");
+    public static string BuiltInRootPath => PathUtil.GetBuiltInCollectionRoot();
+
+    public static bool IsBuiltInRoot(string path) =>
+        Path.GetFullPath(path).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+            .Equals(Path.GetFullPath(BuiltInRootPath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar), StringComparison.OrdinalIgnoreCase);
+
+    public static bool IsProjectRoot(string path) =>
+        Path.GetFullPath(path).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+            .Equals(Path.GetFullPath(RootPath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar), StringComparison.OrdinalIgnoreCase);
 
     public static bool IsUnderRoot(string path) {
 
         var fullPath = Path.GetFullPath(path).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
         var rootPath = Path.GetFullPath(RootPath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        var builtInRootPath = Path.GetFullPath(BuiltInRootPath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
 
         return fullPath.Equals(rootPath, StringComparison.OrdinalIgnoreCase)
                || fullPath.StartsWith(rootPath + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
-               || fullPath.StartsWith(rootPath + Path.AltDirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
+               || fullPath.StartsWith(rootPath + Path.AltDirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
+               || fullPath.Equals(builtInRootPath, StringComparison.OrdinalIgnoreCase)
+               || fullPath.StartsWith(builtInRootPath + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
+               || fullPath.StartsWith(builtInRootPath + Path.AltDirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
     }
 
-    public static bool IsRoot(string path) =>
-        Path.GetFullPath(path).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
-            .Equals(Path.GetFullPath(RootPath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar), StringComparison.OrdinalIgnoreCase);
+    public static bool IsRoot(string path) => IsProjectRoot(path) || IsBuiltInRoot(path);
+
+    public static IEnumerable<string> EnumerateRootCollections(CollectionAssetKind kind) {
+
+        if (kind == CollectionAssetKind.Collection && Directory.Exists(BuiltInRootPath))
+            yield return BuiltInRootPath;
+
+        if (!Directory.Exists(RootPath)) yield break;
+
+        foreach (var path in EnumerateCollections(RootPath, kind))
+            yield return path;
+    }
+
+    public static string GetCollectionDisplayName(string collectionPath) =>
+        IsBuiltInRoot(collectionPath) ? BuiltInCollectionLabel : Path.GetFileName(collectionPath);
 
     public static void EnsureSettings(string collectionPath) {
 
@@ -113,6 +140,9 @@ internal static class CollectionData {
 
     public static IEnumerable<string> EnumerateAllCollections() {
 
+        if (Directory.Exists(BuiltInRootPath))
+            yield return BuiltInRootPath;
+
         var root = RootPath;
         if (!Directory.Exists(root)) yield break;
 
@@ -124,12 +154,13 @@ internal static class CollectionData {
 
     public static string GetLogicalCollectionPath(string collectionPath) {
 
-        if (IsRoot(collectionPath)) return "";
+        if (IsProjectRoot(collectionPath)) return "";
+        if (IsBuiltInRoot(collectionPath)) return BuiltInCollectionLabel;
 
         var parent = Directory.GetParent(collectionPath)?.FullName;
         var prefix = "";
 
-        if (!string.IsNullOrEmpty(parent) && IsUnderRoot(parent) && !IsRoot(parent))
+        if (!string.IsNullOrEmpty(parent) && IsUnderRoot(parent) && !IsProjectRoot(parent))
             prefix = GetLogicalCollectionPath(parent);
 
         var parts = new List<string>();
@@ -264,6 +295,8 @@ internal static class CollectionData {
     public static bool IsTexture(string path) => path.EndsWith(".png", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".jpeg", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".tga", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".bmp", StringComparison.OrdinalIgnoreCase);
     public static bool IsScript(string path) => path.EndsWith(".cs", StringComparison.OrdinalIgnoreCase);
     public static bool IsPrefab(string path) => path.EndsWith(".pre", StringComparison.OrdinalIgnoreCase);
+    public static bool IsShader(string path) => path.EndsWith(".vs", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".fs", StringComparison.OrdinalIgnoreCase);
+    public static bool IsFont(string path) => path.EndsWith(".ttf", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".otf", StringComparison.OrdinalIgnoreCase);
 
     public static bool IsModel(string path) {
 

@@ -16,6 +16,7 @@ internal class LevelBrowser : Viewport {
 
     internal static Obj? DragObject, DragTarget;
     internal static DropPlacement DragPlacement;
+    internal static bool IsReorderingObject => DragObject != null;
 
     internal static Component? DragComponent;
 

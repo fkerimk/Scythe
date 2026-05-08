@@ -189,7 +189,7 @@ internal class ModelAsset : Asset {
             if (index < CachedMaterialAssets.Count) CachedMaterialAssets[index] = asset;
         }
 
-        var shaderAsset = AssetManager.Get<ShaderAsset>(asset?.Data.Shader ?? "pbr") ?? AssetManager.Get<ShaderAsset>("pbr");
+        var shaderAsset = AssetManager.Get<ShaderAsset>(asset?.Data.Shader ?? "Collection/pbr.vs") ?? AssetManager.Get<ShaderAsset>("Collection/pbr.vs");
 
         if (shaderAsset == null) return;
 

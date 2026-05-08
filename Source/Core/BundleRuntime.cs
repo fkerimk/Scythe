@@ -10,7 +10,7 @@ internal static class BundleRuntime {
 
     public static bool IsActive { get; private set; }
     public static string ProjectRoot => Path.Combine(_bundleRoot, "Project");
-    public static string ResourcesRoot => Path.Combine(_bundleRoot, "Resources");
+    public static string CollectionRoot => Path.Combine(_bundleRoot, "Collection");
 
     public static bool TryActivate() {
 
@@ -47,10 +47,12 @@ internal static class BundleRuntime {
 
     public static string GetBaseRoot() => IsActive ? _bundleRoot : AppContext.BaseDirectory;
 
-    public static string GetResourcesRoot() =>
-        IsActive && Directory.Exists(ResourcesRoot)
-            ? ResourcesRoot
-            : Path.Combine(AppContext.BaseDirectory, "Resources");
+    public static string GetCollectionRoot() =>
+        IsActive && Directory.Exists(CollectionRoot)
+            ? CollectionRoot
+            : Path.Combine(AppContext.BaseDirectory, "Collection");
+
+    public static string GetResourcesRoot() => GetCollectionRoot();
 
     private static string GetBundleIdentity(Stream stream) {
 

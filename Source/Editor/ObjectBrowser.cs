@@ -541,9 +541,9 @@ internal class ObjectBrowser : Viewport {
             return;
         }
 
-        if (CollectionData.IsRoot(state.CurrentPath)) {
+        if (CollectionData.IsProjectRoot(state.CurrentPath)) {
 
-            foreach (var collectionPath in CollectionData.EnumerateCollections(CollectionData.RootPath, CollectionAssetKind.Collection))
+            foreach (var collectionPath in CollectionData.EnumerateRootCollections(CollectionAssetKind.Collection))
                 DrawPickerCollectionEntry(collectionPath, pickerType, state, ref value, targets, propName, ref changed, ref deactivated);
 
             EndChild();
@@ -595,7 +595,7 @@ internal class ObjectBrowser : Viewport {
 
     private void DrawPickerNavigationBar(PickerBrowserState state) {
 
-        var canGoUp = !CollectionData.IsRoot(state.CurrentPath) || state.ShowChildCollections || state.ActiveCategory != null || state.NavigationStack.Count > 0;
+        var canGoUp = !CollectionData.IsProjectRoot(state.CurrentPath) || state.ShowChildCollections || state.ActiveCategory != null || state.NavigationStack.Count > 0;
 
         BeginDisabled(!canGoUp);
         PushFont(Fonts.ImFontAwesomeSmall);
@@ -612,6 +612,8 @@ internal class ObjectBrowser : Viewport {
                 state.ShowChildCollections = nav.ShowChildCollections;
                 state.ActiveCategory = nav.ActiveCategory;
             }
+            else if (CollectionData.IsBuiltInRoot(state.CurrentPath))
+                state.CurrentPath = CollectionData.RootPath;
             else
                 state.CurrentPath = Directory.GetParent(state.CurrentPath)?.FullName ?? CollectionData.RootPath;
         }
@@ -624,6 +626,16 @@ internal class ObjectBrowser : Viewport {
     }
 
     private static string GetPickerRelativePath(PickerBrowserState state) {
+
+        if (CollectionData.IsBuiltInRoot(state.CurrentPath)) {
+            if (state.ShowChildCollections)
+                return $"{CollectionData.BuiltInCollectionLabel}/Collections";
+
+            if (state.ActiveCategory != null)
+                return $"{CollectionData.BuiltInCollectionLabel}/{CollectionData.GetKindName(state.ActiveCategory.Value)}";
+
+            return CollectionData.BuiltInCollectionLabel;
+        }
 
         var relative = Path.GetRelativePath(CollectionData.RootPath, state.CurrentPath).Replace('\\', '/');
         if (relative == ".") relative = "";
@@ -670,7 +682,9 @@ internal class ObjectBrowser : Viewport {
         PopFont();
         SameLine(startX + iconWidth + 5f);
 
-        if (Selectable(Path.GetFileName(collectionPath), false, ImGuiSelectableFlags.None, new Vector2(GetContentRegionAvail().X, 0f))) {
+        var label = CollectionData.GetCollectionDisplayName(collectionPath);
+
+        if (Selectable(label, false, ImGuiSelectableFlags.None, new Vector2(GetContentRegionAvail().X, 0f))) {
 
             if (CollectionData.TryGetCollectionSelectionValue(collectionPath, pickerType, out var selectedValue)) {
                 ApplyPickerValue(selectedValue, ref value, targets, propName, ref changed, ref deactivated);
@@ -883,7 +897,7 @@ internal class ObjectBrowser : Viewport {
 
             if (shaderDeactivated) History.StopRecording();
 
-            var shaderName = string.IsNullOrEmpty(mat.Data.Shader) ? "pbr" : mat.Data.Shader;
+            var shaderName = string.IsNullOrEmpty(mat.Data.Shader) ? "Collection/pbr.vs" : mat.Data.Shader;
             var sa = AssetManager.Get<ShaderAsset>(shaderName);
 
             if (sa != null) {

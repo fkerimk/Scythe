@@ -17,24 +17,15 @@ internal static class PostProcessing {
 
     public static void Init() {
 
-        // Load all shaders from Resources/Shaders/PostProcess
         var shaderFiles = new[] { "bloom", "blur", "cross_hatching", "cross_stitching", "dream_vision", "fisheye", "fxaa", "smaa", "grayscale", "pixelizer", "posterization", "predator", "scanlines", "sobel", "ssao", "taa" };
 
         foreach (var name in shaderFiles) {
+            var shaderAsset = AssetManager.Get<ShaderAsset>($"Collection/{name}.fs");
 
-            if (PathUtil.GetPath($"Shaders/PostProcess/{name}.fs", out var fsPath) && PathUtil.GetPath("Shaders/PostProcess/postprocess.vs", out var vsPath)) {
-
-                var shader = LoadShader(vsPath, fsPath);
-
-                if (shader.Id != 0)
-                    _shaders[name] = shader;
-                else
-                    TraceLog(TraceLogLevel.Error, $"POSTPRO: Failed to load shader {name}");
-
-            } else {
-
-                TraceLog(TraceLogLevel.Error, $"POSTPRO: Shader files not found for {name}");
-            }
+            if (shaderAsset is { Shader.Id: not 0 })
+                _shaders[name] = shaderAsset.Shader;
+            else
+                TraceLog(TraceLogLevel.Error, $"POSTPRO: Failed to resolve shader {name} from built-in collection");
         }
 
         _extReady = true;
