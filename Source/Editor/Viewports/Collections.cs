@@ -637,14 +637,14 @@ internal class Collections : Viewport {
         if (!BeginPopupContextItem($"Context::{path}")) return;
 
         if (MenuItem("Rename")) OpenRenamePopup(path, isDirectory);
-        if (isDirectory && BeginMenu("Set As")) {
+        if (isDirectory && !IsAtCollectionsRoot && BeginMenu("Set As")) {
             if (MenuItem("Collection")) SetCollectionType(path, CollectionEntryKind.Collection);
             foreach (var category in Categories) {
                 if (MenuItem(category.Name[..^1])) SetCollectionType(path, GetCollectionEntryKind(category));
             }
             EndMenu();
         }
-        if (!isDirectory && HasCollectionTargetCandidate(path) && MenuItem("Set as Target")) SetCollectionTarget(path);
+        if (!isDirectory && !IsAtCollectionsRoot && HasCollectionTargetCandidate(path) && MenuItem("Set as Target")) SetCollectionTarget(path);
         if (MenuItem("Delete")) OpenDeletePopup(path, isDirectory);
 
         EndPopup();
