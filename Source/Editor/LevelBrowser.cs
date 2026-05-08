@@ -26,6 +26,8 @@ internal class LevelBrowser : Viewport {
     public static Obj?      SelectedObject  => SelectedObjects.Count > 0 ? SelectedObjects[0] : null;
 
     private int _rowCount;
+    private readonly Dictionary<int, float> _expandProgress = [];
+    private readonly Dictionary<int, float> _childHeights = [];
 
     // Rename
     private Obj?    _renamingObj;
@@ -112,15 +114,19 @@ internal class LevelBrowser : Viewport {
         if (Core.ActiveLevel == null) return true;
 
         var drawList = GetWindowDrawList();
-        var rowId = $"##obj_row_{obj.GetHashCode()}";
+        var objId = obj.GetHashCode();
+        var rowId = $"##obj_row_{objId}";
         var hasChildren = obj.Children.Count > 0;
-        var openId = GetID($"open##{obj.GetHashCode()}");
+        var openId = GetID($"open##{objId}");
         var isOpen = GetStateStorage().GetInt(openId, 1) != 0;
         var isSelected = SelectedObjects.Contains(obj);
         if (SelectedObjects.Any(s => IsAncestorOf(obj, s))) {
             isOpen = true;
             GetStateStorage().SetInt(openId, 1);
         }
+
+        var progress = UpdateExpandProgress(objId, hasChildren && isOpen);
+        var visualProgress = progress;
 
         var rowHeight = GetFrameHeight();
         var rowWidth = MathF.Max(GetContentRegionAvail().X, 1f);
@@ -163,7 +169,7 @@ internal class LevelBrowser : Viewport {
             drawList.AddLine(new Vector2(branchX, centerY), new Vector2(arrowCenterX - 6f, centerY), lineColor);
         }
 
-        if (hasChildren) DrawExpandArrow(drawList, new Vector2(arrowCenterX, centerY), arrowSize, isOpen, Colors.GuiTreeEnabled.ToVector4());
+        if (hasChildren) DrawExpandArrow(drawList, new Vector2(arrowCenterX, centerY), arrowSize, visualProgress, Colors.GuiTreeEnabled.ToVector4());
 
         // Selection Handling
         var multi = IsKeyDown(ImGuiKey.LeftCtrl) || IsKeyDown(ImGuiKey.RightCtrl);
@@ -176,7 +182,7 @@ internal class LevelBrowser : Viewport {
 
         // Right click - context
         if (IsItemHovered() && IsMouseReleased(ImGuiMouseButton.Right))
-            OpenPopupOnItemClick("context##" + obj.GetHashCode());
+            OpenPopupOnItemClick("context##" + objId);
 
         // Left click - select
         else if (IsItemHovered() && IsMouseReleased(ImGuiMouseButton.Left)) {
@@ -188,7 +194,7 @@ internal class LevelBrowser : Viewport {
 
         // Object context
 
-        if (BeginPopup("context##" + obj.GetHashCode())) {
+        if (BeginPopup("context##" + objId)) {
 
             Text(obj.Name);
 
@@ -324,41 +330,72 @@ internal class LevelBrowser : Viewport {
         PopFont();
 
         // Draw child nodes
-        if (!isOpen) return true;
+        if (progress <= 0f) return true;
 
         var children = obj.Children.Values.ToList();
+        var cachedChildHeight = _childHeights.GetValueOrDefault(objId, rowHeight);
+        var animatedHeight = MathF.Max(1f, cachedChildHeight * visualProgress);
+
+        PushStyleVar(ImGuiStyleVar.Alpha, GetStyle().Alpha * (0.2f + visualProgress * 0.8f));
+        PushStyleVar(ImGuiStyleVar.WindowPadding, Vector2.Zero);
+        PushStyleVar(ImGuiStyleVar.ItemSpacing, new Vector2(GetStyle().ItemSpacing.X, 0f));
+
+        if (!BeginChild($"children##{objId}", new Vector2(0, animatedHeight), ImGuiChildFlags.None, ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse | ImGuiWindowFlags.NoBackground)) {
+            EndChild();
+            PopStyleVar(3);
+            return true;
+        }
+
+        var childStartY = GetCursorPosY();
 
         for (var i = 0; i < children.Count; i++) {
 
             var childBranches = new List<bool>(branchHasMore) { i < children.Count - 1 };
 
             if (!DrawObject(children[i], indent + 1, childBranches))
-                return false;
+                break;
         }
+
+        var spacingY = GetStyle().ItemSpacing.Y;
+        _childHeights[objId] = MathF.Max(rowHeight, MathF.Max(0f, GetCursorPosY() - childStartY - spacingY));
+        EndChild();
+        PopStyleVar(3);
 
         return true;
     }
 
-    private static void DrawExpandArrow(ImDrawListPtr drawList, Vector2 center, float size, bool isOpen, Vector4 color) {
+    private float UpdateExpandProgress(int objId, bool isOpen) {
+
+        var current = _expandProgress.GetValueOrDefault(objId, isOpen ? 1f : 0f);
+        var target = isOpen ? 1f : 0f;
+        var dt = GetIO().DeltaTime;
+        var step = dt * 24f;
+        var next = current < target
+            ? MathF.Min(current + step, target)
+            : MathF.Max(current - step, target);
+
+        _expandProgress[objId] = next;
+        return next;
+    }
+
+    private static void DrawExpandArrow(ImDrawListPtr drawList, Vector2 center, float size, float progress, Vector4 color) {
 
         var col = GetColorU32(color);
+        var angle = progress * (MathF.PI * 0.5f);
+        var p1 = RotatePoint(new Vector2(-size * 0.25f, -size * 0.6f), angle) + center;
+        var p2 = RotatePoint(new Vector2(-size * 0.25f, size * 0.6f), angle) + center;
+        var p3 = RotatePoint(new Vector2(size * 0.55f, 0f), angle) + center;
 
-        if (isOpen) {
-            drawList.AddTriangleFilled(
-                new Vector2(center.X - size * 0.6f, center.Y - size * 0.25f),
-                new Vector2(center.X + size * 0.6f, center.Y - size * 0.25f),
-                new Vector2(center.X, center.Y + size * 0.55f),
-                col
-            );
+        drawList.AddTriangleFilled(p1, p2, p3, col);
+    }
 
-            return;
-        }
+    private static Vector2 RotatePoint(Vector2 point, float angle) {
 
-        drawList.AddTriangleFilled(
-            new Vector2(center.X - size * 0.25f, center.Y - size * 0.6f),
-            new Vector2(center.X - size * 0.25f, center.Y + size * 0.6f),
-            new Vector2(center.X + size * 0.55f, center.Y),
-            col
+        var sin = MathF.Sin(angle);
+        var cos = MathF.Cos(angle);
+        return new Vector2(
+            point.X * cos - point.Y * sin,
+            point.X * sin + point.Y * cos
         );
     }
 
