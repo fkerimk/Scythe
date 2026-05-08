@@ -1,5 +1,6 @@
 using System.Numerics;
 using ImGuiNET;
+using Newtonsoft.Json;
 using Raylib_cs;
 using static ImGuiNET.ImGui;
 
@@ -9,16 +10,19 @@ internal class Collections : Viewport {
 
     private readonly string _collectionsRoot;
     private const string ChildCollectionsLabel = "Collections";
+    private const string AddPopupId = "Add Item";
 
     private string _currentPath;
     private string? _selectedPath;
     private bool _showChildCollections;
     private CollectionCategory? _activeCategory;
 
-    private string _newCollectionName = "";
+    private string _newItemName = "";
     private bool _showAddPopup;
+    private bool _showAddTypePopup;
     private bool _showRenamePopup;
     private bool _openDeletePopup;
+    private CreateItemType _createItemType = CreateItemType.Collection;
     private string? _renameTargetPath;
     private string _renameName = "";
     private string _renameSuffix = "";
@@ -97,13 +101,30 @@ internal class Collections : Viewport {
 
         if (Button(Icons.FaPlus)) {
 
-            _newCollectionName = "";
-            _showAddPopup = true;
+            _showAddTypePopup = true;
         }
 
         PopFont();
 
-        if (IsItemHovered()) SetTooltip("Add Collection");
+        if (IsItemHovered()) SetTooltip("Add");
+
+        if (_showAddTypePopup) OpenPopup("Add Menu");
+
+        if (BeginPopup("Add Menu")) {
+
+            if (MenuItem("Collection")) OpenCreatePopup(CreateItemType.Collection);
+
+            BeginDisabled(IsAtCollectionsRoot);
+
+            if (MenuItem("Level")) OpenCreatePopup(CreateItemType.Level);
+            if (MenuItem("Material")) OpenCreatePopup(CreateItemType.Material);
+            if (MenuItem("Script")) OpenCreatePopup(CreateItemType.Script);
+            if (MenuItem("Prefab")) OpenCreatePopup(CreateItemType.Prefab);
+
+            EndDisabled();
+            _showAddTypePopup = false;
+            EndPopup();
+        }
 
         SameLine();
 
@@ -406,19 +427,22 @@ internal class Collections : Viewport {
 
     private void DrawPopups() {
 
-        if (_showAddPopup) OpenPopup("Add Collection");
+        var addPopupInstanceId = $"{AddPopupId}###{_createItemType}";
 
-        if (Modal.Begin("Add Collection", ref _showAddPopup)) {
+        if (_showAddPopup) OpenPopup(addPopupInstanceId);
 
-            Text("Enter collection name:");
+        if (Modal.Begin(addPopupInstanceId, ref _showAddPopup)) {
+
+            Text($"Enter {GetCreateItemLabel(_createItemType).ToLowerInvariant()} name:");
 
             if (IsWindowAppearing()) SetKeyboardFocusHere();
 
-            if (InputText("##name", ref _newCollectionName, 64, ImGuiInputTextFlags.EnterReturnsTrue)) {
+            if (InputText("##name", ref _newItemName, 64, ImGuiInputTextFlags.EnterReturnsTrue)) {
 
-                CreateCollection(_newCollectionName);
-                _showAddPopup = false;
-                CloseCurrentPopup();
+                if (CreateItem(_createItemType, _newItemName)) {
+                    _showAddPopup = false;
+                    CloseCurrentPopup();
+                }
             }
 
             Spacing();
@@ -427,9 +451,10 @@ internal class Collections : Viewport {
 
             if (Button("Create", new Vector2(120, 0))) {
 
-                CreateCollection(_newCollectionName);
-                _showAddPopup = false;
-                CloseCurrentPopup();
+                if (CreateItem(_createItemType, _newItemName)) {
+                    _showAddPopup = false;
+                    CloseCurrentPopup();
+                }
             }
 
             SameLine();
@@ -534,6 +559,14 @@ internal class Collections : Viewport {
         _showRenamePopup = true;
     }
 
+    private void OpenCreatePopup(CreateItemType type) {
+
+        _createItemType = type;
+        _newItemName = "";
+        _showAddPopup = true;
+        _showAddTypePopup = false;
+    }
+
     private void OpenDeletePopup(string path, bool isDirectory) {
 
         _deleteTargetPath = path;
@@ -628,15 +661,54 @@ internal class Collections : Viewport {
         }
     }
 
-    private void CreateCollection(string name) {
+    private bool CreateItem(CreateItemType type, string name) {
 
-        if (string.IsNullOrWhiteSpace(name)) return;
+        if (string.IsNullOrWhiteSpace(name)) return false;
 
-        var path = Path.Combine(_currentPath, name);
-        if (Directory.Exists(path)) return;
+        var trimmedName = name.Trim();
+        var path = Path.Combine(_currentPath, trimmedName + GetCreateItemSuffix(type));
 
-        Directory.CreateDirectory(path);
-        Notifications.Show($"Collection '{name}' created.");
+        if (Directory.Exists(path) || File.Exists(path)) {
+            Notifications.Show($"{GetCreateItemLabel(type)} creation failed: '{Path.GetFileName(path)}' already exists.");
+            return false;
+        }
+
+        try {
+            switch (type) {
+                case CreateItemType.Collection:
+                    Directory.CreateDirectory(path);
+                    Notifications.Show($"Collection '{trimmedName}' created.");
+                    return true;
+                case CreateItemType.Level:
+                    File.WriteAllText(path, $$"""
+                                             {
+                                               "Root": {
+                                                 "Name": "{{trimmedName}}",
+                                                 "Children": {}
+                                               }
+                                             }
+                                             """);
+                    Notifications.Show($"Level '{Path.GetFileName(path)}' created.");
+                    return true;
+                case CreateItemType.Material:
+                    File.WriteAllText(path, JsonConvert.SerializeObject(new MaterialAsset.MaterialData { GUID = Guid.NewGuid().ToString("N") }, Formatting.Indented));
+                    Notifications.Show($"Material '{Path.GetFileName(path)}' created.");
+                    return true;
+                case CreateItemType.Script:
+                    File.WriteAllText(path, BuildScriptTemplate(trimmedName));
+                    Notifications.Show($"Script '{Path.GetFileName(path)}' created.");
+                    return true;
+                case CreateItemType.Prefab:
+                    File.WriteAllText(path, "{}");
+                    Notifications.Show($"Prefab '{Path.GetFileName(path)}' created.");
+                    return true;
+                default:
+                    return false;
+            }
+        } catch (Exception e) {
+            Notifications.Show($"{GetCreateItemLabel(type)} creation failed: {e.Message}");
+            return false;
+        }
     }
 
     private bool IsUnderCollectionsRoot(string path) {
@@ -710,6 +782,56 @@ internal class Collections : Viewport {
         return Path.GetExtension(path);
     }
 
+    private static string GetCreateItemLabel(CreateItemType type) => type switch {
+        CreateItemType.Collection => "Collection",
+        CreateItemType.Level => "Level",
+        CreateItemType.Material => "Material",
+        CreateItemType.Script => "Script",
+        CreateItemType.Prefab => "Prefab",
+        _ => "Item"
+    };
+
+    private static string GetCreateItemSuffix(CreateItemType type) => type switch {
+        CreateItemType.Collection => "",
+        CreateItemType.Level => ".level.json",
+        CreateItemType.Material => ".material.json",
+        CreateItemType.Script => ".cs",
+        CreateItemType.Prefab => ".prefab.json",
+        _ => ""
+    };
+
+    private static string BuildScriptTemplate(string name) {
+
+        var className = ToIdentifier(name);
+
+        return $$"""
+                 internal class {{className}} : ScytheScript {
+
+                     public override void Start() {
+                     }
+
+                     public override void Loop(float dt) {
+                     }
+                 }
+                 """;
+    }
+
+    private static string ToIdentifier(string value) {
+
+        Span<char> buffer = stackalloc char[value.Length == 0 ? 1 : value.Length + 1];
+        var count = 0;
+
+        foreach (var c in value) {
+            if (!char.IsLetterOrDigit(c) && c != '_') continue;
+
+            if (count == 0 && char.IsDigit(c)) buffer[count++] = '_';
+            buffer[count++] = c;
+        }
+
+        if (count == 0) return "NewScript";
+        return new string(buffer[..count]);
+    }
+
     private static Texture2D? GetThumbnail(string path) {
 
         if (IsTexture(path)) {
@@ -739,5 +861,13 @@ internal class Collections : Viewport {
         Collection,
         CollectionGroup,
         Category
+    }
+
+    private enum CreateItemType {
+        Collection,
+        Level,
+        Material,
+        Script,
+        Prefab
     }
 }
