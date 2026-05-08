@@ -90,8 +90,9 @@
                                 "Looping": true
                               },
                               "Script": {
-                                "GUID": "",
-                                "Path": "Scripts/PistolAnimation.cs"
+                                "GUID": "9fc9156584494ea6b076491d1511d09e",
+                                "Path": "Collections/FPS/PistolAnimation.cs",
+                                "Exposed": {}
                               }
                             }
                           }
@@ -129,8 +130,9 @@
                     },
                     "Components": {
                       "Script": {
-                        "GUID": "",
-                        "Path": "Scripts/HeadBob.cs"
+                        "GUID": "4d4bed84c69c4274977227983260088d",
+                        "Path": "Collections/FPS/HeadBob.cs",
+                        "Exposed": {}
                       }
                     }
                   }
@@ -148,8 +150,9 @@
                 },
                 "Components": {
                   "Script": {
-                    "GUID": "",
-                    "Path": "Scripts/PlayerRotation.cs"
+                    "GUID": "c4b5e23733264efa97d6a46dce4bec1a",
+                    "Path": "Collections/FPS/PlayerRotation.cs",
+                    "Exposed": {}
                   }
                 }
               }
@@ -205,8 +208,9 @@
             }
           },
           "Script": {
-            "GUID": "",
-            "Path": "Scripts/PlayerMovement.cs"
+            "GUID": "39cae3f358b94660800ebb475efdcdf7",
+            "Path": "Collections/FPS/PlayerMovement.cs",
+            "Exposed": {}
           }
         }
       },

@@ -1,4 +1,4 @@
-[AttributeUsage(AttributeTargets.Property)]
+[AttributeUsage(AttributeTargets.Property | AttributeTargets.Field)]
 internal class FilePathAttribute(string category, string extension) : Attribute {
 
     public string Category  { get; } = category;

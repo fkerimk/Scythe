@@ -4,6 +4,7 @@ using Raylib_cs;
 internal class PlayerRotation : ScytheScript {
     
     private Vector2 rot = Vector2.Zero;
+    [Config]
     private float sensitivity = 0.3f;
     
     private Obj? _pivot;

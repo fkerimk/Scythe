@@ -4,6 +4,7 @@ using Raylib_cs;
 internal class PlayerMovement : ScytheScript {
     
     private Rigidbody? _rb;
+    [Expose]
     private float speed = 3f;
 
     public override void Start() {

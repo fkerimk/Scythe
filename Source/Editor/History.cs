@@ -186,6 +186,10 @@ internal static class History {
 
         if (target is Component comp)
             comp.UnloadAndQuit();
+        else if (target is ScriptAsset scriptAsset) {
+            scriptAsset.SaveMeta();
+            scriptAsset.ApplyConfigToScripts();
+        }
         else if (target is MaterialAsset mat) {
             mat.Save();
             mat.ApplyChanges();

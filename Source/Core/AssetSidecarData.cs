@@ -2,6 +2,7 @@ internal class AssetSidecarData {
 
     public string GUID = "";
     public TextureImportSettings TextureImport = new();
+    public Dictionary<string, string> ScriptConfig = [];
 
     internal class TextureImportSettings : ICloneable {
 

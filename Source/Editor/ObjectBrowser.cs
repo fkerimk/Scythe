@@ -771,6 +771,11 @@ internal class ObjectBrowser : Viewport {
             var asset = AssetManager.GetOrImport<ModelAsset>(path) ?? AssetManager.Get<ModelAsset>(Path.GetFileNameWithoutExtension(path));
 
             if (asset != null) DrawModelAssetInspector(asset);
+        } else if (ext == ".cs") {
+
+            var asset = AssetManager.GetOrImport<ScriptAsset>(path);
+
+            if (asset != null) DrawScriptAssetInspector(asset);
         }
     }
 
@@ -931,6 +936,25 @@ internal class ObjectBrowser : Viewport {
         PopID();
     }
 
+    private void DrawScriptAssetInspector(ScriptAsset scriptAsset) {
+
+        PushID(scriptAsset.GetHashCode());
+        DrawSectionHeader("Script Asset", Icons.FaCode, Color.White, out var open);
+
+        if (open) {
+
+            DrawInfoRow("Class", Path.GetFileNameWithoutExtension(scriptAsset.File));
+
+            if (scriptAsset.ScriptType == null)
+                DrawInfoRow("Status", "Type not loaded");
+            else
+                DrawScriptFieldRows([scriptAsset], scriptAsset, ScriptFieldStorageKind.Config);
+        }
+
+        EndSection(open);
+        PopID();
+    }
+
     private void DrawProperties(List<object> targets, bool separator, string title, bool defaultOpen = true) {
 
         if (targets.Count == 0) return;
@@ -1008,6 +1032,14 @@ internal class ObjectBrowser : Viewport {
 
                 if (deactivated) History.StopRecording();
             }
+
+            if (first is Script script && targets.All(target => target is Script)) {
+
+                var asset = script.GetAsset();
+
+                if (asset?.ScriptType != null)
+                    DrawScriptFieldRows(targets, asset, ScriptFieldStorageKind.Expose);
+            }
         }
 
         if (separator) {
@@ -1030,6 +1062,48 @@ internal class ObjectBrowser : Viewport {
         }
 
         PopID();
+    }
+
+    private void DrawScriptFieldRows(List<object> targets, ScriptAsset asset, ScriptFieldStorageKind kind) {
+
+        var fields = ScriptFieldUtility.GetFields(asset.ScriptType!, kind);
+        if (fields.Length == 0) return;
+
+        foreach (var field in fields) {
+
+            DrawShadowedLabel(ScriptFieldUtility.GetLabel(field));
+
+            object? value;
+            var picker = field.GetCustomAttribute<FindAssetAttribute>()?.TypeName ?? field.GetCustomAttribute<FilePathAttribute>()?.Category;
+
+            if (kind == ScriptFieldStorageKind.Config) {
+
+                var assets = targets.Cast<ScriptAsset>().ToList();
+                var values = assets.Select(scriptAsset => scriptAsset.GetConfigFieldValue(field)).ToList();
+                value = values.All(val => ScriptFieldUtility.ValueEquals(val, values[0])) ? values[0] : null;
+
+                var (changed, deactivated) = DrawInspectorField($"##script_cfg_{_propIndex++}", ref value, field.FieldType, targets, field.Name, picker);
+
+                if (changed)
+                    foreach (var scriptAsset in assets)
+                        scriptAsset.SetConfigFieldValue(field, value);
+
+                if (deactivated) History.StopRecording();
+                continue;
+            }
+
+            var scripts = targets.Cast<Script>().ToList();
+            var exposedValues = scripts.Select(script => script.GetExposeFieldValue(field, asset)).ToList();
+            value = exposedValues.All(val => ScriptFieldUtility.ValueEquals(val, exposedValues[0])) ? exposedValues[0] : null;
+
+            var (fieldChanged, fieldDeactivated) = DrawInspectorField($"##script_exp_{_propIndex++}", ref value, field.FieldType, targets, field.Name, picker);
+
+            if (fieldChanged)
+                foreach (var script in scripts)
+                    script.SetExposeFieldValue(field, value);
+
+            if (fieldDeactivated) History.StopRecording();
+        }
     }
 
     private void DrawTextureAssetInspector(TextureAsset texture) {

@@ -13,6 +13,9 @@ internal class Script(Obj obj) : Component(obj) {
     [JsonProperty("Path")]
     public string Path { get; set; } = "";
 
+    [JsonProperty("Exposed"), RecordHistory]
+    public Dictionary<string, string> ExposedValues { get; set; } = [];
+
     public ScytheScript? Instance;
 
     private bool _started;
@@ -23,16 +26,7 @@ internal class Script(Obj obj) : Component(obj) {
 
         if (!CommandLine.Runtime && !Core.IsPlaying) return true;
 
-        var oldGuid = GUID;
-        var oldPath = Path;
-        var guid = GUID;
-        var path = Path;
-        var asset = AssetManager.ResolveReference<ScriptAsset>(ref guid, ref path);
-        GUID = guid;
-        Path = path;
-
-        if ((GUID != oldGuid || Path != oldPath) && Core.ActiveLevel != null && !Core.IsLoadingLevel) Core.ActiveLevel.IsDirty = true;
-
+        var asset = ResolveAssetReference(markDirty: !Core.IsLoadingLevel);
         if (asset == null || !asset.IsLoaded || asset.ScriptType == null) return false;
 
         Instance = Activator.CreateInstance(asset.ScriptType) as ScytheScript;
@@ -41,6 +35,7 @@ internal class Script(Obj obj) : Component(obj) {
 
         Instance.Obj = Obj;
         RestoreHotReloadState();
+        ApplyStoredFieldValues(asset);
 
         return true;
     }
@@ -84,6 +79,93 @@ internal class Script(Obj obj) : Component(obj) {
         CopyScriptFields(previous, Instance);
         Instance.Obj = Obj;
         _started = started;
+    }
+
+    public ScriptAsset? GetAsset() =>
+        ResolveAssetReference(markDirty: !Core.IsLoadingLevel)
+        ?? AssetManager.Get<ScriptAsset>(GUID)
+        ?? AssetManager.Get<ScriptAsset>(Path)
+        ?? AssetManager.GetOrImport<ScriptAsset>(Path);
+
+    public bool UsesAsset(ScriptAsset asset) {
+
+        var resolved = GetAsset();
+        if (resolved == null) return false;
+        return string.Equals(resolved.GUID, asset.GUID, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(System.IO.Path.GetFullPath(resolved.File), System.IO.Path.GetFullPath(asset.File), StringComparison.OrdinalIgnoreCase);
+    }
+
+    public object? GetExposeFieldValue(FieldInfo field, ScriptAsset asset) {
+
+        if (ExposedValues.TryGetValue(field.Name, out var raw))
+            return ScriptFieldUtility.DeserializeStoredValue(raw, field.FieldType);
+
+        if (Instance != null && field.DeclaringType?.IsAssignableFrom(Instance.GetType()) == true)
+            return field.GetValue(Instance);
+
+        return asset.GetConfigFieldValue(field);
+    }
+
+    public void SetExposeFieldValue(FieldInfo field, object? value) {
+
+        var asset = GetAsset();
+        var baseValue = asset?.GetConfigFieldValue(field) ?? ScriptFieldUtility.GetCodeDefaultValue(field.DeclaringType, field);
+
+        if (ScriptFieldUtility.ValueEquals(value, baseValue))
+            ExposedValues.Remove(field.Name);
+        else
+            ExposedValues[field.Name] = ScriptFieldUtility.SerializeStoredValue(value);
+
+        if (Core.ActiveLevel != null) Core.ActiveLevel.IsDirty = true;
+        ApplyFieldValueToInstance(field, value);
+    }
+
+    public void ReapplyStoredFieldValues(ScriptAsset? asset = null) {
+
+        asset ??= GetAsset();
+        if (Instance == null || asset?.ScriptType == null) return;
+
+        ApplyStoredFieldValues(asset);
+    }
+
+    private void ApplyStoredFieldValues(ScriptAsset asset) {
+
+        if (Instance == null || asset.ScriptType == null) return;
+
+        foreach (var field in ScriptFieldUtility.GetFields(asset.ScriptType, ScriptFieldStorageKind.Config))
+            ApplyFieldValueToInstance(field, asset.GetConfigFieldValue(field));
+
+        foreach (var field in ScriptFieldUtility.GetFields(asset.ScriptType, ScriptFieldStorageKind.Expose))
+            ApplyFieldValueToInstance(field, GetStoredExposeFieldValue(field, asset));
+    }
+
+    private object? GetStoredExposeFieldValue(FieldInfo field, ScriptAsset asset) =>
+        ExposedValues.TryGetValue(field.Name, out var raw)
+            ? ScriptFieldUtility.DeserializeStoredValue(raw, field.FieldType)
+            : asset.GetConfigFieldValue(field);
+
+    private void ApplyFieldValueToInstance(FieldInfo field, object? value) {
+
+        if (Instance == null) return;
+        if (field.DeclaringType?.IsAssignableFrom(Instance.GetType()) != true) return;
+
+        field.SetValue(Instance, value);
+    }
+
+    private ScriptAsset? ResolveAssetReference(bool markDirty) {
+
+        var oldGuid = GUID;
+        var oldPath = Path;
+        var guid = GUID;
+        var path = Path;
+        var asset = AssetManager.ResolveReference<ScriptAsset>(ref guid, ref path);
+        GUID = guid;
+        Path = path;
+
+        if (markDirty && (GUID != oldGuid || Path != oldPath) && Core.ActiveLevel != null)
+            Core.ActiveLevel.IsDirty = true;
+
+        return asset;
     }
 
     private static void CopyScriptFields(object source, object target) {
