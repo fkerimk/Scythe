@@ -93,21 +93,7 @@ internal class LevelBrowser : Viewport {
         EndChild();
     }
 
-    private static bool IsAncestorOf(Obj ancestor, Obj? target) {
-
-        if (target == null) return false;
-
-        var current = target.Parent;
-
-        while (current != null) {
-
-            if (current == ancestor) return true;
-
-            current = current.Parent;
-        }
-
-        return false;
-    }
+    private static bool IsAncestorOf(Obj ancestor, Obj? target) => Obj.IsAncestorOf(ancestor, target?.Parent);
 
     private bool DrawObject(Obj obj, int indent, List<bool> branchHasMore) {
 
@@ -284,8 +270,11 @@ internal class LevelBrowser : Viewport {
 
             if (DragObject != null && IsMouseReleased(ImGuiMouseButton.Left)) {
 
-                DragTarget   = obj;
-                _savedScroll = GetScrollY();
+                if (DragObject != obj && !Obj.IsAncestorOf(DragObject, obj)) {
+
+                    DragTarget   = obj;
+                    _savedScroll = GetScrollY();
+                }
             }
 
             EndDragDropTarget();

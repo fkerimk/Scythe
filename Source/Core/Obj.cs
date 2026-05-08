@@ -128,7 +128,7 @@ internal class Obj {
 
     public void SetParent(Obj? obj, bool keepWorld = false) {
 
-        if (obj == null || obj == this || Parent == null) return;
+        if (obj == null || obj == this || Parent == null || obj == Parent || IsAncestorOf(this, obj)) return;
 
         var wp = Vector3.Zero;
         var wr = Quaternion.Identity;
@@ -150,7 +150,7 @@ internal class Obj {
 
     public void RecordedSetParent(Obj? obj) {
 
-        if (obj == null || obj == this || Parent == null) return;
+        if (obj == null || obj == this || Parent == null || obj == Parent || IsAncestorOf(this, obj)) return;
 
         var oldParent = Parent;
         History.StartRecording(this, $"Change Parent of {Name}");
@@ -205,6 +205,22 @@ internal class Obj {
         path.Reverse();
 
         return path.ToArray();
+    }
+
+    public static bool IsAncestorOf(Obj ancestor, Obj? target) {
+
+        if (target == null) return false;
+
+        var current = target;
+
+        while (current != null) {
+
+            if (current == ancestor) return true;
+
+            current = current.Parent;
+        }
+
+        return false;
     }
 
     public Obj? Find(params string[] names) {
