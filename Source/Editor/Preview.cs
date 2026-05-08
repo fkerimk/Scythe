@@ -1,5 +1,7 @@
 using System.Numerics;
+using System.Text;
 using System.Threading;
+using System.Text.RegularExpressions;
 using ColorCode;
 using ColorCode.Parsing;
 using ImGuiNET;
@@ -35,6 +37,23 @@ internal class Preview : Viewport {
     private readonly List<List<ColoredTextSegment>> _scriptPreviewLines = [];
     private Level? _previewLevel;
     private string _previewLevelFile = "";
+    private static readonly HashSet<string> ShaderKeywords = [
+        "attribute", "break", "case", "const", "continue", "default", "discard", "do", "else", "for", "if", "in", "inout",
+        "out", "precision", "return", "struct", "switch", "uniform", "varying", "while", "layout"
+    ];
+    private static readonly HashSet<string> ShaderTypes = [
+        "void", "bool", "int", "float", "vec2", "vec3", "vec4", "ivec2", "ivec3", "ivec4", "bvec2", "bvec3", "bvec4",
+        "mat2", "mat3", "mat4", "sampler2D", "samplerCube", "uint"
+    ];
+    private static readonly HashSet<string> ShaderBuiltins = [
+        "gl_FragColor", "gl_FragCoord", "gl_Position", "gl_PointCoord", "gl_PointSize", "texture", "texture2D", "textureCube",
+        "mix", "clamp", "smoothstep", "step", "normalize", "length", "dot", "cross", "reflect", "refract", "pow", "exp",
+        "log", "sqrt", "abs", "min", "max", "sin", "cos", "tan", "fract", "floor", "ceil", "mod"
+    ];
+    private static readonly Regex ShaderTokenRegex = new(
+        @"(#.*$|//.*$|/\*[\s\S]*?\*/|""(?:\\.|[^""\\])*""|'(?:\\.|[^'\\])*'|\b\d+(?:\.\d+)?(?:[eE][+-]?\d+)?\b|\b[A-Za-z_][A-Za-z0-9_]*\b|[^\s])",
+        RegexOptions.Compiled | RegexOptions.Multiline
+    );
     private static readonly ILanguageParser ScriptPreviewParser = new LanguageParser(
         new ColorCode.Compilation.LanguageCompiler(new Dictionary<string, ColorCode.Compilation.CompiledLanguage>(), new ReaderWriterLockSlim()),
         new ColorCode.Common.LanguageRepository(new Dictionary<string, ILanguage>())
@@ -195,14 +214,13 @@ internal class Preview : Viewport {
 
         if (!File.Exists(path)) return;
 
+        if (CollectionData.IsShader(path)) {
+            CacheShaderPreview(path);
+            return;
+        }
+
         if (!IsScript(path)) {
-
-            foreach (var line in File.ReadAllLines(path))
-                _scriptPreviewLines.Add([new ColoredTextSegment(line, Colors.GuiCodePlain.ToVector4())]);
-
-            if (_scriptPreviewLines.Count == 0)
-                _scriptPreviewLines.Add([]);
-
+            CachePlainTextPreview(path);
             return;
         }
 
@@ -241,6 +259,69 @@ internal class Preview : Viewport {
 
         FlushScriptSegment(currentLine, currentText, currentColor);
         _scriptPreviewLines.Add(currentLine);
+    }
+
+    private void CachePlainTextPreview(string path) {
+
+        foreach (var line in File.ReadAllLines(path))
+            _scriptPreviewLines.Add([new ColoredTextSegment(line, Colors.GuiCodePlain.ToVector4())]);
+
+        if (_scriptPreviewLines.Count == 0)
+            _scriptPreviewLines.Add([]);
+    }
+
+    private void CacheShaderPreview(string path) {
+
+        var source = File.ReadAllText(path).Replace("\r\n", "\n");
+        var lines = source.Split('\n');
+
+        foreach (var line in lines)
+            _scriptPreviewLines.Add(ParseShaderLine(line));
+
+        if (_scriptPreviewLines.Count == 0)
+            _scriptPreviewLines.Add([]);
+    }
+
+    private static List<ColoredTextSegment> ParseShaderLine(string line) {
+
+        var segments = new List<ColoredTextSegment>();
+        var lastIndex = 0;
+
+        foreach (Match match in ShaderTokenRegex.Matches(line)) {
+
+            if (match.Index > lastIndex)
+                segments.Add(new ColoredTextSegment(line[lastIndex..match.Index], Colors.GuiCodePlain.ToVector4()));
+
+            var token = match.Value;
+            segments.Add(new ColoredTextSegment(token, GetShaderTokenColor(token)));
+            lastIndex = match.Index + match.Length;
+        }
+
+        if (lastIndex < line.Length)
+            segments.Add(new ColoredTextSegment(line[lastIndex..], Colors.GuiCodePlain.ToVector4()));
+
+        return segments;
+    }
+
+    private static Vector4 GetShaderTokenColor(string token) {
+
+        if (string.IsNullOrEmpty(token)) return Colors.GuiCodePlain.ToVector4();
+        if (token.StartsWith("//", StringComparison.Ordinal) || token.StartsWith("/*", StringComparison.Ordinal))
+            return Colors.GuiCodeComment.ToVector4();
+        if (token.StartsWith("#", StringComparison.Ordinal))
+            return Colors.GuiCodePreprocessor.ToVector4();
+        if (token.StartsWith("\"", StringComparison.Ordinal) || token.StartsWith("'", StringComparison.Ordinal))
+            return Colors.GuiCodeString.ToVector4();
+        if (char.IsDigit(token[0]))
+            return Colors.GuiCodeNumber.ToVector4();
+        if (ShaderKeywords.Contains(token))
+            return Colors.GuiCodeKeyword.ToVector4();
+        if (ShaderTypes.Contains(token))
+            return Colors.GuiCodeType.ToVector4();
+        if (ShaderBuiltins.Contains(token) || token.StartsWith("gl_", StringComparison.Ordinal))
+            return Colors.GuiCodePreprocessor.ToVector4();
+
+        return Colors.GuiCodePlain.ToVector4();
     }
 
     private void ApplyScopeColorRecursive(Scope scope, Vector4[] charColors, int sourceLength) {
@@ -405,7 +486,7 @@ internal class Preview : Viewport {
 
         if (!File.Exists(path)) return null;
 
-        var level = new Level(CollectionData.GetLevelDisplayName(path), path);
+        var level = new Level(CollectionData.GetLevelDisplayName(path), path, load: true, applyEditorCamera: false);
         LoadPreviewLevelComponents(level.Root);
         SyncPreviewLevelTransforms(level.Root);
 

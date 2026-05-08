@@ -113,26 +113,26 @@ internal class Level {
         LoadInternal();
     }
 
-    public Level(string name, string path, bool load = true) {
+    public Level(string name, string path, bool load = true, bool applyEditorCamera = true) {
 
         Name = name;
         GUID = System.Guid.NewGuid().ToString("N");
         JsonPath = path;
         Root = new Obj("Root", null);
 
-        if (load) LoadInternal();
+        if (load) LoadInternal(applyEditorCamera: applyEditorCamera);
     }
 
-    public Level(string name, string path, string jsonBody) {
+    public Level(string name, string path, string jsonBody, bool applyEditorCamera = true) {
 
         Name = name;
         GUID = System.Guid.NewGuid().ToString("N");
         JsonPath = path;
         Root = new Obj("Root", null);
-        LoadInternal(jsonBody);
+        LoadInternal(jsonBody, applyEditorCamera);
     }
 
-    private void LoadInternal(string? jsonOverride = null) {
+    private void LoadInternal(string? jsonOverride = null, bool applyEditorCamera = true) {
         SafeExec.Try(() => {
 
                 var jsonText = jsonOverride ?? File.ReadAllText(JsonPath);
@@ -167,7 +167,7 @@ internal class Level {
 
                     EditorCamera = cameraJson.ToObject<CameraData>();
 
-                    if (EditorCamera == null) return;
+                    if (!applyEditorCamera || EditorCamera == null) return;
 
                     FreeCam.Pos = EditorCamera.Position;
                     FreeCam.Rot = EditorCamera.Rotation;
