@@ -34,6 +34,7 @@ internal static class Core {
 
     private static Raylib_cs.Model _skyboxModel;
     private static Texture2D _skyboxTexture;
+    private static string _loadedSkyboxGuid = "";
 
     public static unsafe void Init() {
 
@@ -83,15 +84,6 @@ internal static class Core {
 
         var skybox = AssetManager.Get<ShaderAsset>("Collection/skybox.vs");
         if (skybox != null) _skyboxModel.Materials[0].Shader = skybox.Shader;
-
-        var skyTex = AssetManager.Get<TextureAsset>("Collection/Skybox.png");
-
-        if (skyTex == null) return;
-
-        var image = LoadImage(skyTex.File);
-        _skyboxTexture = LoadTextureCubemap(image, CubemapLayout.AutoDetect);
-        UnloadImage(image);
-        _skyboxModel.Materials[0].Maps[(int)MaterialMapIndex.Cubemap].Texture = _skyboxTexture;
         
         Splash.Cleanup();
     }
@@ -252,6 +244,8 @@ internal static class Core {
         else
             ActiveCamera = new Camera3D();
 
+        ApplyLevelVisualSettings();
+
         if (CommandLine.Runtime) return;
 
         if (ActiveLevel.EditorCamera != null) {
@@ -286,8 +280,60 @@ internal static class Core {
 
         if (ActiveLevelIndex >= 0)
             SetActiveLevel(ActiveLevelIndex);
-        else
+        else {
             ActiveCamera = null;
+            ApplyLevelVisualSettings();
+        }
+    }
+
+    public static Color GetActiveBackgroundColor() => ActiveLevel?.BackgroundColor ?? Colors.Game;
+
+    public static unsafe void ApplyLevelVisualSettings() {
+
+        if (ActiveLevel == null) {
+            RenderSettings.AmbientColor = Color.White;
+            UnloadSkyboxTexture();
+            return;
+        }
+
+        RenderSettings.AmbientColor = ActiveLevel.AmbientColor;
+
+        var guid = ActiveLevel.Skybox ?? "";
+        var path = ActiveLevel.SkyboxPath ?? "";
+        var textureAsset = AssetManager.ResolveReference<TextureAsset>(ref guid, ref path);
+        ActiveLevel.Skybox = guid;
+        ActiveLevel.SkyboxPath = path;
+
+        if (textureAsset is not { IsLoaded: true } || string.IsNullOrWhiteSpace(textureAsset.GUID)) {
+            UnloadSkyboxTexture();
+            return;
+        }
+
+        if (string.Equals(_loadedSkyboxGuid, textureAsset.GUID, StringComparison.OrdinalIgnoreCase) && _skyboxTexture.Id != 0)
+            return;
+
+        UnloadSkyboxTexture();
+
+        var image = LoadImage(textureAsset.File);
+        if (image.Data == null) return;
+
+        _skyboxTexture = LoadTextureCubemap(image, CubemapLayout.AutoDetect);
+        UnloadImage(image);
+        _skyboxModel.Materials[0].Maps[(int)MaterialMapIndex.Cubemap].Texture = _skyboxTexture;
+        _loadedSkyboxGuid = textureAsset.GUID;
+    }
+
+    private static unsafe void UnloadSkyboxTexture() {
+
+        if (_skyboxTexture.Id != 0) {
+            UnloadTexture(_skyboxTexture);
+            _skyboxTexture = default;
+        }
+
+        if (_skyboxModel.Materials != null && _skyboxModel.MaterialCount > 0)
+            _skyboxModel.Materials[0].Maps[(int)MaterialMapIndex.Cubemap].Texture = default;
+
+        _loadedSkyboxGuid = "";
     }
 
     public static void Load() {
@@ -517,12 +563,13 @@ internal static class Core {
 
         if (!is2D) {
 
-            // Skybox
-            Rlgl.DisableBackfaceCulling();
-            Rlgl.DisableDepthMask();
-            DrawModel(_skyboxModel, Vector3.Zero, 1.0f, Color.White);
-            Rlgl.EnableBackfaceCulling();
-            Rlgl.EnableDepthMask();
+            if (_skyboxTexture.Id != 0) {
+                Rlgl.DisableBackfaceCulling();
+                Rlgl.DisableDepthMask();
+                DrawModel(_skyboxModel, Vector3.Zero, 1.0f, Color.White);
+                Rlgl.EnableBackfaceCulling();
+                Rlgl.EnableDepthMask();
+            }
         }
 
         RenderHierarchy(ActiveLevel.Root, is2D, false);
@@ -592,7 +639,7 @@ internal static class Core {
 
             // 3D Pass
             BeginTextureMode(_mainRt);
-            ClearBackground(Colors.Game);
+            ClearBackground(GetActiveBackgroundColor());
 
             var renderCamera = ActiveCamera;
 
@@ -648,8 +695,8 @@ internal static class Core {
 
         UnloadRenderTexture(_shadowMap);
         UnloadRenderTexture(_mainRt);
+        UnloadSkyboxTexture();
         UnloadModel(_skyboxModel);
-        UnloadTexture(_skyboxTexture);
         PostProcessing.Shutdown();
 
         QuitObj(ActiveLevel.Root);

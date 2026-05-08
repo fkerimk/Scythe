@@ -473,6 +473,57 @@ internal class ObjectBrowser : Viewport {
         PopID();
     }
 
+    private void DrawLevelSettings() {
+
+        var level = Core.ActiveLevel;
+        if (level == null) return;
+
+        PushID(level.GUID);
+        DrawSectionHeader("Level", Icons.FaMap, Colors.GuiCollectionLevel, out var open);
+
+        if (open) {
+
+            DrawShadowedLabel("Name");
+            TextDisabled(level.Name);
+            NextColumn();
+
+            DrawShadowedLabel("Skybox");
+            object? skybox = level.Skybox;
+            var (skyboxChanged, _) = DrawInspectorField("LevelSkybox", ref skybox, typeof(string), [], null, "TextureAsset");
+
+            if (skyboxChanged) {
+                level.Skybox = (string)skybox!;
+                level.SkyboxPath = AssetManager.GetPath<TextureAsset>(level.Skybox) is { } path
+                    ? AssetManager.GetStoredPath(path)
+                    : "";
+                level.IsDirty = true;
+                Core.ApplyLevelVisualSettings();
+            }
+
+            DrawShadowedLabel("Background Color");
+            object? backgroundColor = level.BackgroundColor;
+            var (backgroundChanged, _) = DrawInspectorField("LevelBackgroundColor", ref backgroundColor, typeof(Color), [], null);
+
+            if (backgroundChanged) {
+                level.BackgroundColor = (Color)backgroundColor!;
+                level.IsDirty = true;
+            }
+
+            DrawShadowedLabel("Ambient Color");
+            object? ambientColor = level.AmbientColor;
+            var (ambientChanged, _) = DrawInspectorField("LevelAmbientColor", ref ambientColor, typeof(Color), [], null);
+
+            if (ambientChanged) {
+                level.AmbientColor = (Color)ambientColor!;
+                level.IsDirty = true;
+                Core.ApplyLevelVisualSettings();
+            }
+        }
+
+        EndSection(open);
+        PopID();
+    }
+
     private void DrawFlatPickerPopup(ref object? value, List<object> targets, string? propName, ref bool changed, ref bool deactivated) {
 
         BeginChild("##files", new Vector2(0, 400));
@@ -805,7 +856,12 @@ internal class ObjectBrowser : Viewport {
 
         var ext = Path.GetExtension(path).ToLowerInvariant();
 
-        if (CollectionData.IsMaterial(path)) {
+        if (CollectionData.IsLevel(path)) {
+
+            var asset = AssetManager.GetOrImport<LevelAsset>(path);
+
+            if (asset != null) DrawLevelAssetInspector(asset);
+        } else if (CollectionData.IsMaterial(path)) {
 
             var asset = AssetManager.GetOrImport<MaterialAsset>(path);
 
@@ -826,6 +882,84 @@ internal class ObjectBrowser : Viewport {
 
             if (asset != null) DrawScriptAssetInspector(asset);
         }
+    }
+
+    private void DrawLevelAssetInspector(LevelAsset levelAsset) {
+
+        var path = levelAsset.File;
+        var raw = Newtonsoft.Json.Linq.JObject.Parse(File.ReadAllText(path));
+        var levelName = CollectionData.GetLevelDisplayName(path);
+        var skyboxGuid = raw["Skybox"]?.ToObject<string>() ?? "";
+        var skyboxPath = raw["SkyboxPath"]?.ToObject<string>() ?? "";
+        var backgroundColor = raw["BackgroundColor"]?.ToObject<Color?>() ?? new Color(25, 25, 25, 255);
+        var ambientColor = raw["AmbientColor"]?.ToObject<Color?>() ?? Color.White;
+
+        PushID(levelAsset.GUID);
+        DrawSectionHeader("Level Asset", Icons.FaMap, Colors.GuiCollectionLevel, out var open);
+
+        if (open) {
+
+            PushStyleVar(ImGuiStyleVar.ItemSpacing, new Vector2(8, 8));
+            Columns(2, "##level_asset_props", false);
+            SetColumnWidth(0, GetWindowWidth() * 0.32f);
+
+            DrawInfoRow("Name", levelName);
+
+            DrawShadowedLabel("Skybox");
+            object? skybox = skyboxGuid;
+            var (skyboxChanged, _) = DrawInspectorField("LevelAssetSkybox", ref skybox, typeof(string), [], null, "TextureAsset");
+
+            if (skyboxChanged) {
+                skyboxGuid = (string)skybox!;
+                skyboxPath = AssetManager.GetPath<TextureAsset>(skyboxGuid) is { } resolvedPath
+                    ? AssetManager.GetStoredPath(resolvedPath)
+                    : "";
+                raw["Skybox"] = skyboxGuid;
+                raw["SkyboxPath"] = skyboxPath;
+                SaveLevelAssetSettings(levelAsset, raw, skyboxGuid, skyboxPath, backgroundColor, ambientColor);
+            }
+
+            DrawShadowedLabel("Background Color");
+            object? background = backgroundColor;
+            var (backgroundChanged, _) = DrawInspectorField("LevelAssetBackground", ref background, typeof(Color), [], null);
+
+            if (backgroundChanged) {
+                backgroundColor = (Color)background!;
+                raw["BackgroundColor"] = Newtonsoft.Json.Linq.JToken.FromObject(backgroundColor);
+                SaveLevelAssetSettings(levelAsset, raw, skyboxGuid, skyboxPath, backgroundColor, ambientColor);
+            }
+
+            DrawShadowedLabel("Ambient Color");
+            object? ambient = ambientColor;
+            var (ambientChanged, _) = DrawInspectorField("LevelAssetAmbient", ref ambient, typeof(Color), [], null);
+
+            if (ambientChanged) {
+                ambientColor = (Color)ambient!;
+                raw["AmbientColor"] = Newtonsoft.Json.Linq.JToken.FromObject(ambientColor);
+                SaveLevelAssetSettings(levelAsset, raw, skyboxGuid, skyboxPath, backgroundColor, ambientColor);
+            }
+
+            Columns(1);
+            PopStyleVar();
+        }
+
+        EndSection(open);
+        PopID();
+    }
+
+    private static void SaveLevelAssetSettings(LevelAsset levelAsset, Newtonsoft.Json.Linq.JObject raw, string skyboxGuid, string skyboxPath, Color backgroundColor, Color ambientColor) {
+
+        File.WriteAllText(levelAsset.File, raw.ToString(Newtonsoft.Json.Formatting.Indented));
+        AssetManager.ReloadAsset(levelAsset);
+
+        if (Core.ActiveLevel == null) return;
+        if (!Path.GetFullPath(Core.ActiveLevel.JsonPath).Equals(Path.GetFullPath(levelAsset.File), StringComparison.OrdinalIgnoreCase)) return;
+
+        Core.ActiveLevel.Skybox = skyboxGuid;
+        Core.ActiveLevel.SkyboxPath = skyboxPath;
+        Core.ActiveLevel.BackgroundColor = backgroundColor;
+        Core.ActiveLevel.AmbientColor = ambientColor;
+        Core.ApplyLevelVisualSettings();
     }
 
     private void DrawModelAssetInspector(ModelAsset model) {

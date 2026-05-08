@@ -1,6 +1,7 @@
 using System.Numerics;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using Raylib_cs;
 
 [JsonObject(MemberSerialization.OptIn)]
 internal class Level {
@@ -69,6 +70,10 @@ internal class Level {
     [JsonProperty] public string GUID { get; set; } = System.Guid.NewGuid().ToString("N");
     public string JsonPath { get; set; } = null!;
     public bool IsDirty { get; set; }
+    [JsonProperty] public string Skybox { get; set; } = "";
+    [JsonProperty] public string SkyboxPath { get; set; } = "";
+    [JsonProperty] public Color BackgroundColor { get; set; } = new Color(25, 25, 25, 255);
+    [JsonProperty] public Color AmbientColor { get; set; } = Color.White;
 
     [JsonProperty] public readonly Obj Root = null!;
     [JsonProperty] public CameraData? EditorCamera;
@@ -130,6 +135,18 @@ internal class Level {
                 var jsonText = jsonOverride ?? File.ReadAllText(JsonPath);
                 var rawData = JObject.Parse(jsonText);
                 GUID = rawData["GUID"]?.Value<string>() ?? GUID;
+                Skybox = rawData["Skybox"]?.Value<string>() ?? "";
+                SkyboxPath = rawData["SkyboxPath"]?.Value<string>() ?? "";
+
+                if (rawData["BackgroundColor"] is JObject backgroundColorJson) {
+                    var parsedBackgroundColor = backgroundColorJson.ToObject<Color?>();
+                    if (parsedBackgroundColor.HasValue) BackgroundColor = parsedBackgroundColor.Value;
+                }
+
+                if (rawData["AmbientColor"] is JObject ambientColorJson) {
+                    var parsedAmbientColor = ambientColorJson.ToObject<Color?>();
+                    if (parsedAmbientColor.HasValue) AmbientColor = parsedAmbientColor.Value;
+                }
 
                 if (rawData["Root"]?["Children"] is JObject children) {
 

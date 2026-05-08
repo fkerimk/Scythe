@@ -25,7 +25,7 @@ internal static class Runtime {
             Core.Load();
 
             BeginDrawing();
-            ClearBackground(Colors.Game);
+            ClearBackground(Core.GetActiveBackgroundColor());
 
             Core.Step();
 

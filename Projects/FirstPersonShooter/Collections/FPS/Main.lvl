@@ -317,5 +317,19 @@
       "Y": 0.7488004
     }
   },
-  "GUID": "1a1ba6d01f0e4ddabcfa301ed352494d"
+  "GUID": "1a1ba6d01f0e4ddabcfa301ed352494d",
+  "Skybox": "643dccbff08a40c6af7323e834ab7aab",
+  "SkyboxPath": "Collection/Skyboxes/Sky 1.png",
+  "BackgroundColor": {
+    "R": 25,
+    "G": 25,
+    "B": 25,
+    "A": 255
+  },
+  "AmbientColor": {
+    "R": 255,
+    "G": 255,
+    "B": 255,
+    "A": 255
+  }
 }

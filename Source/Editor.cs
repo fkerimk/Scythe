@@ -250,7 +250,7 @@ internal static unsafe class Editor {
 
             // Runtime viewport
             BeginTextureMode(RuntimeRender.Rt);
-            ClearBackground(Colors.Game);
+            ClearBackground(Core.GetActiveBackgroundColor());
             Core.IsPreviewRender = true;
 
             // 3D Pass
@@ -276,7 +276,7 @@ internal static unsafe class Editor {
 
             // Editor viewport
             BeginTextureMode(EditorRender.Rt);
-            ClearBackground(Colors.Game);
+            ClearBackground(Core.GetActiveBackgroundColor());
 
             Core.ActiveCamera = _editorCamera;
             FreeCam.Loop(EditorRender);
