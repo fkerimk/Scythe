@@ -300,6 +300,8 @@ internal static unsafe class Editor {
         if (!_showExitModal) return;
 
         OpenPopup("Unsaved Changes###SaveExitModal");
+        Style.Push();
+        PushFont(Fonts.ImMontserratRegular);
 
         if (Modal.Begin("Unsaved Changes###SaveExitModal", ref _showExitModal)) {
 
@@ -334,6 +336,9 @@ internal static unsafe class Editor {
             }
             Modal.End();
         }
+
+        PopFont();
+        Style.Pop();
     }
 
     public static void TogglePlayMode(Vector2? mouseCenter = null) {
