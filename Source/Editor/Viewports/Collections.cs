@@ -91,8 +91,8 @@ internal class Collections : Viewport {
 
     private void Validate() {
 
-        if (Directory.Exists(_collectionsRoot)) return;
-        Directory.CreateDirectory(_collectionsRoot);
+        if (!Directory.Exists(_collectionsRoot)) Directory.CreateDirectory(_collectionsRoot);
+        if (!IsAtCollectionsRoot) EnsureCollectionSettings(_currentPath);
     }
 
     private void DrawToolbar() {
@@ -171,7 +171,7 @@ internal class Collections : Viewport {
 
         if (_showChildCollections) {
 
-            foreach (var collection in GetCollectionEntries()) DrawCollectionEntry(collection);
+            foreach (var collection in GetCollectionEntries(CollectionEntryKind.Collection)) DrawCollectionEntry(collection);
 
         } else if (_activeCategory == null) {
 
@@ -179,7 +179,9 @@ internal class Collections : Viewport {
 
         } else {
 
-            foreach (var file in GetFilesForCategory(_activeCategory.Value)) DrawFileEntry(file);
+            var activeCategory = _activeCategory.Value;
+            foreach (var collection in GetCollectionEntriesForCategory(activeCategory)) DrawCollectionEntry(collection);
+            foreach (var file in GetFilesForCategory(activeCategory)) DrawFileEntry(file);
         }
 
         if (IsWindowHovered() && IsMouseReleased(ImGuiMouseButton.Left) && !IsAnyItemHovered()) {
@@ -193,11 +195,11 @@ internal class Collections : Viewport {
 
     private IEnumerable<BrowserEntry> GetBrowserEntries() {
 
-        var collections = GetCollectionEntries();
+        var collections = GetCollectionEntries(CollectionEntryKind.Collection);
 
         if (IsAtCollectionsRoot) return collections.Select(BrowserEntry.CreateCollection).OrderBy(entry => entry.Name, new NaturalStringComparer()!);
 
-        var collectionEntry = BrowserEntry.CreateCollectionGroup(GetCollectionEntries().Count());
+        var collectionEntry = BrowserEntry.CreateCollectionGroup(GetCollectionEntries(CollectionEntryKind.Collection).Count());
         var categories = GetCategoryStates().Select(BrowserEntry.CreateCategory);
 
         return new[] { collectionEntry }
@@ -206,18 +208,27 @@ internal class Collections : Viewport {
             .ThenBy(entry => entry.Name, new NaturalStringComparer()!);
     }
 
-    private IEnumerable<string> GetCollectionEntries() =>
+    private IEnumerable<string> GetCollectionEntries(CollectionEntryKind kind) =>
         Directory.EnumerateDirectories(_currentPath)
+            .Select(path => {
+                EnsureCollectionSettings(path);
+                return path;
+            })
+            .Where(path => GetCollectionEntryKind(path) == kind)
             .Where(path => !IsCategoryFolderName(Path.GetFileName(path)))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderBy(Path.GetFileName, new NaturalStringComparer()!);
+
+    private IEnumerable<string> GetCollectionEntriesForCategory(CollectionCategory category) =>
+        GetCollectionEntries(GetCollectionEntryKind(category));
 
     private IEnumerable<CategoryState> GetCategoryStates() =>
         Categories
             .Select(category => new CategoryState(category, CountFilesForCategory(category)))
             .OrderBy(state => state.Category.Name, new NaturalStringComparer()!);
 
-    private int CountFilesForCategory(CollectionCategory category) => GetFilesForCategory(category).Count();
+    private int CountFilesForCategory(CollectionCategory category) =>
+        GetFilesForCategory(category).Count() + GetCollectionEntriesForCategory(category).Count();
 
     private IEnumerable<string> GetFilesForCategory(CollectionCategory category) {
 
@@ -249,14 +260,21 @@ internal class Collections : Viewport {
 
         var name = Path.GetFileName(path);
         const float iconWidth = 20f;
+        const float thumbnailSize = 16f;
         var startX = GetCursorPosX();
+        var color = GetCollectionColor();
 
         PushFont(Fonts.ImFontAwesomeNormal);
-        DrawIcon(Icons.FaFolder, new Vector4(1f, 0.8f, 0.2f, 1f), startX, iconWidth);
+
+        if (!TryDrawCollectionThumbnail(path, startX, iconWidth, thumbnailSize))
+            DrawIcon(Icons.FaFolder, color, startX, iconWidth);
+
         PopFont();
 
         SameLine(startX + iconWidth + 5f);
+        PushStyleColor(ImGuiCol.Text, color);
         var clicked = Selectable(name, false, ImGuiSelectableFlags.None, new Vector2(GetContentRegionAvail().X, 0f));
+        PopStyleColor();
         DrawEntryContextMenu(path, isDirectory: true);
 
         if (!clicked) return;
@@ -275,7 +293,7 @@ internal class Collections : Viewport {
         PushFont(Fonts.ImFontAwesomeNormal);
 
         var color = count > 0
-            ? new Vector4(0.75f, 0.9f, 1f, 1f)
+            ? GetCollectionColor()
             : new Vector4(0.45f, 0.45f, 0.45f, 1f);
 
         DrawIcon(Icons.FaFolder, color, startX, iconWidth);
@@ -285,8 +303,10 @@ internal class Collections : Viewport {
 
         if (count == 0) BeginDisabled();
 
+        PushStyleColor(ImGuiCol.Text, color);
         var clicked = Selectable(ChildCollectionsLabel, _showChildCollections, ImGuiSelectableFlags.None, new Vector2(GetContentRegionAvail().X, 0f));
-        DrawRightAlignedCount(count);
+        PopStyleColor();
+        DrawRightAlignedCount(count, color);
 
         if (count == 0) EndDisabled();
         if (!clicked) return;
@@ -304,7 +324,7 @@ internal class Collections : Viewport {
         PushFont(Fonts.ImFontAwesomeNormal);
 
         var color = state.Count > 0
-            ? new Vector4(0.75f, 0.9f, 1f, 1f)
+            ? GetCategoryColor(state.Category)
             : new Vector4(0.45f, 0.45f, 0.45f, 1f);
 
         DrawIcon(state.Category.Icon, color, startX, iconWidth);
@@ -321,8 +341,10 @@ internal class Collections : Viewport {
             PushStyleColor(ImGuiCol.HeaderActive, Colors.GuiButtonActive.ToVector4());
         }
 
+        PushStyleColor(ImGuiCol.Text, color);
         var clicked = Selectable(state.Category.Name, isSelected, ImGuiSelectableFlags.None, new Vector2(GetContentRegionAvail().X, 0f));
-        DrawRightAlignedCount(state.Count);
+        PopStyleColor();
+        DrawRightAlignedCount(state.Count, color);
 
         if (isSelected) PopStyleColor(3);
         if (state.Count == 0) EndDisabled();
@@ -345,12 +367,13 @@ internal class Collections : Viewport {
         PushFont(Fonts.ImFontAwesomeNormal);
 
         if (!TryDrawThumbnail(path, startX, iconWidth, thumbnailSize))
-            DrawFileIcon(path, startX, iconWidth);
+            DrawFileIcon(path, startX, iconWidth, GetFileColor(path));
 
         PopFont();
 
         SameLine(startX + iconWidth + 5f);
         var isSelected = string.Equals(_selectedPath, path, StringComparison.OrdinalIgnoreCase);
+        var color = GetFileColor(path);
 
         if (isSelected) {
             PushStyleColor(ImGuiCol.Header, Colors.GuiButtonActive.ToVector4());
@@ -358,7 +381,9 @@ internal class Collections : Viewport {
             PushStyleColor(ImGuiCol.HeaderActive, Colors.GuiButtonActive.ToVector4());
         }
 
+        PushStyleColor(ImGuiCol.Text, color);
         var clicked = Selectable(name, isSelected, ImGuiSelectableFlags.None, new Vector2(GetContentRegionAvail().X, 0f));
+        PopStyleColor();
         DrawEntryContextMenu(path, isDirectory: false);
 
         if (isSelected) PopStyleColor(3);
@@ -393,12 +418,14 @@ internal class Collections : Viewport {
         return true;
     }
 
-    private void DrawFileIcon(string path, float startX, float iconWidth) {
+    private void DrawFileIcon(string path, float startX, float iconWidth, Vector4 color) {
 
         var icon = GetFileIcon(path);
         var iconSize = CalcTextSize(icon);
         SetCursorPosX(startX + (iconWidth - iconSize.X) * 0.5f);
+        PushStyleColor(ImGuiCol.Text, color);
         Text(icon);
+        PopStyleColor();
     }
 
     private void DrawIcon(string icon, Vector4 color, float startX, float iconWidth) {
@@ -410,7 +437,7 @@ internal class Collections : Viewport {
         PopStyleColor();
     }
 
-    private void DrawRightAlignedCount(int count) {
+    private void DrawRightAlignedCount(int count, Vector4 color) {
 
         var text = count.ToString();
         var textSize = CalcTextSize(text);
@@ -420,7 +447,7 @@ internal class Collections : Viewport {
         const float countColumnWidth = 24f;
         var columnLeft = max.X - rightPadding - countColumnWidth;
         var pos = new Vector2(columnLeft + (countColumnWidth - textSize.X) * 0.5f, min.Y + (GetItemRectSize().Y - textSize.Y) * 0.5f);
-        var color = new Vector4(0.7f, 0.7f, 0.7f, 0.65f);
+        color.W = 0.72f;
 
         GetWindowDrawList().AddText(pos, ColorConvertFloat4ToU32(color), text);
     }
@@ -546,6 +573,14 @@ internal class Collections : Viewport {
         if (!BeginPopupContextItem($"Context::{path}")) return;
 
         if (MenuItem("Rename")) OpenRenamePopup(path, isDirectory);
+        if (isDirectory && BeginMenu("Set As")) {
+            if (MenuItem("Collection")) SetCollectionType(path, CollectionEntryKind.Collection);
+            foreach (var category in Categories) {
+                if (MenuItem(category.Name[..^1])) SetCollectionType(path, GetCollectionEntryKind(category));
+            }
+            EndMenu();
+        }
+        if (!isDirectory && HasCollectionPreviewCandidate(path) && MenuItem("Set as Collection Preview")) SetCollectionPreview(path);
         if (MenuItem("Delete")) OpenDeletePopup(path, isDirectory);
 
         EndPopup();
@@ -573,6 +608,39 @@ internal class Collections : Viewport {
         _deleteTargetIsDirectory = isDirectory;
         _deletePopupPosition = GetMousePos() + new Vector2(0f, 4f);
         _openDeletePopup = true;
+    }
+
+    private void SetCollectionPreview(string path) {
+
+        if (IsAtCollectionsRoot) {
+            Notifications.Show("Set preview failed: Open a collection first.");
+            return;
+        }
+
+        try {
+            EnsureCollectionSettings(_currentPath);
+            var settingsPath = GetCollectionSettingsPath(_currentPath);
+            var settings = ReadCollectionSettings(_currentPath);
+            settings.PreviewPath = Path.GetRelativePath(_currentPath, path).Replace('\\', '/');
+            File.WriteAllText(settingsPath, JsonConvert.SerializeObject(settings, Formatting.Indented));
+            Notifications.Show($"Collection preview set to '{Path.GetFileName(path)}'.");
+        } catch (Exception e) {
+            Notifications.Show($"Set preview failed: {e.Message}");
+        }
+    }
+
+    private void SetCollectionType(string path, CollectionEntryKind kind) {
+
+        try {
+            EnsureCollectionSettings(path);
+            var settingsPath = GetCollectionSettingsPath(path);
+            var settings = ReadCollectionSettings(path);
+            settings.Type = GetCollectionTypeName(kind);
+            File.WriteAllText(settingsPath, JsonConvert.SerializeObject(settings, Formatting.Indented));
+            Notifications.Show($"Collection type set to '{GetCollectionTypeName(kind)}'.");
+        } catch (Exception e) {
+            Notifications.Show($"Set collection type failed: {e.Message}");
+        }
     }
 
     private void ApplyRename() {
@@ -677,6 +745,7 @@ internal class Collections : Viewport {
             switch (type) {
                 case CreateItemType.Collection:
                     Directory.CreateDirectory(path);
+                    EnsureCollectionSettings(path);
                     Notifications.Show($"Collection '{trimmedName}' created.");
                     return true;
                 case CreateItemType.Level:
@@ -724,6 +793,66 @@ internal class Collections : Viewport {
     private static bool IsCategoryFolderName(string? name) =>
         !string.IsNullOrEmpty(name) && Categories.Any(category => string.Equals(category.Name, name, StringComparison.OrdinalIgnoreCase));
 
+    private void EnsureCollectionSettings(string collectionPath) {
+
+        if (!Directory.Exists(collectionPath)) return;
+        if (string.Equals(Path.GetFullPath(collectionPath), Path.GetFullPath(_collectionsRoot), StringComparison.OrdinalIgnoreCase)) return;
+
+        var settingsPath = GetCollectionSettingsPath(collectionPath);
+        if (File.Exists(settingsPath)) return;
+
+        File.WriteAllText(settingsPath, JsonConvert.SerializeObject(new CollectionSettings(), Formatting.Indented));
+    }
+
+    private static string GetCollectionSettingsPath(string collectionPath) => Path.Combine(collectionPath, "Collection.json");
+
+    private static CollectionSettings ReadCollectionSettings(string collectionPath) {
+
+        var settingsPath = GetCollectionSettingsPath(collectionPath);
+        if (!File.Exists(settingsPath)) return new CollectionSettings();
+
+        return JsonConvert.DeserializeObject<CollectionSettings>(File.ReadAllText(settingsPath)) ?? new CollectionSettings();
+    }
+
+    private CollectionEntryKind GetCollectionEntryKind(string collectionPath) {
+
+        if (IsAtCollectionsRoot && string.Equals(Path.GetFullPath(collectionPath), Path.GetFullPath(_collectionsRoot), StringComparison.OrdinalIgnoreCase))
+            return CollectionEntryKind.Collection;
+
+        var settings = ReadCollectionSettings(collectionPath);
+        return ParseCollectionEntryKind(settings.Type);
+    }
+
+    private static CollectionEntryKind GetCollectionEntryKind(CollectionCategory category) => category.Name switch {
+        "Levels" => CollectionEntryKind.Level,
+        "Materials" => CollectionEntryKind.Material,
+        "Models" => CollectionEntryKind.Model,
+        "Prefabs" => CollectionEntryKind.Prefab,
+        "Scripts" => CollectionEntryKind.Script,
+        "Textures" => CollectionEntryKind.Texture,
+        _ => CollectionEntryKind.Collection
+    };
+
+    private static CollectionEntryKind ParseCollectionEntryKind(string? type) => type switch {
+        "Levels" => CollectionEntryKind.Level,
+        "Materials" => CollectionEntryKind.Material,
+        "Models" => CollectionEntryKind.Model,
+        "Prefabs" => CollectionEntryKind.Prefab,
+        "Scripts" => CollectionEntryKind.Script,
+        "Textures" => CollectionEntryKind.Texture,
+        _ => CollectionEntryKind.Collection
+    };
+
+    private static string GetCollectionTypeName(CollectionEntryKind kind) => kind switch {
+        CollectionEntryKind.Level => "Levels",
+        CollectionEntryKind.Material => "Materials",
+        CollectionEntryKind.Model => "Models",
+        CollectionEntryKind.Prefab => "Prefabs",
+        CollectionEntryKind.Script => "Scripts",
+        CollectionEntryKind.Texture => "Textures",
+        _ => "Collection"
+    };
+
     private static bool IsSidecarMetaFile(string path) {
 
         if (!path.EndsWith(".json", StringComparison.OrdinalIgnoreCase)) return false;
@@ -747,6 +876,30 @@ internal class Collections : Viewport {
 
         return Icons.FaFile;
     }
+
+    private static Vector4 GetFileColor(string path) {
+
+        if (IsLevel(path)) return new Vector4(0.93f, 0.59f, 0.37f, 1f);
+        if (IsMaterial(path)) return new Vector4(0.95f, 0.77f, 0.33f, 1f);
+        if (IsTexture(path)) return new Vector4(0.47f, 0.88f, 0.62f, 1f);
+        if (IsScript(path)) return new Vector4(0.47f, 0.78f, 0.95f, 1f);
+        if (IsPrefab(path)) return new Vector4(0.82f, 0.58f, 0.93f, 1f);
+        if (IsModel(path)) return new Vector4(0.52f, 0.86f, 0.96f, 1f);
+
+        return new Vector4(0.8f, 0.8f, 0.8f, 1f);
+    }
+
+    private static Vector4 GetCollectionColor() => new(1f, 0.8f, 0.2f, 1f);
+
+    private static Vector4 GetCategoryColor(CollectionCategory category) => category.Name switch {
+        "Levels" => new Vector4(0.93f, 0.59f, 0.37f, 1f),
+        "Materials" => new Vector4(0.95f, 0.77f, 0.33f, 1f),
+        "Textures" => new Vector4(0.47f, 0.88f, 0.62f, 1f),
+        "Scripts" => new Vector4(0.47f, 0.78f, 0.95f, 1f),
+        "Prefabs" => new Vector4(0.82f, 0.58f, 0.93f, 1f),
+        "Models" => new Vector4(0.52f, 0.86f, 0.96f, 1f),
+        _ => new Vector4(0.75f, 0.9f, 1f, 1f)
+    };
 
     private static bool IsLevel(string path) => path.EndsWith(".level.json", StringComparison.OrdinalIgnoreCase);
     private static bool IsMaterial(string path) => path.EndsWith(".material.json", StringComparison.OrdinalIgnoreCase);
@@ -832,6 +985,44 @@ internal class Collections : Viewport {
         return new string(buffer[..count]);
     }
 
+    private bool TryDrawCollectionThumbnail(string collectionPath, float startX, float iconWidth, float thumbnailSize) {
+
+        var thumbTex = GetCollectionThumbnail(collectionPath);
+
+        if (!thumbTex.HasValue || thumbTex.Value.Id == 0) return false;
+
+        var tex = thumbTex.Value;
+        float w = tex.Width;
+        float h = tex.Height;
+
+        var ratio = w / h;
+        var drawW = thumbnailSize;
+        var drawH = thumbnailSize;
+
+        if (w > h)
+            drawH = drawW / ratio;
+        else
+            drawW = drawH * ratio;
+
+        SetCursorPosX(startX + (iconWidth - drawW) * 0.5f);
+        Image((IntPtr)tex.Id, new Vector2(drawW, drawH));
+
+        return true;
+    }
+
+    private Texture2D? GetCollectionThumbnail(string collectionPath) {
+
+        EnsureCollectionSettings(collectionPath);
+
+        var settings = ReadCollectionSettings(collectionPath);
+        if (string.IsNullOrWhiteSpace(settings.PreviewPath)) return null;
+
+        var previewPath = Path.GetFullPath(Path.Combine(collectionPath, settings.PreviewPath));
+        if (!File.Exists(previewPath)) return null;
+
+        return GetThumbnail(previewPath);
+    }
+
     private static Texture2D? GetThumbnail(string path) {
 
         if (IsTexture(path)) {
@@ -847,6 +1038,8 @@ internal class Collections : Viewport {
 
         return null;
     }
+
+    private static bool HasCollectionPreviewCandidate(string path) => IsTexture(path) || IsMaterial(path) || IsModel(path);
 
     private readonly record struct CollectionCategory(string Name, Func<string, bool> Match, string Icon);
     private readonly record struct CategoryState(CollectionCategory Category, int Count);
@@ -869,5 +1062,20 @@ internal class Collections : Viewport {
         Material,
         Script,
         Prefab
+    }
+
+    private sealed class CollectionSettings {
+        public string PreviewPath { get; set; } = "";
+        public string Type { get; set; } = "Collection";
+    }
+
+    private enum CollectionEntryKind {
+        Collection,
+        Level,
+        Material,
+        Model,
+        Prefab,
+        Script,
+        Texture
     }
 }
