@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.IO.Compression;
+using NativeFileDialogNET;
 using static ImGuiNET.ImGui;
 
 internal static class BuildPipeline {
@@ -8,7 +9,7 @@ internal static class BuildPipeline {
 
     private static bool _showBuildModal;
     private static bool _isBuilding;
-    private static string _outputPath = "";
+    private static string _outputDirectory = "";
 
     public static void DrawMenu() {
 
@@ -22,7 +23,7 @@ internal static class BuildPipeline {
 
     private static void OpenBuildModal() {
 
-        _outputPath = GetDefaultOutputPath();
+        _outputDirectory = GetDefaultOutputDirectory();
         _showBuildModal = true;
     }
 
@@ -34,15 +35,23 @@ internal static class BuildPipeline {
 
         TextWrapped("Build a single runtime executable. Scripts are bundled from Assembly/Scripts.dll, and assets are packed from the project files and the Imports cache.");
         Spacing();
-        Text("Output executable");
-        SetNextItemWidth(520);
-        InputText("##BuildOutputPath", ref _outputPath, 1024);
+        Text("Output folder");
+        SetNextItemWidth(420);
+        InputText("##BuildOutputDirectory", ref _outputDirectory, 1024);
+        SameLine();
+        if (Button("Browse...", new System.Numerics.Vector2(100, 0))) {
+            var selectedDirectory = BrowseForOutputDirectory(_outputDirectory);
+            if (!string.IsNullOrWhiteSpace(selectedDirectory)) _outputDirectory = selectedDirectory;
+        }
 
-        var canBuild = !_isBuilding && !string.IsNullOrWhiteSpace(_outputPath);
+        Spacing();
+        TextWrapped($"Executable: {Path.Combine(string.IsNullOrWhiteSpace(_outputDirectory) ? "." : _outputDirectory, GetRuntimeExeName())}");
+
+        var canBuild = !_isBuilding && !string.IsNullOrWhiteSpace(_outputDirectory);
 
         if (!canBuild) BeginDisabled();
         if (Button("Build", new System.Numerics.Vector2(160, 0))) {
-            StartBuild(_outputPath);
+            StartBuild(_outputDirectory);
             _showBuildModal = false;
             CloseCurrentPopup();
         }
@@ -57,7 +66,7 @@ internal static class BuildPipeline {
         Modal.End();
     }
 
-    private static void StartBuild(string outputPath) {
+    private static void StartBuild(string outputDirectory) {
 
         _isBuilding = true;
 
@@ -78,7 +87,8 @@ internal static class BuildPipeline {
                 });
                 prepDone.Wait();
 
-                outputPath = NormalizeOutputPath(outputPath);
+                outputDirectory = NormalizeOutputDirectory(outputDirectory);
+                var outputPath = Path.Combine(outputDirectory, GetRuntimeExeName());
                 Directory.CreateDirectory(Path.GetDirectoryName(outputPath)!);
                 Directory.CreateDirectory(tempRoot);
 
@@ -90,7 +100,7 @@ internal static class BuildPipeline {
 
                 File.Copy(publishedExe, outputPath, overwrite: true);
                 task.Status = "Success";
-                Notifications.Show($"Build saved: {Path.GetFileName(outputPath)}");
+                Notifications.Show($"Build saved: {outputPath}");
 
             } catch (Exception e) {
                 task.Status = "Fail: " + e.Message;
@@ -216,22 +226,43 @@ internal static class BuildPipeline {
         return true;
     }
 
-    private static string NormalizeOutputPath(string outputPath) {
+    private static string NormalizeOutputDirectory(string outputDirectory) {
 
-        outputPath = outputPath.Trim().Trim('"');
-        if (string.IsNullOrWhiteSpace(outputPath)) throw new InvalidOperationException("Output exe path is required.");
+        outputDirectory = outputDirectory.Trim().Trim('"');
+        if (string.IsNullOrWhiteSpace(outputDirectory)) throw new InvalidOperationException("Output folder is required.");
 
-        if (!outputPath.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)) outputPath += ".exe";
-        return Path.GetFullPath(outputPath);
+        return Path.GetFullPath(outputDirectory);
     }
 
-    private static string GetDefaultOutputPath() {
+    private static string GetDefaultOutputDirectory() {
+
+        return Path.Combine(ScytheConfig.Current.Project, "Build");
+    }
+
+    private static string GetRuntimeExeName() {
 
         var projectName = string.IsNullOrWhiteSpace(ProjectConfig.Current.Name)
             ? new DirectoryInfo(ScytheConfig.Current.Project).Name
             : ProjectConfig.Current.Name;
 
-        return Path.Combine(ScytheConfig.Current.Project, "Build", $"{projectName}.exe");
+        return $"{projectName}.exe";
+    }
+
+    private static string? BrowseForOutputDirectory(string initialDirectory) {
+
+        try {
+            using var dialog = new NativeFileDialog().SelectFolder();
+            var initialPath = string.IsNullOrWhiteSpace(initialDirectory) ? GetDefaultOutputDirectory() : initialDirectory;
+            var result = dialog.Open(out string[]? output, initialPath);
+
+            if (result != DialogResult.Okay || output == null || output.Length == 0) return null;
+
+            return output[0];
+
+        } catch (Exception e) {
+            Notifications.Show($"Folder dialog failed: {e.Message}");
+            return null;
+        }
     }
 
     private static string FindEngineProjectFile() {
