@@ -7,6 +7,7 @@ in vec3 fragPosition;
 uniform samplerCube environmentMap;
 uniform bool vflipped;
 uniform bool doGamma;
+uniform vec4 skyboxTint;
 
 // Output fragment color
 out vec4 finalColor;
@@ -26,5 +27,5 @@ void main()
     }
 
     // Calculate final fragment color
-    finalColor = vec4(color, 1.0);
+    finalColor = vec4(color, 1.0) * skyboxTint;
 }

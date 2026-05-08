@@ -296,21 +296,32 @@ internal static class Core {
             return;
         }
 
-        RenderSettings.AmbientColor = ActiveLevel.AmbientColor;
-
         var guid = ActiveLevel.Skybox ?? "";
         var path = ActiveLevel.SkyboxPath ?? "";
         var textureAsset = AssetManager.ResolveReference<TextureAsset>(ref guid, ref path);
         ActiveLevel.Skybox = guid;
         ActiveLevel.SkyboxPath = path;
 
+        RenderSettings.AmbientColor = ActiveLevel.AmbientColor;
+
         if (textureAsset is not { IsLoaded: true } || string.IsNullOrWhiteSpace(textureAsset.GUID)) {
             UnloadSkyboxTexture();
             return;
         }
 
-        if (string.Equals(_loadedSkyboxGuid, textureAsset.GUID, StringComparison.OrdinalIgnoreCase) && _skyboxTexture.Id != 0)
+        var isSameSkyboxLoaded = string.Equals(_loadedSkyboxGuid, textureAsset.GUID, StringComparison.OrdinalIgnoreCase) && _skyboxTexture.Id != 0;
+
+        if (isSameSkyboxLoaded) {
+            if (ActiveLevel.SkyboxAmbientEnabled) {
+                var ambientImage = LoadImage(textureAsset.File);
+                if (ambientImage.Data != null) {
+                    RenderSettings.AmbientColor = GetSkyboxAmbientColor(ambientImage, ActiveLevel.SkyboxAmbientIntensity);
+                    UnloadImage(ambientImage);
+                }
+            }
+
             return;
+        }
 
         UnloadSkyboxTexture();
 
@@ -318,9 +329,48 @@ internal static class Core {
         if (image.Data == null) return;
 
         _skyboxTexture = LoadTextureCubemap(image, CubemapLayout.AutoDetect);
+        if (ActiveLevel.SkyboxAmbientEnabled)
+            RenderSettings.AmbientColor = GetSkyboxAmbientColor(image, ActiveLevel.SkyboxAmbientIntensity);
+
         UnloadImage(image);
         _skyboxModel.Materials[0].Maps[(int)MaterialMapIndex.Cubemap].Texture = _skyboxTexture;
         _loadedSkyboxGuid = textureAsset.GUID;
+    }
+
+    private static unsafe Color GetSkyboxAmbientColor(Image image, float intensity) {
+
+        intensity = Math.Clamp(intensity, 0.0f, 1.0f);
+        var colors = LoadImageColors(image);
+        if (colors == null) return Color.White;
+
+        try {
+            var pixelCount = image.Width * image.Height;
+            if (pixelCount <= 0) return Color.White;
+
+            long totalR = 0;
+            long totalG = 0;
+            long totalB = 0;
+
+            for (var i = 0; i < pixelCount; i++) {
+                totalR += colors[i].R;
+                totalG += colors[i].G;
+                totalB += colors[i].B;
+            }
+
+            var avgR = (float)totalR / pixelCount;
+            var avgG = (float)totalG / pixelCount;
+            var avgB = (float)totalB / pixelCount;
+
+            return new Color(
+                (byte)Math.Clamp(avgR * intensity, 0f, 255f),
+                (byte)Math.Clamp(avgG * intensity, 0f, 255f),
+                (byte)Math.Clamp(avgB * intensity, 0f, 255f),
+                (byte)255
+            );
+
+        } finally {
+            UnloadImageColors(colors);
+        }
     }
 
     private static unsafe void UnloadSkyboxTexture() {
@@ -338,12 +388,13 @@ internal static class Core {
 
     public static void Load() {
 
-        if (ActiveLevel == null) return;
+        var activeLevel = ActiveLevel;
+        if (activeLevel == null) return;
 
         IsLoadingLevel = true;
 
         try {
-            LoadObj(ActiveLevel.Root);
+            LoadObj(activeLevel.Root);
         } finally {
             IsLoadingLevel = false;
         }
@@ -557,22 +608,26 @@ internal static class Core {
         for (var i = 0; i < Lights.Count; i++) Lights[i].Update(i);
     }
 
-    public static void Render(bool is2D) {
+    public static unsafe void Render(bool is2D) {
 
-        if (ActiveLevel == null) return;
+        var activeLevel = ActiveLevel;
+        if (activeLevel == null) return;
 
         if (!is2D) {
 
             if (_skyboxTexture.Id != 0) {
                 Rlgl.DisableBackfaceCulling();
                 Rlgl.DisableDepthMask();
-                DrawModel(_skyboxModel, Vector3.Zero, 1.0f, Color.White);
+                var skyboxShader = _skyboxModel.Materials[0].Shader;
+                var skyboxTintLoc = GetShaderLocation(skyboxShader, "skyboxTint");
+                if (skyboxTintLoc != -1) SetShaderValue(skyboxShader, skyboxTintLoc, ColorNormalize(activeLevel.SkyboxTint), ShaderUniformDataType.Vec4);
+                DrawModel(_skyboxModel, Vector3.Zero, 1.0f, activeLevel.SkyboxTint);
                 Rlgl.EnableBackfaceCulling();
                 Rlgl.EnableDepthMask();
             }
         }
 
-        RenderHierarchy(ActiveLevel.Root, is2D, false);
+        RenderHierarchy(activeLevel.Root, is2D, false);
 
         if (!is2D) {
 

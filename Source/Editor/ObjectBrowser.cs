@@ -726,16 +726,19 @@ internal class ObjectBrowser : Viewport {
         const float iconWidth = 20f;
         const float thumbnailSize = 16f;
         var startX = GetCursorPosX();
+        var color = Vector4.One;
 
         PushFont(Fonts.ImFontAwesomeSmall);
         if (!TryDrawPickerCollectionThumbnail(collectionPath, startX, iconWidth, thumbnailSize))
-            DrawPickerIcon(Icons.FaArchive, Colors.GuiCollection.ToVector4(), startX, iconWidth);
+            DrawPickerIcon(Icons.FaArchive, color, startX, iconWidth);
         PopFont();
         SameLine(startX + iconWidth + 5f);
 
         var label = CollectionData.GetCollectionDisplayName(collectionPath);
+        PushStyleColor(ImGuiCol.Text, color);
 
         if (Selectable(label, false, ImGuiSelectableFlags.None, new Vector2(GetContentRegionAvail().X, 0f))) {
+            PopStyleColor();
 
             if (CollectionData.TryGetCollectionSelectionValue(collectionPath, pickerType, out var selectedValue)) {
                 ApplyPickerValue(selectedValue, ref value, targets, propName, ref changed, ref deactivated);
@@ -747,7 +750,10 @@ internal class ObjectBrowser : Viewport {
             state.CurrentPath = collectionPath;
             state.ShowChildCollections = false;
             state.ActiveCategory = null;
+            return;
         }
+
+        PopStyleColor();
     }
 
     private void DrawPickerFileEntry(string path, string pickerType, ref object? value, List<object> targets, string? propName, ref bool changed, ref bool deactivated) {
@@ -891,8 +897,11 @@ internal class ObjectBrowser : Viewport {
         var levelName = CollectionData.GetLevelDisplayName(path);
         var skyboxGuid = raw["Skybox"]?.ToObject<string>() ?? "";
         var skyboxPath = raw["SkyboxPath"]?.ToObject<string>() ?? "";
+        var skyboxTint = raw["SkyboxTint"]?.ToObject<Color?>() ?? Color.White;
         var backgroundColor = raw["BackgroundColor"]?.ToObject<Color?>() ?? new Color(25, 25, 25, 255);
         var ambientColor = raw["AmbientColor"]?.ToObject<Color?>() ?? Color.White;
+        var skyboxAmbientEnabled = raw["SkyboxAmbientEnabled"]?.ToObject<bool?>() ?? false;
+        var skyboxAmbientIntensity = Math.Clamp(raw["SkyboxAmbientIntensity"]?.ToObject<float?>() ?? 1.0f, 0.0f, 1.0f);
 
         PushID(levelAsset.GUID);
         DrawSectionHeader("Level Asset", Icons.FaMap, Colors.GuiCollectionLevel, out var open);
@@ -916,7 +925,17 @@ internal class ObjectBrowser : Viewport {
                     : "";
                 raw["Skybox"] = skyboxGuid;
                 raw["SkyboxPath"] = skyboxPath;
-                SaveLevelAssetSettings(levelAsset, raw, skyboxGuid, skyboxPath, backgroundColor, ambientColor);
+                SaveLevelAssetSettings(levelAsset, raw, skyboxGuid, skyboxPath, skyboxTint, backgroundColor, ambientColor, skyboxAmbientEnabled, skyboxAmbientIntensity);
+            }
+
+            DrawShadowedLabel("Skybox Tint");
+            object? tint = skyboxTint;
+            var (skyboxTintChanged, _) = DrawInspectorField("LevelAssetSkyboxTint", ref tint, typeof(Color), [], null);
+
+            if (skyboxTintChanged) {
+                skyboxTint = (Color)tint!;
+                raw["SkyboxTint"] = Newtonsoft.Json.Linq.JToken.FromObject(skyboxTint);
+                SaveLevelAssetSettings(levelAsset, raw, skyboxGuid, skyboxPath, skyboxTint, backgroundColor, ambientColor, skyboxAmbientEnabled, skyboxAmbientIntensity);
             }
 
             DrawShadowedLabel("Background Color");
@@ -926,7 +945,7 @@ internal class ObjectBrowser : Viewport {
             if (backgroundChanged) {
                 backgroundColor = (Color)background!;
                 raw["BackgroundColor"] = Newtonsoft.Json.Linq.JToken.FromObject(backgroundColor);
-                SaveLevelAssetSettings(levelAsset, raw, skyboxGuid, skyboxPath, backgroundColor, ambientColor);
+                SaveLevelAssetSettings(levelAsset, raw, skyboxGuid, skyboxPath, skyboxTint, backgroundColor, ambientColor, skyboxAmbientEnabled, skyboxAmbientIntensity);
             }
 
             DrawShadowedLabel("Ambient Color");
@@ -936,7 +955,27 @@ internal class ObjectBrowser : Viewport {
             if (ambientChanged) {
                 ambientColor = (Color)ambient!;
                 raw["AmbientColor"] = Newtonsoft.Json.Linq.JToken.FromObject(ambientColor);
-                SaveLevelAssetSettings(levelAsset, raw, skyboxGuid, skyboxPath, backgroundColor, ambientColor);
+                SaveLevelAssetSettings(levelAsset, raw, skyboxGuid, skyboxPath, skyboxTint, backgroundColor, ambientColor, skyboxAmbientEnabled, skyboxAmbientIntensity);
+            }
+
+            DrawShadowedLabel("Skybox Ambient");
+            object? skyboxAmbient = skyboxAmbientEnabled;
+            var (skyboxAmbientChanged, _) = DrawInspectorField("LevelAssetSkyboxAmbientEnabled", ref skyboxAmbient, typeof(bool), [], null);
+
+            if (skyboxAmbientChanged) {
+                skyboxAmbientEnabled = (bool)skyboxAmbient!;
+                raw["SkyboxAmbientEnabled"] = skyboxAmbientEnabled;
+                SaveLevelAssetSettings(levelAsset, raw, skyboxGuid, skyboxPath, skyboxTint, backgroundColor, ambientColor, skyboxAmbientEnabled, skyboxAmbientIntensity);
+            }
+
+            DrawShadowedLabel("Skybox Ambient Intensity");
+            object? skyboxAmbientIntensityValue = skyboxAmbientIntensity;
+            var (skyboxAmbientIntensityChanged, _) = DrawInspectorField("LevelAssetSkyboxAmbientIntensity", ref skyboxAmbientIntensityValue, typeof(float), [], null);
+
+            if (skyboxAmbientIntensityChanged) {
+                skyboxAmbientIntensity = Math.Clamp((float)skyboxAmbientIntensityValue!, 0.0f, 1.0f);
+                raw["SkyboxAmbientIntensity"] = skyboxAmbientIntensity;
+                SaveLevelAssetSettings(levelAsset, raw, skyboxGuid, skyboxPath, skyboxTint, backgroundColor, ambientColor, skyboxAmbientEnabled, skyboxAmbientIntensity);
             }
 
             Columns(1);
@@ -947,7 +986,7 @@ internal class ObjectBrowser : Viewport {
         PopID();
     }
 
-    private static void SaveLevelAssetSettings(LevelAsset levelAsset, Newtonsoft.Json.Linq.JObject raw, string skyboxGuid, string skyboxPath, Color backgroundColor, Color ambientColor) {
+    private static void SaveLevelAssetSettings(LevelAsset levelAsset, Newtonsoft.Json.Linq.JObject raw, string skyboxGuid, string skyboxPath, Color skyboxTint, Color backgroundColor, Color ambientColor, bool skyboxAmbientEnabled, float skyboxAmbientIntensity) {
 
         File.WriteAllText(levelAsset.File, raw.ToString(Newtonsoft.Json.Formatting.Indented));
         AssetManager.ReloadAsset(levelAsset);
@@ -957,8 +996,11 @@ internal class ObjectBrowser : Viewport {
 
         Core.ActiveLevel.Skybox = skyboxGuid;
         Core.ActiveLevel.SkyboxPath = skyboxPath;
+        Core.ActiveLevel.SkyboxTint = skyboxTint;
         Core.ActiveLevel.BackgroundColor = backgroundColor;
         Core.ActiveLevel.AmbientColor = ambientColor;
+        Core.ActiveLevel.SkyboxAmbientEnabled = skyboxAmbientEnabled;
+        Core.ActiveLevel.SkyboxAmbientIntensity = skyboxAmbientIntensity;
         Core.ApplyLevelVisualSettings();
     }
 

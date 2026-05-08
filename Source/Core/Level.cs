@@ -72,8 +72,11 @@ internal class Level {
     public bool IsDirty { get; set; }
     [JsonProperty] public string Skybox { get; set; } = "";
     [JsonProperty] public string SkyboxPath { get; set; } = "";
+    [JsonProperty] public Color SkyboxTint { get; set; } = Color.White;
     [JsonProperty] public Color BackgroundColor { get; set; } = new Color(25, 25, 25, 255);
     [JsonProperty] public Color AmbientColor { get; set; } = Color.White;
+    [JsonProperty] public bool SkyboxAmbientEnabled { get; set; }
+    [JsonProperty] public float SkyboxAmbientIntensity { get; set; } = 1.0f;
 
     [JsonProperty] public readonly Obj Root = null!;
     [JsonProperty] public CameraData? EditorCamera;
@@ -137,6 +140,12 @@ internal class Level {
                 GUID = rawData["GUID"]?.Value<string>() ?? GUID;
                 Skybox = rawData["Skybox"]?.Value<string>() ?? "";
                 SkyboxPath = rawData["SkyboxPath"]?.Value<string>() ?? "";
+                if (rawData["SkyboxTint"] is JObject skyboxTintJson) {
+                    var parsedSkyboxTint = skyboxTintJson.ToObject<Color?>();
+                    if (parsedSkyboxTint.HasValue) SkyboxTint = parsedSkyboxTint.Value;
+                }
+                SkyboxAmbientEnabled = rawData["SkyboxAmbientEnabled"]?.Value<bool>() ?? false;
+                SkyboxAmbientIntensity = Math.Clamp(rawData["SkyboxAmbientIntensity"]?.Value<float>() ?? 1.0f, 0.0f, 1.0f);
 
                 if (rawData["BackgroundColor"] is JObject backgroundColorJson) {
                     var parsedBackgroundColor = backgroundColorJson.ToObject<Color?>();

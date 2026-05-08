@@ -19,7 +19,7 @@
         },
         "Components": {
           "Model": {
-            "GUID": "2cd053e9959f4b91ba52c0cb4d7826a7",
+            "GUID": "2cd053e9959f4b91ba52c0cb4d7826a6",
             "Path": "Collection/Cube.fbx",
             "Color": {
               "R": 255,
@@ -91,7 +91,8 @@
                               },
                               "Script": {
                                 "GUID": "",
-                                "Path": "Scripts/PistolAnimation.cs"
+                                "Path": "Scripts/PistolAnimation.cs",
+                                "Exposed": {}
                               }
                             }
                           }
@@ -130,7 +131,8 @@
                     "Components": {
                       "Script": {
                         "GUID": "",
-                        "Path": "Scripts/HeadBob.cs"
+                        "Path": "Scripts/HeadBob.cs",
+                        "Exposed": {}
                       }
                     }
                   }
@@ -149,7 +151,8 @@
                 "Components": {
                   "Script": {
                     "GUID": "",
-                    "Path": "Scripts/PlayerRotation.cs"
+                    "Path": "Scripts/PlayerRotation.cs",
+                    "Exposed": {}
                   }
                 }
               }
@@ -206,7 +209,8 @@
           },
           "Script": {
             "GUID": "",
-            "Path": "Scripts/PlayerMovement.cs"
+            "Path": "Scripts/PlayerMovement.cs",
+            "Exposed": {}
           }
         }
       },
@@ -313,5 +317,27 @@
       "Y": 0.013799977
     }
   },
-  "GUID": "2a1ba6d01f0e4ddabcfa301ed352494d"
+  "GUID": "2a1ba6d01f0e4ddabcfa301ed352494d",
+  "Skybox": "b57693aa47c14d5092981ba7774575f3",
+  "SkyboxPath": "Collection/Skyboxes/Sky 11.png",
+  "SkyboxTint": {
+    "R": 255,
+    "G": 255,
+    "B": 255,
+    "A": 255
+  },
+  "BackgroundColor": {
+    "R": 25,
+    "G": 25,
+    "B": 25,
+    "A": 255
+  },
+  "AmbientColor": {
+    "R": 255,
+    "G": 255,
+    "B": 255,
+    "A": 255
+  },
+  "SkyboxAmbientEnabled": true,
+  "SkyboxAmbientIntensity": 1.0
 }

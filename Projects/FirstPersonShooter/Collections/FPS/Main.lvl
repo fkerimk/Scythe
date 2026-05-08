@@ -318,8 +318,14 @@
     }
   },
   "GUID": "1a1ba6d01f0e4ddabcfa301ed352494d",
-  "Skybox": "643dccbff08a40c6af7323e834ab7aab",
-  "SkyboxPath": "Collection/Skyboxes/Sky 1.png",
+  "Skybox": "465b2a89cb5945d487d669c1c2150492",
+  "SkyboxPath": "Collection/Skyboxes/Sky 13.png",
+  "SkyboxTint": {
+    "R": 255,
+    "G": 255,
+    "B": 255,
+    "A": 255
+  },
   "BackgroundColor": {
     "R": 25,
     "G": 25,
@@ -331,5 +337,7 @@
     "G": 255,
     "B": 255,
     "A": 255
-  }
+  },
+  "SkyboxAmbientEnabled": true,
+  "SkyboxAmbientIntensity": 1.0
 }
