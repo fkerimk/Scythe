@@ -28,7 +28,7 @@ internal static class Splash {
         Init();
         if (_tex.Id == 0) return;
 
-        float time = 0;
+        double startTime = GetTime();
 
         while (!WindowShouldClose()) {
             
@@ -39,10 +39,8 @@ internal static class Splash {
 
             RenderSingleFrame();
             
-            time += GetFrameTime();
-
             // Exit when the minimum 2s Duration passed AND Background tasks (Importing Assets) finished entirely
-            if (!IsLoading && time >= Duration) break;
+            if (!IsLoading && (GetTime() - startTime) >= Duration) break;
         }
     }
 

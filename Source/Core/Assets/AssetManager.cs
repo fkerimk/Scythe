@@ -77,6 +77,8 @@ internal static class AssetManager {
                 ImportFile(Path.GetFullPath(totalFiles[i]));
                 task.Progress = (float)(i + 1) / totalFiles.Count;
                 task.Status = Path.GetFileName(totalFiles[i]);
+
+                if (!CommandLine.NoSplash && i % 5 == 0) Splash.RenderSingleFrame();
             }
 
             task.Progress = 1f;

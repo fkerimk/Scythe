@@ -38,6 +38,8 @@ internal static class Core {
 
     public static unsafe void Init() {
 
+        if (!CommandLine.NoSplash) Splash.RenderSingleFrame();
+
         // Physics
         Physics.Init();
 
