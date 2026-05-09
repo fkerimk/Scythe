@@ -109,38 +109,88 @@ internal static class AssetManager {
         return full.StartsWith(importsFull, StringComparison.OrdinalIgnoreCase);
     }
 
-    private static void HandleFileChange(string file) {
+    private static string NormalizeWatchPath(string path) =>
+        Path.GetFullPath(path).Replace('\\', '/').ToLowerInvariant();
 
-        if (IsImportsPath(file)) return;
+    private static List<KeyValuePair<string, Asset>> GetAssetsWatchingPath(string path) {
+        var normalized = NormalizeWatchPath(path);
+        return Assets.Where(kvp => kvp.Value.GetWatchedFiles().Any(watched => NormalizeWatchPath(watched) == normalized)).ToList();
+    }
 
-        var path = file.Replace('\\', '/').ToLowerInvariant();
-        if (ShouldIgnoreChange(path)) return;
+    private static void ReloadTrackedAsset(Asset asset) {
+        asset.Unload();
+        RefreshDependentAssets(asset);
+        ReloadDependentComponents(asset);
+    }
 
-        var toReload = Assets.Where(kvp => kvp.Value.GetWatchedFiles().Any(watched => watched.Replace('\\', '/').ToLowerInvariant() == path)).ToList();
-
-        foreach (var kvp in toReload) {
-
-            kvp.Value.Unload();
-            RefreshDependentAssets(kvp.Value);
-            ReloadDependentComponents(kvp.Value);
-        }
-
+    private static void QueueImportTargets(string file) {
         lock (_pendingFiles) {
             foreach (var importTarget in GetImportTargets(file))
                 if (!_pendingFiles.Contains(importTarget))
                     _pendingFiles.Add(importTarget);
         }
+
         _debounceTime = DateTime.Now.AddMilliseconds(500);
+    }
+
+    private static List<string> DequeuePendingFiles() {
+        lock (_pendingFiles) {
+            var filesToImport = new List<string>(_pendingFiles);
+            _pendingFiles.Clear();
+            return filesToImport;
+        }
+    }
+
+    private static void EnqueueWatcherAction(Action action) =>
+        PendingActions.Enqueue(() => SafeExec.Try(action));
+
+    private static string GetTypePrefix(Type type) => type.Name + "::";
+
+    private static string NormalizeLookupValue(string value) =>
+        value.Replace('\\', '/').ToLowerInvariant();
+
+    private static string NormalizeLookupPath(string path) =>
+        NormalizeLookupValue(Path.GetFullPath(path));
+
+    private static string NormalizeLookupName(string path) =>
+        Path.GetFileNameWithoutExtension(path).ToLowerInvariant();
+
+    private static string GetBuiltInLookupPath(string path) =>
+        NormalizeLookupPath(Path.Combine(PathUtil.GetBuiltInCollectionRoot(), path));
+
+    private static string GetProjectLookupPath(string path) =>
+        Path.GetRelativePath(ScytheConfig.Current.Project, path).Replace('\\', '/').ToLowerInvariant();
+
+    private static string BuildLookupKey(Type type, string value) =>
+        GetTypePrefix(type) + value;
+
+    private static void AddPathLookup(Type type, string value, Asset asset) =>
+        PathLookup[BuildLookupKey(type, value)] = asset;
+
+    private static void AddGuidLookup(Type type, string guid, Asset asset) {
+        if (!string.IsNullOrWhiteSpace(guid))
+            GuidLookup[BuildLookupKey(type, guid.ToLowerInvariant())] = asset;
+    }
+
+    private static T? GetLoadedLookupAsset<T>(Dictionary<string, Asset> source, string key) where T : Asset =>
+        source.TryGetValue(key, out var asset) && asset is T { IsLoaded: true } typedAsset ? typedAsset : null;
+
+    private static void HandleFileChange(string file) {
+
+        if (IsImportsPath(file)) return;
+
+        var normalized = NormalizeWatchPath(file);
+        if (ShouldIgnoreChange(normalized)) return;
+
+        foreach (var (_, asset) in GetAssetsWatchingPath(file))
+            ReloadTrackedAsset(asset);
+
+        QueueImportTargets(file);
     }
 
     private static void StartImportTask() {
 
-        List<string> filesToImport;
-        lock (_pendingFiles) {
-            filesToImport = new List<string>(_pendingFiles);
-            _pendingFiles.Clear();
-        }
-
+        var filesToImport = DequeuePendingFiles();
         if (filesToImport.Count == 0) return;
 
         _importTask = Tasks.Run("Importing Assets", task => {
@@ -186,13 +236,10 @@ internal static class AssetManager {
 
     private static void UnloadAsset(string file) {
 
-        var path     = file.Replace('\\', '/').ToLowerInvariant();
-        var toRemove = Assets.Where(kvp => kvp.Value.GetWatchedFiles().Any(watched => watched.Replace('\\', '/').ToLowerInvariant() == path)).ToList();
+        var toRemove = GetAssetsWatchingPath(file);
 
         foreach (var kvp in toRemove) {
-            kvp.Value.Unload();
-            RefreshDependentAssets(kvp.Value);
-            ReloadDependentComponents(kvp.Value);
+            ReloadTrackedAsset(kvp.Value);
             Assets.Remove(kvp.Key);
             RemoveFromMaps(kvp.Value);
         }
@@ -232,17 +279,13 @@ internal static class AssetManager {
         var watcher = new FileSystemWatcher(path, filter) { IncludeSubdirectories = true };
 
         watcher.NotifyFilter =  NotifyFilters.LastWrite | NotifyFilters.FileName | NotifyFilters.CreationTime;
-        watcher.Changed      += (_, e) => PendingActions.Enqueue(() => { SafeExec.Try(() => onImport(e.FullPath)); });
-        watcher.Created      += (_, e) => PendingActions.Enqueue(() => { SafeExec.Try(() => onImport(e.FullPath)); });
-        watcher.Deleted      += (_, e) => PendingActions.Enqueue(() => { SafeExec.Try(() => onUnload(e.FullPath)); });
-        watcher.Renamed += (_, e) => PendingActions.Enqueue(() => {
-                SafeExec.Try(() => {
-                        onUnload(e.OldFullPath);
-                        onImport(e.FullPath);
-                    }
-                );
-            }
-        );
+        watcher.Changed += (_, e) => EnqueueWatcherAction(() => onImport(e.FullPath));
+        watcher.Created += (_, e) => EnqueueWatcherAction(() => onImport(e.FullPath));
+        watcher.Deleted += (_, e) => EnqueueWatcherAction(() => onUnload(e.FullPath));
+        watcher.Renamed += (_, e) => EnqueueWatcherAction(() => {
+            onUnload(e.OldFullPath);
+            onImport(e.FullPath);
+        });
         watcher.EnableRaisingEvents = true;
 
         Watchers.Add(watcher);
@@ -305,31 +348,30 @@ internal static class AssetManager {
 
         RemoveFromMaps(asset);
 
-        var typePrefix = typeof(T).Name + "::";
-        var full       = Path.GetFullPath(file).Replace('\\', '/').ToLowerInvariant();
-        var name       = Path.GetFileNameWithoutExtension(file).ToLowerInvariant();
+        var assetType = typeof(T);
+        var full = NormalizeLookupPath(file);
+        var name = NormalizeLookupName(file);
 
-        PathLookup[typePrefix + full] = asset;
-        PathLookup[typePrefix + name] = asset;
-        if (!string.IsNullOrWhiteSpace(asset.GUID)) GuidLookup[typePrefix + asset.GUID.ToLowerInvariant()] = asset;
+        AddPathLookup(assetType, full, asset);
+        AddPathLookup(assetType, name, asset);
+        AddGuidLookup(assetType, asset.GUID, asset);
 
         if (full.Contains("/collection/", StringComparison.InvariantCultureIgnoreCase)) {
 
             var idx = full.IndexOf("/collection/", StringComparison.InvariantCultureIgnoreCase);
             var relBuiltIn = full[(idx + 1)..];
-            PathLookup[typePrefix + relBuiltIn] = asset;
+            AddPathLookup(assetType, relBuiltIn, asset);
         }
 
         if (full.Contains(ScytheConfig.Current.Project.Replace('\\', '/'), StringComparison.InvariantCultureIgnoreCase)) {
 
-            var rel = Path.GetRelativePath(ScytheConfig.Current.Project, file).Replace('\\', '/').ToLowerInvariant();
-            PathLookup[typePrefix + rel] = asset;
+            AddPathLookup(assetType, GetProjectLookupPath(file), asset);
         }
 
-        if (!TypeCache.TryGetValue(typeof(T), out var list)) {
+        if (!TypeCache.TryGetValue(assetType, out var list)) {
 
             list                 = [];
-            TypeCache[typeof(T)] = list;
+            TypeCache[assetType] = list;
         }
 
         if (!list.Contains(asset)) list.Add(asset);
@@ -339,19 +381,18 @@ internal static class AssetManager {
 
         if (string.IsNullOrEmpty(name)) return null;
 
-        var req    = name.Replace('\\', '/').ToLowerInvariant();
-        var prefix = typeof(T).Name + "::";
+        var assetType = typeof(T);
+        var req = NormalizeLookupValue(name);
 
-        if (GuidLookup.TryGetValue(prefix + req, out var guidAsset) && guidAsset is T { IsLoaded: true } typedGuidAsset) return typedGuidAsset;
-        if (PathLookup.TryGetValue(prefix + req, out var asset) && asset is T { IsLoaded: true } tAsset) return tAsset;
+        var guidAsset = GetLoadedLookupAsset<T>(GuidLookup, BuildLookupKey(assetType, req));
+        if (guidAsset != null) return guidAsset;
+
+        var pathAsset = GetLoadedLookupAsset<T>(PathLookup, BuildLookupKey(assetType, req));
+        if (pathAsset != null) return pathAsset;
 
         if (req.Contains(':') || req.StartsWith('/')) return null;
 
-        var builtIn = Path.GetFullPath(Path.Combine(PathUtil.GetBuiltInCollectionRoot(), name)).Replace('\\', '/').ToLowerInvariant();
-
-        if (PathLookup.TryGetValue(prefix + builtIn, out var builtInAsset) && builtInAsset is T { IsLoaded: true } typedBuiltInAsset) return typedBuiltInAsset;
-
-        return null;
+        return GetLoadedLookupAsset<T>(PathLookup, BuildLookupKey(assetType, GetBuiltInLookupPath(name)));
     }
 
     public static string NormalizeReference<T>(string? value) where T : Asset {
@@ -613,7 +654,7 @@ internal static class AssetManager {
 
     public static void RegisterInternalWrite(string path, int ignoredEvents = 4) {
 
-        var normalized = Path.GetFullPath(path).Replace('\\', '/').ToLowerInvariant();
+        var normalized = NormalizeWatchPath(path);
         _ignoredChanges[normalized] = _ignoredChanges.GetValueOrDefault(normalized, 0) + ignoredEvents;
     }
 

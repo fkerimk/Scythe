@@ -5,7 +5,6 @@ using rlImGui_cs;
 using static ImGuiNET.ImGui;
 using static Raylib_cs.Raylib;
 using static rlImGui_cs.rlImGui;
-using Newtonsoft.Json;
 
 internal static class Launcher {
 
@@ -57,8 +56,7 @@ internal static class Launcher {
             var jsonPath = Path.Combine(dir, "Project.json");
             if (File.Exists(jsonPath)) {
                 try {
-                    var content = File.ReadAllText(jsonPath);
-                    var config = JsonConvert.DeserializeObject<ProjectConfig>(content);
+                    var config = JsonFile.ReadOrDefault<ProjectConfig?>(jsonPath, null);
                     Projects.Add(new ProjectInfo { Name = config?.Name ?? Path.GetFileName(dir), Path = dir });
                 } catch { }
             }
@@ -213,6 +211,6 @@ internal static class Launcher {
         Directory.CreateDirectory(Path.Combine(path, "Project"));
         Directory.CreateDirectory(Path.Combine(path, "Assets"));
         Directory.CreateDirectory(Path.Combine(path, "Scripts"));
-        File.WriteAllText(Path.Combine(path, "Project.json"), JsonConvert.SerializeObject(new ProjectConfig { Name = name }, Formatting.Indented));
+        JsonFile.WriteIndented(Path.Combine(path, "Project.json"), new ProjectConfig { Name = name });
     }
 }

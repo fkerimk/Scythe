@@ -1,4 +1,3 @@
-using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
 internal class PrefabAsset : Asset {
@@ -20,7 +19,7 @@ internal class PrefabAsset : Asset {
         GUID = guid;
 
         if (changed)
-            System.IO.File.WriteAllText(File, JsonConvert.SerializeObject(json, Formatting.Indented));
+            JsonFile.WriteIndented(File, json, ensureDirectory: false);
 
         IsLoaded = true;
         return true;
