@@ -109,7 +109,7 @@ internal class Collections : Viewport {
     protected override void OnDraw() {
 
         Validate();
-        if (IsFocused && IsKeyPressed(ImGuiKey.F2)) StartRenameSelected();
+        if (IsWindowFocused(ImGuiFocusedFlags.RootAndChildWindows) && IsKeyPressed(ImGuiKey.F2)) StartRenameSelected();
         DrawToolbar();
         Separator();
         DrawBrowser();
@@ -494,12 +494,6 @@ internal class Collections : Viewport {
         var isSelected = string.Equals(_selectedPath, path, StringComparison.OrdinalIgnoreCase);
         var color = GetFileColor(path);
 
-        if (isSelected) {
-            PushStyleColor(ImGuiCol.Header, Colors.GuiButtonActive.ToVector4());
-            PushStyleColor(ImGuiCol.HeaderHovered, Colors.GuiButtonActive.ToVector4());
-            PushStyleColor(ImGuiCol.HeaderActive, Colors.GuiButtonActive.ToVector4());
-        }
-
         var clicked = false;
 
         if (string.Equals(_renamingPath, path, StringComparison.OrdinalIgnoreCase)) {
@@ -524,7 +518,10 @@ internal class Collections : Viewport {
         DrawEntryContextMenu(path, isDirectory: false);
         var doubleClicked = IsItemHovered() && IsMouseDoubleClicked(ImGuiMouseButton.Left);
 
-        if (isSelected) PopStyleColor(3);
+        if (isSelected && !string.Equals(_renamingPath, path, StringComparison.OrdinalIgnoreCase)) {
+            var drawList = GetWindowDrawList();
+            drawList.AddRect(GetItemRectMin(), GetItemRectMax(), GetColorU32(Colors.Primary.ToVector4()), 4f, ImDrawFlags.None, 1.5f);
+        }
         if (doubleClicked && (CollectionData.IsLevel(path) || CollectionData.IsPrefab(path))) {
             _entryClickedThisFrame = true;
             Editor.OpenLevel(path);
@@ -537,11 +534,11 @@ internal class Collections : Viewport {
         Editor.SetSelectedAsset(path);
     }
 
-    private void StartRenameSelected() {
+    public void StartRenameSelected() {
 
-        if (string.IsNullOrWhiteSpace(_selectedPath) || !File.Exists(_selectedPath)) return;
+        if (string.IsNullOrWhiteSpace(_selectedPath) || (!File.Exists(_selectedPath) && !Directory.Exists(_selectedPath))) return;
 
-        StartRename(_selectedPath, isDirectory: false);
+        StartRename(_selectedPath, Directory.Exists(_selectedPath));
     }
 
     private bool TryDrawThumbnail(string path, float startX, float iconWidth, float thumbnailSize) {

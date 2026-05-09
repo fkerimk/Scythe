@@ -25,6 +25,9 @@ internal static class Shortcuts {
             if (IsKeyPressed(KeyboardKey.Y)) History.Redo();
         }
 
+        if (IsKeyPressed(KeyboardKey.F2) && Editor.SelectedAssetPath != null)
+            Editor.Collections.StartRenameSelected();
+
         if (IsKeyPressed(KeyboardKey.Delete)) {
 
             if (Editor.SelectedAssetPath != null)

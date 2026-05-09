@@ -4,6 +4,8 @@ using Newtonsoft.Json;
 
 internal static class PrefabUtility {
 
+    private const string AddedChildMarker = "__added_child";
+
     private static readonly Dictionary<string, Level?> SourceCache = new(StringComparer.OrdinalIgnoreCase);
 
     public static bool IsApplyingSync { get; private set; }
@@ -161,6 +163,22 @@ internal static class PrefabUtility {
         var guid = prefabRoot.Prefab;
         var path = prefabRoot.PrefabPath;
         return AssetManager.ResolveReference<PrefabAsset>(ref guid, ref path) == null;
+    }
+
+    public static void MarkAsAddedChild(Obj obj) {
+
+        if (!obj.PrefabOverrides.Contains(AddedChildMarker))
+            obj.PrefabOverrides.Add(AddedChildMarker);
+    }
+
+    public static bool IsAddedChild(Obj obj) => obj.PrefabOverrides.Contains(AddedChildMarker);
+
+    public static void MarkAddedChildSubtree(Obj obj) {
+
+        MarkAsAddedChild(obj);
+
+        foreach (var child in obj.Children.Values)
+            MarkAddedChildSubtree(child);
     }
 
     public static bool TryGetSourceObject(Obj obj, out Obj? sourceObj) {
@@ -344,10 +362,13 @@ internal static class PrefabUtility {
             SyncComponentProperties(targetComponent, sourceComponent);
         }
 
+        foreach (var targetChild in target.Children.Values.Where(child => !source.Children.ContainsKey(child.Name)).ToList())
+            MarkAsAddedChild(targetChild);
+
         foreach (var (childName, sourceChild) in source.Children) {
 
-            if (target.Children.TryGetValue(childName, out var conflictingChild) && !TryGetSourceObject(conflictingChild, out _))
-                conflictingChild.Name = Generators.AvailableName(childName, target.Children.Keys.Where(name => !string.Equals(name, conflictingChild.Name, StringComparison.Ordinal)));
+            if (target.Children.TryGetValue(childName, out var conflictingChild) && IsAddedChild(conflictingChild))
+                conflictingChild.Name = Generators.AvailableName(childName, target.Children.Keys);
 
             if (!target.Children.TryGetValue(childName, out var targetChild)) {
                 targetChild = sourceChild.DeepClone(target, preserveName: true);

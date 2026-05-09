@@ -232,6 +232,8 @@ internal class Level {
             var added = CreateFullObjectSnapshot(obj, serializer);
             added.Remove(nameof(Obj.Prefab));
             added.Remove(nameof(Obj.PrefabPath));
+            var overrides = obj.PrefabOverrides.Where(value => !string.IsNullOrWhiteSpace(value)).Append("__added_child").Distinct().OrderBy(value => value);
+            added[nameof(Obj.PrefabOverrides)] = JArray.FromObject(overrides);
             return added;
         }
 
@@ -391,6 +393,9 @@ internal class Level {
 
         var obj = new Obj(parent == null ? name : Generators.AvailableName(name, parent.Children.Keys), parent);
         obj.SetParent(parent);
+
+        if (parent?.FindPrefabRoot() != null && Core.ActiveLevel?.IsPrefabDocument != true)
+            PrefabUtility.MarkAddedChildSubtree(obj);
 
         return obj;
     }

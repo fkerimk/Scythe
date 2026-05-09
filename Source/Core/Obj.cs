@@ -419,6 +419,9 @@ internal static partial class Extensions {
             var clone = source.CloneInternal();
             var parent = source.Parent!;
 
+            if (parent.FindPrefabRoot() != null && Core.ActiveLevel?.IsPrefabDocument != true)
+                PrefabUtility.MarkAddedChildSubtree(clone);
+
             History.Execute($"Duplicate {source.Name}", redo: () => clone.SetParent(parent), undo: clone.Delete);
 
             return clone;
