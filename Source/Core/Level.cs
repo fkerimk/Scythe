@@ -243,7 +243,14 @@ internal class Level {
             token["Prefab"] = obj.Prefab;
             token["PrefabPath"] = obj.PrefabPath;
             if (obj.PrefabOverrides.Count > 0) token["PrefabOverrides"] = JArray.FromObject(obj.PrefabOverrides.OrderBy(value => value));
-            token["Transform"] = CreateFullComponentSnapshot(obj.Transform, serializer);
+            var rootTransform = CreateFullComponentSnapshot(obj.Transform, serializer);
+            var rootTransformOverrides = obj.Transform.PrefabOverrides
+                .Where(value => value == nameof(Transform.Scale))
+                .OrderBy(value => value)
+                .ToList();
+            if (rootTransformOverrides.Count > 0)
+                rootTransform[nameof(Component.PrefabOverrides)] = JArray.FromObject(rootTransformOverrides);
+            token["Transform"] = rootTransform;
         } else if (obj.PrefabOverrides.Count > 0)
             token["PrefabOverrides"] = JArray.FromObject(obj.PrefabOverrides.OrderBy(value => value));
 
