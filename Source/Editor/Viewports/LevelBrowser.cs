@@ -214,8 +214,10 @@ internal class LevelBrowser : Viewport {
         if (!isRenamingThis && rowHovered && IsMouseReleased(ImGuiMouseButton.Left)) {
             if (arrowHovered)
                 GetStateStorage().SetInt(openId, isOpen ? 0 : 1);
-            else
+            else {
                 SelectObject(obj, multi);
+                ShouldFocus = true;
+            }
         }
 
         // drag + drop must stay bound to the row item itself
