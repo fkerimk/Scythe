@@ -377,6 +377,14 @@ internal class LevelBrowser : Viewport {
 
         BeginDisabled(IsDocumentRoot(obj));
         if (MenuItem("Rename")) StartRename(obj);
+        if (PrefabUtility.IsAddedChildOverride(obj) && MenuItem("Apply")) {
+            PrefabUtility.ApplyAddedChildToPrefab(obj);
+            if (Core.ActiveLevel != null) Core.ActiveLevel.IsDirty = true;
+        }
+        if (PrefabUtility.IsAddedChildOverride(obj) && MenuItem("Revert")) {
+            PrefabUtility.RevertAddedChild(obj);
+            if (Core.ActiveLevel != null) Core.ActiveLevel.IsDirty = true;
+        }
         if (obj.FindPrefabRoot() == obj && MenuItem("Resolve")) {
             PrefabUtility.ResolvePrefabRoot(obj);
             if (Core.ActiveLevel != null) Core.ActiveLevel.IsDirty = true;
@@ -584,7 +592,12 @@ internal class LevelBrowser : Viewport {
             var siblingIndex = siblings.IndexOf(obj);
             var nextSibling = siblingIndex >= 0 && siblingIndex + 1 < siblings.Count ? siblings[siblingIndex + 1] : null;
 
+            obj.Parent = null;
+            parent.Children.Remove(originalName);
+
             if (!PrefabUtility.TryInstantiateInto(asset.GUID, parent, out var instance) || instance == null) {
+                obj.Parent = parent;
+                parent.Children[originalName] = obj;
                 Notifications.Show("Prefab instance creation failed.");
                 return false;
             }
@@ -597,7 +610,7 @@ internal class LevelBrowser : Viewport {
             if (nextSibling != null)
                 instance.MoveBefore(nextSibling);
 
-            obj.Delete();
+            obj.Dispose();
             SelectObject(instance);
             if (Core.ActiveLevel != null) Core.ActiveLevel.IsDirty = true;
         }

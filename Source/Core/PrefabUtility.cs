@@ -38,6 +38,11 @@ internal static class PrefabUtility {
             return;
         }
 
+        if (ReferenceEquals(prefabRoot, obj) && propertyName == nameof(Obj.Name)) {
+            obj.SetPrefabOverride(propertyName, false);
+            return;
+        }
+
         if (!TryGetSourceObject(obj, out var sourceObj) || sourceObj == null) {
             obj.SetPrefabOverride(propertyName, true);
             return;
@@ -55,6 +60,18 @@ internal static class PrefabUtility {
         var overrideKey = GetTransformOverrideKey(propertyName);
 
         if (prefabRoot == null || ReferenceEquals(prefabRoot, transform.Obj)) {
+            if (ReferenceEquals(prefabRoot, transform.Obj) && overrideKey == nameof(Transform.Scale)) {
+
+                if (!TryGetSourceObject(transform.Obj, out var rootSourceObj) || rootSourceObj == null) {
+                    transform.SetPrefabOverride(overrideKey, true);
+                    return;
+                }
+
+                var rootSourceProperty = rootSourceObj.Transform.GetType().GetProperty(nameof(Transform.Scale), BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+                transform.SetPrefabOverride(overrideKey, rootSourceProperty != null && !ValuesEqual(currentValue, rootSourceProperty.GetValue(rootSourceObj.Transform)));
+                return;
+            }
+
             transform.SetPrefabOverride(overrideKey, false);
             return;
         }
@@ -173,6 +190,14 @@ internal static class PrefabUtility {
 
     public static bool IsAddedChild(Obj obj) => obj.PrefabOverrides.Contains(AddedChildMarker);
 
+    public static bool IsAddedChildOverride(Obj obj) {
+
+        var prefabRoot = obj.FindPrefabRoot();
+        if (prefabRoot == null || ReferenceEquals(prefabRoot, obj)) return false;
+
+        return IsAddedChild(obj) || !TryGetSourceObject(obj, out _);
+    }
+
     public static void MarkAddedChildSubtree(Obj obj) {
 
         MarkAsAddedChild(obj);
@@ -233,12 +258,19 @@ internal static class PrefabUtility {
         if (prefabRoot == null) return false;
         if (!TryGetSourceObject(obj, out _)) return true;
 
+        if (ReferenceEquals(prefabRoot, obj))
+            obj.SetPrefabOverride(nameof(Obj.Name), false);
+
         return HasExplicitOverrides(obj);
     }
 
     public static bool TryGetObjectPropertyOverride(Obj obj, PropertyInfo property, out object? sourceValue) {
 
         sourceValue = null;
+        if (ReferenceEquals(obj.FindPrefabRoot(), obj) && property.Name == nameof(Obj.Name)) {
+            obj.SetPrefabOverride(property.Name, false);
+            return false;
+        }
         if (!obj.HasPrefabOverride(property.Name)) return false;
         if (!TryGetSourceObject(obj, out var sourceObj) || sourceObj == null) return false;
 
@@ -320,6 +352,27 @@ internal static class PrefabUtility {
         return SaveSourcePrefab(component.Obj);
     }
 
+    public static bool ApplyAddedChildToPrefab(Obj obj) {
+
+        if (!IsAddedChildOverride(obj) || obj.Parent == null) return false;
+        if (!TryGetSourceObject(obj.Parent, out var sourceParent) || sourceParent == null) return false;
+
+        var clone = obj.DeepClone(sourceParent, preserveName: true);
+        clone.ClearPrefabLinksRecursive();
+        ClearOverrideMarkersRecursive(clone);
+
+        ClearOverrideMarkersRecursive(obj);
+        return SaveSourcePrefab(obj);
+    }
+
+    public static bool RevertAddedChild(Obj obj) {
+
+        if (!IsAddedChildOverride(obj)) return false;
+
+        obj.RecordedDelete();
+        return true;
+    }
+
     private static void ApplyPrefabInstancesRecursive(Obj obj) {
 
         if (TryGetSourceObject(obj, out var sourceObj) && sourceObj != null && ReferenceEquals(obj.FindPrefabRoot(), obj))
@@ -342,15 +395,16 @@ internal static class PrefabUtility {
 
     private static void SyncObject(Obj target, Obj source, bool isPrefabRoot = false) {
 
-        if (!target.HasPrefabOverride(nameof(Obj.Name)))
+        if (!isPrefabRoot && !target.HasPrefabOverride(nameof(Obj.Name)))
             target.Name = source.Name;
 
-        // Scene instance root placement should stay local to the scene.
+        // Scene instance root name/pos/rot stay local to the scene; scale can still inherit/override.
         if (!isPrefabRoot) {
             if (!target.Transform.HasPrefabOverride(nameof(Transform.Pos))) target.Transform.Pos = source.Transform.Pos;
             if (!target.Transform.HasPrefabOverride(nameof(Transform.Scale))) target.Transform.Scale = source.Transform.Scale;
             if (!target.Transform.HasPrefabOverride(nameof(Transform.Rot))) target.Transform.Rot = source.Transform.Rot;
-        }
+        } else if (!target.Transform.HasPrefabOverride(nameof(Transform.Scale)))
+            target.Transform.Scale = source.Transform.Scale;
 
         foreach (var (componentName, sourceComponent) in source.Components) {
 
@@ -362,8 +416,13 @@ internal static class PrefabUtility {
             SyncComponentProperties(targetComponent, sourceComponent);
         }
 
-        foreach (var targetChild in target.Children.Values.Where(child => !source.Children.ContainsKey(child.Name)).ToList())
-            MarkAsAddedChild(targetChild);
+        foreach (var targetChild in target.Children.Values.Where(child => !source.Children.ContainsKey(child.Name)).ToList()) {
+            if (IsAddedChild(targetChild))
+                continue;
+
+            targetChild.Dispose();
+            target.Children.Remove(targetChild.Name);
+        }
 
         foreach (var (childName, sourceChild) in source.Children) {
 
@@ -424,7 +483,12 @@ internal static class PrefabUtility {
 
     public static bool HasExplicitOverrides(Obj obj) {
 
-        if (obj.PrefabOverrides.Count > 0 || obj.Transform.PrefabOverrides.Count > 0)
+        var prefabRoot = obj.FindPrefabRoot();
+        var objectOverrideCount = ReferenceEquals(prefabRoot, obj)
+            ? obj.PrefabOverrides.Count(value => value != nameof(Obj.Name))
+            : obj.PrefabOverrides.Count;
+
+        if (objectOverrideCount > 0 || obj.Transform.PrefabOverrides.Count > 0)
             return true;
 
         foreach (var component in obj.Components.Values)
