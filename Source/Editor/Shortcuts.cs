@@ -37,6 +37,7 @@ internal static class Shortcuts {
     private static void DuplicateSelectedObject() {
 
         if (LevelBrowser.SelectedObject == null) return;
+        if (Core.ActiveLevel?.IsPrefabDocument == true && ReferenceEquals(LevelBrowser.SelectedObject.Parent, Core.ActiveLevel.Root)) return;
 
         LevelBrowser.SelectObject(LevelBrowser.SelectedObject.CloneRecorded());
     }

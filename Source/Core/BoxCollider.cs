@@ -19,7 +19,10 @@ internal class BoxCollider(Obj obj) : Component(obj) {
     public override bool Load() {
 
         Obj.DecomposeWorldMatrix(out _, out _, out var scale);
-        Shape = new BoxShape(Size.X * scale.X, Size.Y * scale.Y, Size.Z * scale.Z);
+        var width = MathF.Max(0.001f, MathF.Abs(Size.X * scale.X));
+        var height = MathF.Max(0.001f, MathF.Abs(Size.Y * scale.Y));
+        var length = MathF.Max(0.001f, MathF.Abs(Size.Z * scale.Z));
+        Shape = new BoxShape(width, height, length);
 
         return true;
     }

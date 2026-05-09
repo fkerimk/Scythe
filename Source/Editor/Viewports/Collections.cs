@@ -245,19 +245,18 @@ internal class Collections : Viewport {
     private IEnumerable<BrowserEntry> GetBrowserEntries() {
 
         var collections = GetCollectionEntries(CollectionEntryKind.Collection);
+        var categories = GetCategoryStates()
+            .Where(state => !_hideEmptyCategories || state.Count > 0)
+            .Select(BrowserEntry.CreateCategory);
 
         if (IsAtCollectionsRoot)
             return new[] { BrowserEntry.CreateProject() }
                 .Concat(Directory.Exists(CollectionData.BuiltInRootPath) ? new[] { BrowserEntry.CreateCollection(CollectionData.BuiltInRootPath) } : [])
                 .Concat(collections.Select(BrowserEntry.CreateCollection))
-                .OrderBy(entry => entry.Kind == BrowserEntryKind.Project ? -1 : 0)
-                .ThenBy(entry => entry.Name, new NaturalStringComparer()!);
+                .Concat(categories);
 
         var collectionCount = GetCollectionEntries(CollectionEntryKind.Collection).Count();
         var collectionEntries = (_hideEmptyCategories && collectionCount == 0 ? [] : new[] { BrowserEntry.CreateCollectionGroup(collectionCount) });
-        var categories = GetCategoryStates()
-            .Where(state => !_hideEmptyCategories || state.Count > 0)
-            .Select(BrowserEntry.CreateCategory);
 
         return collectionEntries
             .Concat(categories)

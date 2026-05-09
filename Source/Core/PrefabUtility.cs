@@ -152,6 +152,17 @@ internal static class PrefabUtility {
         SyncPrefabRoot(obj, sourceObj);
     }
 
+    public static bool HasMissingSource(Obj obj) {
+
+        var prefabRoot = obj.FindPrefabRoot();
+        if (prefabRoot == null) return false;
+        if (string.IsNullOrWhiteSpace(prefabRoot.Prefab) && string.IsNullOrWhiteSpace(prefabRoot.PrefabPath)) return false;
+
+        var guid = prefabRoot.Prefab;
+        var path = prefabRoot.PrefabPath;
+        return AssetManager.ResolveReference<PrefabAsset>(ref guid, ref path) == null;
+    }
+
     public static bool TryGetSourceObject(Obj obj, out Obj? sourceObj) {
 
         sourceObj = null;
@@ -334,6 +345,9 @@ internal static class PrefabUtility {
         }
 
         foreach (var (childName, sourceChild) in source.Children) {
+
+            if (target.Children.TryGetValue(childName, out var conflictingChild) && !TryGetSourceObject(conflictingChild, out _))
+                conflictingChild.Name = Generators.AvailableName(conflictingChild.Name, target.Children.Keys.Where(name => !string.Equals(name, conflictingChild.Name, StringComparison.Ordinal)));
 
             if (!target.Children.TryGetValue(childName, out var targetChild)) {
                 targetChild = sourceChild.DeepClone(target, preserveName: true);

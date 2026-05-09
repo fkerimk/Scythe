@@ -590,18 +590,23 @@ internal class LevelBrowser : Viewport {
 
     private Vector4 GetObjectColor(Obj obj) {
 
+        if (PrefabUtility.HasMissingSource(obj)) return new Vector4(1f, 0.3f, 0.3f, 1f);
         if (PrefabUtility.ObjectHasOverrides(obj)) return Colors.Primary.ToVector4();
         if (obj.FindPrefabRoot() != null) return new Vector4(0.35f, 1f, 1f, 1f);
         return Colors.GuiTypeObject.ToVector4();
     }
 
     private static Vector4 GetObjectTextColor(Obj obj) =>
-        PrefabUtility.ObjectHasOverrides(obj)
+        PrefabUtility.HasMissingSource(obj)
+            ? new Vector4(1f, 0.3f, 0.3f, 1f)
+            : PrefabUtility.ObjectHasOverrides(obj)
             ? Colors.Primary.ToVector4()
             : obj.FindPrefabRoot() != null ? new Vector4(0.35f, 1f, 1f, 1f) : Vector4.One;
 
     private static Vector4 GetObjectIconColor(Obj obj) =>
-        PrefabUtility.ObjectHasOverrides(obj)
+        PrefabUtility.HasMissingSource(obj)
+            ? new Vector4(1f, 0.3f, 0.3f, 1f)
+            : PrefabUtility.ObjectHasOverrides(obj)
             ? Colors.Primary.ToVector4()
             : obj.FindPrefabRoot() != null ? new Vector4(0.35f, 1f, 1f, 1f) : Colors.GuiTypeObject.ToVector4();
 
