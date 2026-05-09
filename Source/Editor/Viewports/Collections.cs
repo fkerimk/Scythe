@@ -983,7 +983,7 @@ internal class Collections : Viewport {
 
     private static bool IsSidecarMetaFile(string path) {
 
-        if (!path.EndsWith(".json", StringComparison.OrdinalIgnoreCase)) return false;
+        if (!AssetPaths.IsJson(path)) return false;
 
         var assetPath = path[..^5];
         return File.Exists(assetPath);

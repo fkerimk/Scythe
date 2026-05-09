@@ -1376,7 +1376,7 @@ internal class ObjectBrowser : Viewport {
 
     private static void ApplyPrefabOverrideMarker(object target, PropertyInfo property, object? value, object? sourceValue) {
 
-        var isOverridden = Newtonsoft.Json.JsonConvert.SerializeObject(value) != Newtonsoft.Json.JsonConvert.SerializeObject(sourceValue);
+        var isOverridden = !ObjectGraph.AreEqual(value, sourceValue);
 
         if (target is Obj obj)
             obj.SetPrefabOverride(property.Name, isOverridden);
@@ -1665,10 +1665,7 @@ internal class ObjectBrowser : Viewport {
 
     private static string TrimPickerLabelExtension(string value) {
 
-        if (value.EndsWith(".mat", StringComparison.OrdinalIgnoreCase)) return value[..^4];
-        if (value.EndsWith(".pre", StringComparison.OrdinalIgnoreCase)) return value[..^4];
-        if (value.EndsWith(".lvl", StringComparison.OrdinalIgnoreCase)) return value[..^4];
-        if (value.EndsWith(".mat", StringComparison.OrdinalIgnoreCase)) return value[..^4];
+        if (AssetPaths.IsMaterial(value) || AssetPaths.IsPrefab(value) || AssetPaths.IsLevel(value)) return value[..^4];
 
         return Path.ChangeExtension(value, null) ?? value;
     }

@@ -1,7 +1,6 @@
 using System.Reflection;
 using System.Numerics;
 using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
 using Raylib_cs;
 
 [AttributeUsage(AttributeTargets.Field)]
@@ -79,7 +78,7 @@ internal static class ScriptFieldUtility {
         if (Equals(left, right)) return true;
 
         try {
-            return JToken.DeepEquals(JToken.FromObject(left), JToken.FromObject(right));
+            return ObjectGraph.AreEqual(left, right);
         } catch {
             return false;
         }

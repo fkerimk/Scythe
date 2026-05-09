@@ -307,7 +307,7 @@ internal class Preview : Viewport {
         Math.Abs(left.Z - right.Z) < 0.001f &&
         Math.Abs(left.W - right.W) < 0.001f;
 
-    private static bool IsScript(string path) => path.EndsWith(".cs", StringComparison.OrdinalIgnoreCase);
+    private static bool IsScript(string path) => AssetFilePatterns.IsScript(path);
     private static bool IsCodePreviewFile(string path) => IsScript(path) || CollectionData.IsShader(path);
 
     private static IGrammar? GetPreviewGrammar(string path) {

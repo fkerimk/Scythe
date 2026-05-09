@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.IO.Compression;
 using NativeFileDialogNET;
 using Newtonsoft.Json;
@@ -170,34 +169,23 @@ internal static class BuildPipeline {
         Directory.CreateDirectory(publishDir);
 
         var projectFile = FindEngineProjectFile();
-        var processInfo = new ProcessStartInfo {
-            FileName = "dotnet",
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false,
-            CreateNoWindow = true
-        };
+        var result = CommandRunner.Run("dotnet", [
+            "publish",
+            projectFile,
+            "-c",
+            "Release",
+            "-r",
+            runtimeId,
+            "-o",
+            publishDir,
+            "-p:ScytheRuntimeBuild=true",
+            $"-p:ScytheBundlePath={bundleZip}",
+            "-p:DebugSymbols=false",
+            "-p:DebugType=None"
+        ]);
 
-        processInfo.ArgumentList.Add("publish");
-        processInfo.ArgumentList.Add(projectFile);
-        processInfo.ArgumentList.Add("-c");
-        processInfo.ArgumentList.Add("Release");
-        processInfo.ArgumentList.Add("-r");
-        processInfo.ArgumentList.Add(runtimeId);
-        processInfo.ArgumentList.Add("-o");
-        processInfo.ArgumentList.Add(publishDir);
-        processInfo.ArgumentList.Add("-p:ScytheRuntimeBuild=true");
-        processInfo.ArgumentList.Add($"-p:ScytheBundlePath={bundleZip}");
-        processInfo.ArgumentList.Add("-p:DebugSymbols=false");
-        processInfo.ArgumentList.Add("-p:DebugType=None");
-
-        using var process = Process.Start(processInfo);
-        process?.WaitForExit();
-
-        if (process?.ExitCode != 0) {
-            var stdOut = process?.StandardOutput.ReadToEnd() ?? "";
-            var stdErr = process?.StandardError.ReadToEnd() ?? "";
-            throw new InvalidOperationException(string.IsNullOrWhiteSpace(stdErr) ? stdOut : stdErr);
+        if (result.ExitCode != 0) {
+            throw new InvalidOperationException(result.GetPreferredError($"dotnet publish failed for {runtimeId}."));
         }
 
         var publishedBinary = FindPublishedBinary(publishDir, runtimeId);
@@ -215,11 +203,10 @@ internal static class BuildPipeline {
             var destination = Path.Combine(destDir, relative);
             Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
             
-            var ext = Path.GetExtension(file).ToLowerInvariant();
             var isImport = file.Contains("/Imports/", StringComparison.OrdinalIgnoreCase) || file.Contains("\\Imports\\", StringComparison.OrdinalIgnoreCase);
             var isBuiltIn = file.Contains("/Collection/", StringComparison.OrdinalIgnoreCase) || file.Contains("\\Collection\\", StringComparison.OrdinalIgnoreCase);
             
-            if (!isImport && !isBuiltIn && ext is ".fbx" or ".obj" or ".gltf" or ".png" or ".jpg" or ".jpeg" or ".tga" or ".bmp" or ".webp" or ".avif" or ".cs") {
+            if (!isImport && !isBuiltIn && (AssetFilePatterns.IsModel(file) || AssetFilePatterns.IsTexture(file) || AssetFilePatterns.IsScript(file))) {
                 File.WriteAllBytes(destination, []);
             } else {
                 File.Copy(file, destination, overwrite: true);
@@ -296,11 +283,7 @@ internal static class BuildPipeline {
         if (File.Exists(expectedPath)) return expectedPath;
 
         return Directory.GetFiles(publishDir, "*", SearchOption.TopDirectoryOnly)
-            .Where(path => !path.EndsWith(".pdb", StringComparison.OrdinalIgnoreCase))
-            .Where(path => !path.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
-            .Where(path => !path.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
-            .Where(path => !path.EndsWith(".deps.json", StringComparison.OrdinalIgnoreCase))
-            .Where(path => !path.EndsWith(".runtimeconfig.json", StringComparison.OrdinalIgnoreCase))
+            .Where(path => !AssetPaths.IsPublishMetadata(path))
             .OrderBy(path => path)
             .FirstOrDefault();
     }

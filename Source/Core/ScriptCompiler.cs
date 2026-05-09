@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Reflection;
 
 internal static class ScriptCompiler {
@@ -37,28 +36,16 @@ internal static class ScriptCompiler {
 
         task?.Status = "Compiling...";
 
-        var processInfo = new ProcessStartInfo {
-            FileName = "dotnet",
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false,
-            CreateNoWindow = true
-        };
+        var result = CommandRunner.Run("dotnet", [
+            "build",
+            csprojPath,
+            "-c",
+            "Release"
+        ]);
 
-        processInfo.ArgumentList.Add("build");
-        processInfo.ArgumentList.Add(csprojPath);
-        processInfo.ArgumentList.Add("-c");
-        processInfo.ArgumentList.Add("Release");
+        if (!File.Exists(scriptOutDll) || result.ExitCode != 0) {
 
-        using var process = Process.Start(processInfo);
-        process?.WaitForExit();
-
-        if (!File.Exists(scriptOutDll) || process?.ExitCode != 0) {
-
-            var stdOut = process?.StandardOutput.ReadToEnd() ?? "";
-            var stdErr = process?.StandardError.ReadToEnd() ?? "";
-            error = string.IsNullOrWhiteSpace(stdErr) ? stdOut : stdErr;
-            if (string.IsNullOrWhiteSpace(error)) error = "dotnet build failed.";
+            error = result.GetPreferredError("dotnet build failed.");
             return false;
         }
 

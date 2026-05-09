@@ -65,6 +65,15 @@ internal static class Core {
             SetShaderValue(pbr.Shader, pbr.GetLoc("use_tex_emissive"), !CommandLine.Runtime ? OldConfig.Editor.PbrEmissive : OldConfig.Runtime.PbrEmissive, ShaderUniformDataType.Int);
         }
 
+        _shadowMap = LoadShadowmapRenderTexture(ShadowMapResolution, ShadowMapResolution);
+
+        // Skybox
+        var cube = GenMeshCube(1.0f, 1.0f, 1.0f);
+        _skyboxModel = LoadModelFromMesh(cube);
+
+        var skybox = AssetManager.Get<ShaderAsset>("Collection/skybox.vs");
+        if (skybox != null) _skyboxModel.Materials[0].Shader = skybox.Shader;
+
         // Level & camera
         if (CommandLine.Runtime) {
 
@@ -75,15 +84,6 @@ internal static class Core {
             if (!string.IsNullOrWhiteSpace(startupLevel))
                 OpenLevel(CollectionData.GetLevelDisplayName(startupLevel), startupLevel);
         }
-
-        _shadowMap = LoadShadowmapRenderTexture(ShadowMapResolution, ShadowMapResolution);
-
-        // Skybox
-        var cube = GenMeshCube(1.0f, 1.0f, 1.0f);
-        _skyboxModel = LoadModelFromMesh(cube);
-
-        var skybox = AssetManager.Get<ShaderAsset>("Collection/skybox.vs");
-        if (skybox != null) _skyboxModel.Materials[0].Shader = skybox.Shader;
         
         Splash.Cleanup();
     }
@@ -333,6 +333,11 @@ internal static class Core {
             RenderSettings.AmbientColor = GetSkyboxAmbientColor(image, ActiveLevel.SkyboxAmbientIntensity);
 
         UnloadImage(image);
+        if (_skyboxModel.Materials == null || _skyboxModel.MaterialCount <= 0) {
+            _loadedSkyboxGuid = textureAsset.GUID;
+            return;
+        }
+
         _skyboxModel.Materials[0].Maps[(int)MaterialMapIndex.Cubemap].Texture = _skyboxTexture;
         _loadedSkyboxGuid = textureAsset.GUID;
     }

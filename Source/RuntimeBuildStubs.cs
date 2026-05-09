@@ -12,11 +12,9 @@ internal static class Editor {
 }
 
 internal static class CollectionData {
-    public static bool IsLevel(string path) => path.EndsWith(".lvl", System.StringComparison.OrdinalIgnoreCase);
+    public static bool IsLevel(string path) => AssetPaths.IsLevel(path);
     public static string GetLevelDisplayName(string value) {
-        var file = System.IO.Path.GetFileName(value.Replace('\\', '/'));
-        if (file.EndsWith(".lvl", System.StringComparison.OrdinalIgnoreCase)) return file[..^4];
-        return System.IO.Path.GetFileNameWithoutExtension(file);
+        return AssetPaths.GetDisplayName(value, ".lvl");
     }
 }
 

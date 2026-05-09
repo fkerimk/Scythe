@@ -201,23 +201,9 @@ internal static class History {
 
     private static object? CloneValue(object? val) {
         if (val == null) return null;
-        if (val is ICloneable c) return c.Clone();
-
-        if (val is IDictionary dict) {
-            var newDict = (IDictionary)Activator.CreateInstance(val.GetType())!;
-            foreach (DictionaryEntry de in dict) newDict.Add(CloneValue(de.Key)!, CloneValue(de.Value));
-
-            return newDict;
-        }
-
-        if (val is IList list) {
-            var newList = (IList)Activator.CreateInstance(val.GetType())!;
-            foreach (var item in list) newList.Add(CloneValue(item));
-
-            return newList;
-        }
-
-        return val;
+        if (val is string) return val;
+        if (val.GetType().IsValueType) return val;
+        return ObjectGraph.DeepClone(val);
     }
 
     public static bool StateEquals(object?[] s1, object?[] s2) {
@@ -233,27 +219,6 @@ internal static class History {
     private static bool ValueEquals(object? v1, object? v2) {
         if (v1 == null && v2 == null) return true;
         if (v1 == null || v2 == null) return false;
-
-        if (v1 is IDictionary d1 && v2 is IDictionary d2) {
-            if (d1.Count != d2.Count) return false;
-
-            foreach (var k in d1.Keys)
-                if (!d2.Contains(k) || !ValueEquals(d1[k], d2[k]))
-                    return false;
-
-            return true;
-        }
-
-        if (v1 is IList l1 && v2 is IList l2) {
-            if (l1.Count != l2.Count) return false;
-
-            for (int i = 0; i < l1.Count; i++)
-                if (!ValueEquals(l1[i], l2[i]))
-                    return false;
-
-            return true;
-        }
-
-        return v1.Equals(v2);
+        return ObjectGraph.AreEqual(v1, v2);
     }
 }

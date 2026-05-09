@@ -1,5 +1,3 @@
-using System.Diagnostics;
-
 internal static class TextureImportProcessor {
 
     public static string GetEffectiveFormat(string sourceFile, AssetSidecarData.TextureImportSettings settings) => settings.Format switch {
@@ -36,38 +34,28 @@ internal static class TextureImportProcessor {
 
         Directory.CreateDirectory(Path.GetDirectoryName(importedFile)!);
 
-        var psi = new ProcessStartInfo("ffmpeg") {
-            UseShellExecute = false,
-            RedirectStandardError = true,
-            RedirectStandardOutput = true,
-            CreateNoWindow = true
+        var args = new List<string> {
+            "-y",
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-i",
+            sourceFile
         };
-
-        psi.ArgumentList.Add("-y");
-        psi.ArgumentList.Add("-hide_banner");
-        psi.ArgumentList.Add("-loglevel");
-        psi.ArgumentList.Add("error");
-        psi.ArgumentList.Add("-i");
-        psi.ArgumentList.Add(sourceFile);
 
         var filter = BuildScaleFilter(settings);
         if (!string.IsNullOrWhiteSpace(filter)) {
-
-            psi.ArgumentList.Add("-vf");
-            psi.ArgumentList.Add(filter);
+            args.Add("-vf");
+            args.Add(filter);
         }
 
-        AddEncodingArgs(psi.ArgumentList, sourceFile, settings);
+        AddEncodingArgs(args, sourceFile, settings);
+        args.Add("-frames:v");
+        args.Add("1");
+        args.Add(importedFile);
 
-        psi.ArgumentList.Add("-frames:v");
-        psi.ArgumentList.Add("1");
-        psi.ArgumentList.Add(importedFile);
-
-        using var process = Process.Start(psi);
-        if (process == null) return false;
-        process.WaitForExit();
-
-        return process.ExitCode == 0 && File.Exists(importedFile);
+        var result = CommandRunner.Run("ffmpeg", args);
+        return result.ExitCode == 0 && File.Exists(importedFile);
     }
 
     private static string BuildScaleFilter(AssetSidecarData.TextureImportSettings settings) {

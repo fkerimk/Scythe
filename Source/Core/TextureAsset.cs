@@ -198,27 +198,19 @@ internal class TextureAsset : Asset {
         var tempFile = Path.Combine(Path.GetTempPath(), $"scythe-{GUID}-{Guid.NewGuid():N}.png");
 
         try {
-            var psi = new System.Diagnostics.ProcessStartInfo("ffmpeg") {
-                UseShellExecute = false,
-                RedirectStandardError = true,
-                RedirectStandardOutput = true,
-                CreateNoWindow = true
-            };
+            var result = CommandRunner.Run("ffmpeg", [
+                "-y",
+                "-hide_banner",
+                "-loglevel",
+                "error",
+                "-i",
+                ImportedFile,
+                "-frames:v",
+                "1",
+                tempFile
+            ]);
 
-            psi.ArgumentList.Add("-y");
-            psi.ArgumentList.Add("-hide_banner");
-            psi.ArgumentList.Add("-loglevel");
-            psi.ArgumentList.Add("error");
-            psi.ArgumentList.Add("-i");
-            psi.ArgumentList.Add(ImportedFile);
-            psi.ArgumentList.Add("-frames:v");
-            psi.ArgumentList.Add("1");
-            psi.ArgumentList.Add(tempFile);
-
-            using var process = System.Diagnostics.Process.Start(psi);
-            if (process == null) return default;
-            process.WaitForExit();
-            if (process.ExitCode != 0 || !System.IO.File.Exists(tempFile)) return default;
+            if (result.ExitCode != 0 || !System.IO.File.Exists(tempFile)) return default;
 
             return LoadImage(tempFile);
 

@@ -175,7 +175,7 @@ internal static class AssetManager {
 
         file = Path.GetFullPath(file);
 
-        if (!File.Exists(file) && !file.EndsWith(".mat", StringComparison.OrdinalIgnoreCase)) return;
+        if (!File.Exists(file) && !AssetPaths.IsMaterial(file)) return;
 
         var ext = Path.GetExtension(file).ToLowerInvariant();
 
@@ -188,17 +188,17 @@ internal static class AssetManager {
 
             default: {
 
-                if (file.EndsWith(".lvl", StringComparison.OrdinalIgnoreCase)) {
+                if (AssetPaths.IsLevel(file)) {
                     ImportLevel(file);
                     break;
                 }
 
-                if (file.EndsWith(".pre", StringComparison.OrdinalIgnoreCase)) {
+                if (AssetPaths.IsPrefab(file)) {
                     ImportPrefab(file);
                     break;
                 }
 
-                if (file.EndsWith(".mat", StringComparison.OrdinalIgnoreCase))
+                if (AssetPaths.IsMaterial(file))
                     ImportMaterial(file);
 
                 else
@@ -245,20 +245,20 @@ internal static class AssetManager {
 
         file = Path.GetFullPath(file);
 
-        if (file.EndsWith(".mat", StringComparison.OrdinalIgnoreCase)) {
+        if (AssetPaths.IsMaterial(file)) {
 
             yield return file;
             yield break;
         }
 
-        if (file.EndsWith(".json", StringComparison.OrdinalIgnoreCase)) {
+        if (AssetPaths.IsJson(file)) {
 
             var owner = file[..^5];
             if (File.Exists(owner)) yield return owner;
             yield break;
         }
 
-        if (file.EndsWith(".fs", StringComparison.OrdinalIgnoreCase)) {
+        if (AssetPaths.IsFragmentShader(file)) {
 
             var vs = Path.ChangeExtension(file, ".vs");
             if (File.Exists(vs)) {
@@ -321,7 +321,7 @@ internal static class AssetManager {
 
     private static void ImportShader(string file) {
 
-        if (file.EndsWith(".fs", StringComparison.OrdinalIgnoreCase)) {
+        if (AssetPaths.IsFragmentShader(file)) {
 
             var vs = Path.ChangeExtension(file, ".vs");
 
@@ -452,19 +452,19 @@ internal static class AssetManager {
             return;
         }
 
-        if (fullPath.EndsWith(".mat", StringComparison.OrdinalIgnoreCase)) {
+        if (AssetPaths.IsMaterial(fullPath)) {
 
             if (Get<MaterialAsset>(fullPath) == null) ImportMaterial(fullPath);
             return;
         }
 
-        if (fullPath.EndsWith(".lvl", StringComparison.OrdinalIgnoreCase)) {
+        if (AssetPaths.IsLevel(fullPath)) {
 
             if (Get<LevelAsset>(fullPath) == null) ImportLevel(fullPath);
             return;
         }
 
-        if (fullPath.EndsWith(".pre", StringComparison.OrdinalIgnoreCase)) {
+        if (AssetPaths.IsPrefab(fullPath)) {
 
             if (Get<PrefabAsset>(fullPath) == null) ImportPrefab(fullPath);
             return;

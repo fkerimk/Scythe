@@ -3,7 +3,6 @@ using System.Reflection;
 using Newtonsoft.Json;
 
 internal static class PrefabUtility {
-
     private const string AddedChildMarker = "__added_child";
 
     private static readonly Dictionary<string, Level?> SourceCache = new(StringComparer.OrdinalIgnoreCase);
@@ -509,7 +508,7 @@ internal static class PrefabUtility {
         propertyName == nameof(Transform.Euler) ? nameof(Transform.Rot) : propertyName;
 
     private static bool ValuesEqual(object? left, object? right) =>
-        JsonConvert.SerializeObject(left) == JsonConvert.SerializeObject(right);
+        ObjectGraph.AreEqual(left, right);
 
     private static bool SaveSourcePrefab(Obj obj) {
 

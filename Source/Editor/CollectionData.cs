@@ -284,32 +284,28 @@ internal static class CollectionData {
 
     public static bool IsSidecarMetaFile(string path) {
 
-        if (!path.EndsWith(".json", StringComparison.OrdinalIgnoreCase)) return false;
+        if (!AssetPaths.IsJson(path)) return false;
 
         var assetPath = path[..^5];
         return File.Exists(assetPath);
     }
 
-    public static bool IsLevel(string path) => path.EndsWith(".lvl", StringComparison.OrdinalIgnoreCase);
-    public static bool IsMaterial(string path) => path.EndsWith(".mat", StringComparison.OrdinalIgnoreCase);
-    public static bool IsTexture(string path) => path.EndsWith(".png", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".jpeg", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".tga", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".bmp", StringComparison.OrdinalIgnoreCase);
-    public static bool IsScript(string path) => path.EndsWith(".cs", StringComparison.OrdinalIgnoreCase);
-    public static bool IsPrefab(string path) => path.EndsWith(".pre", StringComparison.OrdinalIgnoreCase);
-    public static bool IsShader(string path) => path.EndsWith(".vs", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".fs", StringComparison.OrdinalIgnoreCase);
-    public static bool IsFont(string path) => path.EndsWith(".ttf", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".otf", StringComparison.OrdinalIgnoreCase);
+    public static bool IsLevel(string path) => AssetPaths.IsLevel(path);
+    public static bool IsMaterial(string path) => AssetPaths.IsMaterial(path);
+    public static bool IsTexture(string path) => AssetFilePatterns.IsTexture(path);
+    public static bool IsScript(string path) => AssetFilePatterns.IsScript(path);
+    public static bool IsPrefab(string path) => AssetPaths.IsPrefab(path);
+    public static bool IsShader(string path) => AssetFilePatterns.IsShader(path);
+    public static bool IsFont(string path) => AssetFilePatterns.IsFont(path);
 
-    public static bool IsModel(string path) {
-
-        var ext = Path.GetExtension(path).ToLowerInvariant();
-        return ext is ".fbx" or ".obj" or ".gltf" or ".glb" or ".iqm";
-    }
+    public static bool IsModel(string path) => AssetFilePatterns.IsModel(path);
 
     public static string GetNameWithoutExtension(string path) {
 
         var name = Path.GetFileName(path);
 
-        if (path.EndsWith(".lvl", StringComparison.OrdinalIgnoreCase)) return name[..^4];
-        if (path.EndsWith(".mat", StringComparison.OrdinalIgnoreCase)) return name[..^4];
+        if (AssetPaths.IsLevel(path)) return name[..^4];
+        if (AssetPaths.IsMaterial(path)) return name[..^4];
         if (IsPrefab(path)) return name[..^4];
         if (IsShader(path)) return name;
 
@@ -320,8 +316,8 @@ internal static class CollectionData {
 
         var name = Path.GetFileName(path);
 
-        if (path.EndsWith(".lvl", StringComparison.OrdinalIgnoreCase)) return ".lvl";
-        if (path.EndsWith(".mat", StringComparison.OrdinalIgnoreCase)) return ".mat";
+        if (AssetPaths.IsLevel(path)) return ".lvl";
+        if (AssetPaths.IsMaterial(path)) return ".mat";
         if (IsPrefab(path)) return ".pre";
 
         return Path.GetExtension(path);
@@ -330,7 +326,7 @@ internal static class CollectionData {
     public static string GetLevelDisplayName(string value) {
 
         var file = Path.GetFileName(value.Replace('\\', '/'));
-        if (file.EndsWith(".lvl", StringComparison.OrdinalIgnoreCase)) return file[..^4];
+        if (AssetPaths.IsLevel(file)) return file[..^4];
 
         return Path.GetFileNameWithoutExtension(file);
     }

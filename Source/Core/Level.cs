@@ -109,7 +109,7 @@ internal class Level {
                 throw new FileNotFoundException($"Could not find level file {Name} with .lvl extension");
 
         JsonPath = path;
-        IsPrefabDocument = path.EndsWith(".pre", StringComparison.OrdinalIgnoreCase);
+        IsPrefabDocument = AssetPaths.IsPrefab(path);
         Root = new Obj("Root", null);
 
         LoadInternal();
@@ -120,7 +120,7 @@ internal class Level {
         Name = name;
         GUID = System.Guid.NewGuid().ToString("N");
         JsonPath = path;
-        IsPrefabDocument = path.EndsWith(".pre", StringComparison.OrdinalIgnoreCase);
+        IsPrefabDocument = AssetPaths.IsPrefab(path);
         Root = new Obj("Root", null);
 
         if (load) LoadInternal(applyEditorCamera: applyEditorCamera);
@@ -131,7 +131,7 @@ internal class Level {
         Name = name;
         GUID = System.Guid.NewGuid().ToString("N");
         JsonPath = path;
-        IsPrefabDocument = path.EndsWith(".pre", StringComparison.OrdinalIgnoreCase);
+        IsPrefabDocument = AssetPaths.IsPrefab(path);
         Root = new Obj("Root", null);
         LoadInternal(jsonBody, applyEditorCamera);
     }
