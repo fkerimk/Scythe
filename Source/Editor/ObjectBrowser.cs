@@ -1,5 +1,6 @@
 using System.Numerics;
 using System.Reflection;
+using EnumsNET;
 using ImGuiNET;
 using Raylib_cs;
 using static ImGuiNET.ImGui;
@@ -307,12 +308,12 @@ internal class ObjectBrowser : Viewport {
         } else if (type.IsEnum) {
 
             var val = (Enum)(value ?? Activator.CreateInstance(type)!);
-            var names = Enum.GetNames(type);
+            var names = Enums.GetNames(type, EnumMemberSelection.All).ToArray();
             var index = Array.IndexOf(names, val.ToString());
 
             if (Combo($"##{id}", ref index, names, names.Length)) {
 
-                value = Enum.Parse(type, names[index]);
+                value = Enums.Parse(type, names[index]);
                 changed = true;
             }
         }

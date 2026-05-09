@@ -1,4 +1,5 @@
 using System.Reflection;
+using FastMember;
 using Force.DeepCloner;
 using KellermanSoftware.CompareNetObjects;
 using Newtonsoft.Json;
@@ -31,6 +32,8 @@ internal static class ObjectGraph {
 
     public static void CopyJsonState(object source, object target) {
         const BindingFlags flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+        var sourceAccessor = TypeAccessor.Create(source.GetType(), true);
+        var targetAccessor = TypeAccessor.Create(target.GetType(), true);
 
         foreach (var property in source.GetType().GetProperties(flags)) {
             if (!property.CanRead) continue;
@@ -39,7 +42,7 @@ internal static class ObjectGraph {
             var targetProperty = target.GetType().GetProperty(property.Name, flags);
             if (targetProperty == null || !targetProperty.CanWrite) continue;
 
-            targetProperty.SetValue(target, CloneMemberValue(property.GetValue(source)));
+            targetAccessor[target, property.Name] = CloneMemberValue(sourceAccessor[source, property.Name]);
         }
 
         foreach (var field in source.GetType().GetFields(flags)) {
@@ -49,7 +52,7 @@ internal static class ObjectGraph {
             var targetField = target.GetType().GetField(field.Name, flags);
             if (targetField == null || targetField.IsInitOnly) continue;
 
-            targetField.SetValue(target, CloneMemberValue(field.GetValue(source)));
+            targetAccessor[target, field.Name] = CloneMemberValue(sourceAccessor[source, field.Name]);
         }
     }
 

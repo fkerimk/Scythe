@@ -1,7 +1,9 @@
 using System.Collections.Concurrent;
-using System.Threading;
+using Nito.AsyncEx;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using System.Reactive.Linq;
+using System.Reactive.Subjects;
 using static Raylib_cs.Raylib;
 
 internal static class AssetManager {
@@ -12,10 +14,11 @@ internal static class AssetManager {
     private static readonly Dictionary<string, Asset>     PathLookup     = new();
     private static readonly Dictionary<Type, List<Asset>> TypeCache      = new();
     private static readonly ConcurrentQueue<Action>       PendingActions = new();
+    private static readonly Subject<string>               ImportRequests = new();
     private static readonly HashSet<string>               _textureImportsInProgress = [];
     private static readonly List<string>                  _pendingFiles  = new();
     private static readonly Dictionary<string, int>       _ignoredChanges = new();
-    private static DateTime                               _debounceTime  = DateTime.MinValue;
+    private static IDisposable?                           _importRequestSubscription;
     private static BackgroundTask?                        _importTask;
     private static bool                                   _isInitializing;
 
@@ -26,7 +29,7 @@ internal static class AssetManager {
 
         if (_importTask != null && _importTask.IsDone) _importTask = null;
 
-        if (_importTask == null && _pendingFiles.Count > 0 && DateTime.Now > _debounceTime)
+        if (_importTask == null && _pendingFiles.Count > 0)
             StartImportTask();
     }
 
@@ -35,6 +38,7 @@ internal static class AssetManager {
         _isInitializing = true;
 
         try {
+            EnsureImportPipeline();
 
             foreach (var watcher in Watchers) watcher.Dispose();
             Watchers.Clear();
@@ -123,14 +127,23 @@ internal static class AssetManager {
         ReloadDependentComponents(asset);
     }
 
-    private static void QueueImportTargets(string file) {
+    private static void EnsureImportPipeline() {
+        if (_importRequestSubscription != null) return;
+
+        _importRequestSubscription = ImportRequests
+            .Synchronize()
+            .Buffer(TimeSpan.FromMilliseconds(250))
+            .Where(batch => batch.Count > 0)
+            .Subscribe(batch => EnqueueWatcherAction(() => QueueImportTargets(batch)));
+    }
+
+    private static void QueueImportTargets(IEnumerable<string> files) {
         lock (_pendingFiles) {
+            foreach (var file in files)
             foreach (var importTarget in GetImportTargets(file))
-                if (!_pendingFiles.Contains(importTarget))
+                if (!_pendingFiles.Any(pending => string.Equals(pending, importTarget, StringComparison.OrdinalIgnoreCase)))
                     _pendingFiles.Add(importTarget);
         }
-
-        _debounceTime = DateTime.Now.AddMilliseconds(500);
     }
 
     private static List<string> DequeuePendingFiles() {
@@ -185,7 +198,7 @@ internal static class AssetManager {
         foreach (var (_, asset) in GetAssetsWatchingPath(file))
             ReloadTrackedAsset(asset);
 
-        QueueImportTargets(file);
+        ImportRequests.OnNext(file);
     }
 
     private static void StartImportTask() {
@@ -198,7 +211,7 @@ internal static class AssetManager {
             int current = 0;
             foreach (var file in filesToImport) {
 
-                var done = new ManualResetEventSlim(false);
+                var done = new AsyncManualResetEvent(false);
                 Tasks.RunOnMainThread(() => {
                     try { ImportFile(file); }
                     finally { done.Set(); }

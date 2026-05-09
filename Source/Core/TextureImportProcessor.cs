@@ -1,3 +1,5 @@
+using ImageMagick;
+
 internal static class TextureImportProcessor {
 
     public static string GetEffectiveFormat(string sourceFile, AssetSidecarData.TextureImportSettings settings) => settings.Format switch {
@@ -55,7 +57,21 @@ internal static class TextureImportProcessor {
         args.Add(importedFile);
 
         var result = CommandRunner.Run("ffmpeg", args);
-        return result.ExitCode == 0 && File.Exists(importedFile);
+        if (result.ExitCode == 0 && File.Exists(importedFile)) return true;
+
+        return TryImportWithMagick(sourceFile, importedFile, settings);
+    }
+
+    private static bool TryImportWithMagick(string sourceFile, string importedFile, AssetSidecarData.TextureImportSettings settings) {
+        try {
+            using var image = new MagickImage(sourceFile);
+            ApplyResize(image, settings);
+            ApplyEncoding(image, sourceFile, settings);
+            image.Write(importedFile, GetMagickFormat(sourceFile, settings));
+            return File.Exists(importedFile);
+        } catch {
+            return false;
+        }
     }
 
     private static string BuildScaleFilter(AssetSidecarData.TextureImportSettings settings) {
@@ -63,6 +79,23 @@ internal static class TextureImportProcessor {
         if (settings.MaxSize <= 0) return "";
 
         return $"scale={settings.MaxSize}:{settings.MaxSize}:force_original_aspect_ratio=decrease:flags={GetScaleFlag(settings.ResizeFilter)}";
+    }
+
+    private static void ApplyResize(MagickImage image, AssetSidecarData.TextureImportSettings settings) {
+        if (settings.MaxSize <= 0) return;
+
+        image.FilterType = GetMagickFilter(settings.ResizeFilter);
+        image.Resize(new MagickGeometry((uint)settings.MaxSize, (uint)settings.MaxSize) {
+            IgnoreAspectRatio = false,
+            Greater = true
+        });
+    }
+
+    private static void ApplyEncoding(MagickImage image, string sourceFile, AssetSidecarData.TextureImportSettings settings) {
+        image.Format = GetMagickFormat(sourceFile, settings);
+
+        if (UsesQuality(GetEffectiveFormat(sourceFile, settings)))
+            image.Quality = (uint)Math.Clamp(settings.Quality, 1, 100);
     }
 
     private static void AddEncodingArgs(ICollection<string> args, string sourceFile, AssetSidecarData.TextureImportSettings settings) {
@@ -133,11 +166,25 @@ internal static class TextureImportProcessor {
         _ => "Png"
     };
 
+    private static MagickFormat GetMagickFormat(string sourceFile, AssetSidecarData.TextureImportSettings settings) => GetEffectiveFormat(sourceFile, settings) switch {
+        "Jpeg" => MagickFormat.Jpeg,
+        "WebP" => MagickFormat.WebP,
+        "Avif" => MagickFormat.Avif,
+        _ => MagickFormat.Png
+    };
+
     private static string GetScaleFlag(string filter) => filter switch {
         "Nearest" => "neighbor",
         "Bicubic" => "bicubic",
         "Lanczos" => "lanczos",
         _ => "bilinear"
+    };
+
+    private static FilterType GetMagickFilter(string filter) => filter switch {
+        "Nearest" => FilterType.Point,
+        "Bicubic" => FilterType.Cubic,
+        "Lanczos" => FilterType.Lanczos,
+        _ => FilterType.Triangle
     };
 
     private static string MapJpegQuality(int quality) {

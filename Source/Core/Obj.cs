@@ -1,4 +1,4 @@
-﻿using System.Numerics;
+using System.Numerics;
 using Raylib_cs;
 using Newtonsoft.Json;
 
@@ -390,6 +390,10 @@ internal static partial class Extensions {
             // Copy serialized transform state only; runtime-only fields stay reset.
             ObjectGraph.CopyJsonState(source.Transform, clone.Transform);
             clone.Transform.PrefabOverrides = [.. source.Transform.PrefabOverrides];
+            // ObjectGraph.CopyJsonState writes via FastMember (bypasses property setters),
+            // so UpdateTransform() was never called. Compute obj.Matrix now from the
+            // copied Pos/Rot/Scale so RefreshWorldMatrices propagates correctly.
+            clone.Transform.UpdateTransform();
 
             // Copy Components
             foreach (var (key, sourceComponent) in source.Components) {

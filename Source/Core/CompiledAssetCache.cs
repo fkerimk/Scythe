@@ -1,16 +1,30 @@
 using System.IO.Compression;
 using System.Numerics;
+using MemoryPack;
 using Raylib_cs;
 using static Raylib_cs.Raylib;
 
-internal static class CompiledAssetCache {
+internal static partial class CompiledAssetCache {
 
-    private const int TextureVersion = 3;
+    private const int TextureVersion = 4;
     private const int ModelVersion = 3;
     private const string TextureMagic = "STEX";
     private const string ModelMagic = "SMOD";
 
     public readonly record struct TextureCacheInfo(int Width, int Height, PixelFormat Format, string Compression, int SourceWidth, int SourceHeight, int MaxSize, string ResizeFilter, string EncodedFormat);
+
+    [MemoryPackable]
+    private partial record struct TextureCacheHeader(
+        int SourceWidth,
+        int SourceHeight,
+        int Width,
+        int Height,
+        PixelFormat Format,
+        int MaxSize,
+        string ResizeFilter,
+        string Compression,
+        string EncodedFormat
+    );
 
     public static unsafe string EnsureTextureCache(string sourceFile, string outputFile, AssetSidecarData.TextureImportSettings settings) {
 
@@ -38,15 +52,20 @@ internal static class CompiledAssetCache {
 
             writer.Write(TextureMagic);
             writer.Write(TextureVersion);
-            writer.Write(sourceWidth);
-            writer.Write(sourceHeight);
-            writer.Write(image.Width);
-            writer.Write(image.Height);
-            writer.Write((int)image.Format);
-            writer.Write(settings.MaxSize);
-            writer.Write(settings.ResizeFilter ?? "Bilinear");
-            writer.Write(settings.Compression ?? "Normal");
-            writer.Write(encodedFormat);
+            var header = new TextureCacheHeader(
+                sourceWidth,
+                sourceHeight,
+                image.Width,
+                image.Height,
+                image.Format,
+                settings.MaxSize,
+                settings.ResizeFilter ?? "Bilinear",
+                settings.Compression ?? "Normal",
+                encodedFormat
+            );
+            var headerBytes = MemoryPackSerializer.Serialize(header);
+            writer.Write(headerBytes.Length);
+            writer.Write(headerBytes);
             writer.Write(encodedBytes.Length);
             writer.Write(encodedBytes);
 
@@ -70,20 +89,13 @@ internal static class CompiledAssetCache {
             if (reader.ReadString() != TextureMagic) return false;
             if (reader.ReadInt32() != TextureVersion) return false;
 
-            _ = reader.ReadInt32();
-            _ = reader.ReadInt32();
-            var width = reader.ReadInt32();
-            var height = reader.ReadInt32();
-            var format = (PixelFormat)reader.ReadInt32();
-            _ = reader.ReadInt32();
-            _ = reader.ReadString();
-            _ = reader.ReadString();
-            var encodedFormat = reader.ReadString();
+            var header = ReadTextureHeader(reader);
+            if (header == null) return false;
             var byteCount = reader.ReadInt32();
             var encodedBytes = reader.ReadBytes(byteCount);
             if (encodedBytes.Length != byteCount) return false;
 
-            var image = LoadImageFromMemory(encodedFormat, encodedBytes);
+            var image = LoadImageFromMemory(header.Value.EncodedFormat, encodedBytes);
             if (image.Data == null) return false;
 
             texture = LoadTextureFromImage(image);
@@ -110,23 +122,33 @@ internal static class CompiledAssetCache {
             if (reader.ReadString() != TextureMagic) return false;
             if (reader.ReadInt32() != TextureVersion) return false;
 
-            var sourceWidth = reader.ReadInt32();
-            var sourceHeight = reader.ReadInt32();
-            var width = reader.ReadInt32();
-            var height = reader.ReadInt32();
-            var format = (PixelFormat)reader.ReadInt32();
-            var maxSize = reader.ReadInt32();
-            var resizeFilter = reader.ReadString();
-            var compression = reader.ReadString();
-            var encodedFormat = reader.ReadString();
+            var header = ReadTextureHeader(reader);
+            if (header == null) return false;
 
-            info = new TextureCacheInfo(width, height, format, compression, sourceWidth, sourceHeight, maxSize, resizeFilter, encodedFormat);
+            info = new TextureCacheInfo(
+                header.Value.Width,
+                header.Value.Height,
+                header.Value.Format,
+                header.Value.Compression,
+                header.Value.SourceWidth,
+                header.Value.SourceHeight,
+                header.Value.MaxSize,
+                header.Value.ResizeFilter,
+                header.Value.EncodedFormat
+            );
             return true;
 
         } catch {
 
             return false;
         }
+    }
+
+    private static TextureCacheHeader? ReadTextureHeader(BinaryReader reader) {
+        var headerSize = reader.ReadInt32();
+        var headerBytes = reader.ReadBytes(headerSize);
+        if (headerBytes.Length != headerSize) return null;
+        return MemoryPackSerializer.Deserialize<TextureCacheHeader>(headerBytes);
     }
 
     public static string EnsureModelCache(string sourceFile, string outputFile) {

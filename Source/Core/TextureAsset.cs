@@ -1,3 +1,4 @@
+using ImageMagick;
 using Raylib_cs;
 using static Raylib_cs.Raylib;
 
@@ -198,19 +199,9 @@ internal class TextureAsset : Asset {
         var tempFile = Path.Combine(Path.GetTempPath(), $"scythe-{GUID}-{Guid.NewGuid():N}.png");
 
         try {
-            var result = CommandRunner.Run("ffmpeg", [
-                "-y",
-                "-hide_banner",
-                "-loglevel",
-                "error",
-                "-i",
-                ImportedFile,
-                "-frames:v",
-                "1",
-                tempFile
-            ]);
-
-            if (result.ExitCode != 0 || !System.IO.File.Exists(tempFile)) return default;
+            using var image = new MagickImage(ImportedFile);
+            image.Write(tempFile, MagickFormat.Png);
+            if (!System.IO.File.Exists(tempFile)) return default;
 
             return LoadImage(tempFile);
 

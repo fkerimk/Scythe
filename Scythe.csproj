@@ -30,6 +30,9 @@
 
     <ItemGroup>
         
+        <PackageReference Include="Buildalyzer" Version="9.0.0" PrivateAssets="all" ExcludeAssets="runtime" />
+        <PackageReference Include="Microsoft.Build.Locator" Version="1.11.2" PrivateAssets="all" ExcludeAssets="runtime" />
+        
         <PackageReference Include="Raylib-cs" Version="7.0.2" />
         <PackageReference Include="rlImgui-cs" Version="3.2.0" />
         <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
@@ -47,6 +50,21 @@
         <PackageReference Include="FluentResults" Version="4.0.0" />
         <PackageReference Include="Humanizer" Version="3.0.10" />
         <PackageReference Include="Scriban" Version="7.1.0" />
+        <PackageReference Include="Enums.NET" Version="5.0.0" />
+        <PackageReference Include="FastMember" Version="1.5.0" />
+        <PackageReference Include="FluentValidation" Version="12.1.1" />
+        <PackageReference Include="Ben.Demystifier" Version="0.4.1" />
+        <PackageReference Include="Polly" Version="8.6.6" />
+        <PackageReference Include="Nito.AsyncEx" Version="5.1.2" />
+        <PackageReference Include="JsonDiffPatch.Net" Version="2.5.0" />
+        <PackageReference Include="JsonPath.Net" Version="3.0.2" />
+        <PackageReference Include="Magick.NET-Q8-AnyCPU" Version="14.13.0" />
+        <PackageReference Include="MemoryPack" Version="1.21.4" />
+
+        <PackageReference Include="System.IO.Abstractions" Version="22.1.1" />
+        <PackageReference Include="System.Reactive" Version="6.1.0" />
+        <PackageReference Include="System.Security.Cryptography.Xml" Version="10.0.6" />
+        
 
     </ItemGroup>
 

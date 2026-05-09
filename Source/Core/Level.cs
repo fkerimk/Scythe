@@ -1,10 +1,14 @@
 using System.Numerics;
+using System.Text.Json.Nodes;
+using Json.Path;
+using JsonDiffPatchDotNet;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Raylib_cs;
 
 [JsonObject(MemberSerialization.OptIn)]
 internal class Level {
+    private static readonly JsonDiffPatch JsonDiffer = new();
 
     // Custom converter to handle path relativization
     public class RelativePathConverter : JsonConverter {
@@ -324,16 +328,32 @@ internal class Level {
             overrideSet.Add(nameof(Transform.Rot));
         if (overrideSet.Count == 0) return null;
 
+        var sourceToken = JObject.FromObject(source, serializer);
         var full = JObject.FromObject(target, serializer);
+        var diff = JsonDiffer.Diff(sourceToken, full);
+        if (diff == null) return null;
+
+        var diffNode = JsonNode.Parse(diff.ToString(Formatting.None));
         var sparse = new JObject();
+        var changedOverrides = new List<string>();
 
         foreach (var propertyName in overrideSet)
-            if (full.TryGetValue(propertyName, out var value))
+            if (HasDiffAtProperty(diffNode, propertyName) && full.TryGetValue(propertyName, out var value)) {
                 sparse[propertyName] = value;
+                changedOverrides.Add(propertyName);
+            }
 
-        sparse["PrefabOverrides"] = JArray.FromObject(overrideSet.OrderBy(value => value));
+        if (changedOverrides.Count == 0) return null;
+        sparse["PrefabOverrides"] = JArray.FromObject(changedOverrides.OrderBy(value => value));
         if (sparse.Count == 0) return null;
         return sparse;
+    }
+
+    private static bool HasDiffAtProperty(JsonNode? diffNode, string propertyName) {
+        if (diffNode == null) return false;
+
+        var jsonPath = Json.Path.JsonPath.Parse($"$['{propertyName.Replace("'", "\\'")}']");
+        return jsonPath.Evaluate(diffNode).Matches.Count > 0;
     }
 
     private static void BuildHierarchy(KeyValuePair<string, JToken> dataPair, Obj parent) {

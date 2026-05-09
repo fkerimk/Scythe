@@ -1,4 +1,5 @@
 using System.IO.Compression;
+using FluentValidation;
 using NativeFileDialogNET;
 using Newtonsoft.Json;
 using static ImGuiNET.ImGui;
@@ -306,6 +307,7 @@ internal static class BuildPipeline {
 
         var path = GetSettingsPath();
         var settings = JsonFile.ReadOrDefault(path, new BuildSettings());
+        new BuildSettingsValidator().ValidateAndThrow(settings);
 
         _outputDirectory = string.IsNullOrWhiteSpace(settings.OutputDirectory) ? GetDefaultOutputDirectory() : settings.OutputDirectory;
         _buildWindows = settings.BuildWindows;
@@ -352,5 +354,11 @@ internal static class BuildPipeline {
         public string OutputDirectory { get; init; } = "";
         public bool BuildWindows { get; init; } = true;
         public bool BuildLinux { get; init; }
+    }
+
+    private sealed class BuildSettingsValidator : AbstractValidator<BuildSettings> {
+        public BuildSettingsValidator() {
+            RuleFor(settings => settings.OutputDirectory).NotNull();
+        }
     }
 }
