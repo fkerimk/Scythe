@@ -25,6 +25,7 @@ internal static class Launcher {
     public static string? Show() {
         Window.Show(title: "SCYTHE - Project Launcher", flags: [ConfigFlags.Msaa4xHint]);
         Setup(true, true);
+        unsafe { GetIO().NativePtr->IniFilename = null; }
         Fonts.Init(); 
         RefreshProjects();
         
