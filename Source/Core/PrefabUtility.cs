@@ -113,6 +113,13 @@ internal static class PrefabUtility {
             ApplyPrefabInstancesRecursive(child);
     }
 
+    public static void ApplyPrefabInstancesPreservingRootPlacement(Level level) {
+
+        var preservedRootTransforms = CapturePrefabRootTransforms(level.Root, prefabFile: null);
+        ApplyPrefabInstances(level);
+        RestorePrefabRootTransforms(preservedRootTransforms);
+    }
+
     public static bool TryInstantiateInto(string prefabReference, Obj parent, out Obj? instance) {
 
         instance = null;
@@ -543,36 +550,35 @@ internal static class PrefabUtility {
         return false;
     }
 
-    private static Dictionary<Obj, (Vector3 Pos, Vector3 Scale, Quaternion Rot)> CapturePrefabRootTransforms(Obj root, string prefabFile) {
+    private static Dictionary<Obj, (Vector3 Pos, Quaternion Rot)> CapturePrefabRootTransforms(Obj root, string? prefabFile) {
 
-        var result = new Dictionary<Obj, (Vector3 Pos, Vector3 Scale, Quaternion Rot)>();
+        var result = new Dictionary<Obj, (Vector3 Pos, Quaternion Rot)>();
         CapturePrefabRootTransformsRecursive(root, prefabFile, result);
         return result;
     }
 
-    private static void CapturePrefabRootTransformsRecursive(Obj obj, string prefabFile, Dictionary<Obj, (Vector3 Pos, Vector3 Scale, Quaternion Rot)> transforms) {
+    private static void CapturePrefabRootTransformsRecursive(Obj obj, string? prefabFile, Dictionary<Obj, (Vector3 Pos, Quaternion Rot)> transforms) {
 
         if (obj.FindPrefabRoot() == obj) {
             var guid = obj.Prefab;
             var path = obj.PrefabPath;
             var asset = AssetManager.ResolveReference<PrefabAsset>(ref guid, ref path);
 
-            if (asset != null && Path.GetFullPath(asset.File).Equals(prefabFile, StringComparison.OrdinalIgnoreCase))
-                transforms[obj] = (obj.Transform.Pos, obj.Transform.Scale, obj.Transform.Rot);
+            if (asset != null && (prefabFile == null || Path.GetFullPath(asset.File).Equals(prefabFile, StringComparison.OrdinalIgnoreCase)))
+                transforms[obj] = (obj.Transform.Pos, obj.Transform.Rot);
         }
 
         foreach (var child in obj.Children.Values)
             CapturePrefabRootTransformsRecursive(child, prefabFile, transforms);
     }
 
-    private static void RestorePrefabRootTransforms(Dictionary<Obj, (Vector3 Pos, Vector3 Scale, Quaternion Rot)> transforms) {
+    private static void RestorePrefabRootTransforms(Dictionary<Obj, (Vector3 Pos, Quaternion Rot)> transforms) {
 
         IsApplyingSync = true;
 
         try {
             foreach (var (obj, transform) in transforms) {
                 obj.Transform.Pos = transform.Pos;
-                obj.Transform.Scale = transform.Scale;
                 obj.Transform.Rot = transform.Rot;
             }
         } finally {

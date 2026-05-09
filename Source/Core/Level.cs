@@ -166,7 +166,7 @@ internal class Level {
                     foreach (var property in children.Properties()) BuildHierarchy(new KeyValuePair<string, JToken>(property.Name, property.Value), Root);
                 }
 
-                PrefabUtility.ApplyPrefabInstances(this);
+                PrefabUtility.ApplyPrefabInstancesPreservingRootPlacement(this);
 
                 // Load camera
                 if (!CommandLine.Runtime && rawData["EditorCamera"] is JObject cameraJson) {
