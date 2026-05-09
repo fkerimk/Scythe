@@ -72,8 +72,8 @@
 
     <ItemGroup Condition="'$(ScytheRuntimeBuild)' == 'true'">
         <Compile Remove="Source/Editor/**/*.cs" />
-        <Compile Remove="Source/Editor.cs" />
-        <Compile Remove="Source/Launcher.cs" />
+        <Compile Remove="Source/Launcher/**/*.cs" />
+        <Compile Remove="Source/Helpers/Editor/**/*.cs" />
     </ItemGroup>
 
     <ItemGroup Condition="'$(ScytheRuntimeBuild)' == 'true' and '$(ScytheBundlePath)' != ''">
