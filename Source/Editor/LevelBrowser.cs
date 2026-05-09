@@ -22,7 +22,7 @@ internal class LevelBrowser : Viewport {
 
     internal static bool IsDragCancelled;
 
-    private static Obj? _scheduledDeleteObject;
+    private static List<Obj>? _scheduledDeleteObjects;
 
     public static List<Obj> SelectedObjects { get; } = [];
     public static Obj?      SelectedObject  => SelectedObjects.Count > 0 ? SelectedObjects[0] : null;
@@ -78,16 +78,21 @@ internal class LevelBrowser : Viewport {
         }
 
         // Delete object
-        if (_scheduledDeleteObject != null) {
+        if (_scheduledDeleteObjects != null) {
 
-            if (!IsDocumentRoot(_scheduledDeleteObject)) {
+            var deletable = _scheduledDeleteObjects
+                .Where(obj => !IsDocumentRoot(obj))
+                .Where(obj => obj.Parent != null)
+                .Where(obj => !_scheduledDeleteObjects.Any(other => other != obj && Obj.IsAncestorOf(other, obj)))
+                .OrderByDescending(GetDepth)
+                .ToList();
 
-                if (SelectedObjects.Contains(_scheduledDeleteObject)) SelectObject(null);
+            if (deletable.Count > 0) SelectObject(null);
 
-                _scheduledDeleteObject.RecordedDelete();
-            }
+            foreach (var obj in deletable)
+                obj.RecordedDelete();
 
-            _scheduledDeleteObject = null;
+            _scheduledDeleteObjects = null;
         }
 
         // F2 Rename
@@ -378,7 +383,7 @@ internal class LevelBrowser : Viewport {
         }
         if (obj.FindPrefabRoot() == null)
             CollectionPathMenu.DrawProjectDirectoryMenu("Make Prefab", directory => MakePrefab(obj, directory));
-        if (MenuItem("Delete")) _scheduledDeleteObject = obj;
+        if (MenuItem("Delete")) _scheduledDeleteObjects = [obj];
         EndDisabled();
 
         EndPopup();
@@ -502,10 +507,10 @@ internal class LevelBrowser : Viewport {
 
         if (!CanDeleteSelectedObject) return;
 
-        _scheduledDeleteObject = SelectedObject;
+        _scheduledDeleteObjects = SelectedObjects.Where(obj => !IsDocumentRoot(obj)).Distinct().ToList();
     }
 
-    public static bool CanDeleteSelectedObject => SelectedObject != null && !IsDocumentRoot(SelectedObject);
+    public static bool CanDeleteSelectedObject => SelectedObjects.Any(obj => !IsDocumentRoot(obj));
 
     // Rename
     public void RenameSelected() {
@@ -518,6 +523,19 @@ internal class LevelBrowser : Viewport {
         _renamingObj    = obj;
         _renameBuf      = obj.Name;
         _reqRenameFocus = true;
+    }
+
+    private static int GetDepth(Obj obj) {
+
+        var depth = 0;
+        var current = obj.Parent;
+
+        while (current != null) {
+            depth++;
+            current = current.Parent;
+        }
+
+        return depth;
     }
 
     private bool InsertPrefab(Obj parent, string prefabPath) {

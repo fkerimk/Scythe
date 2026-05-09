@@ -23,12 +23,12 @@ internal class Collections : Viewport {
     private string _newItemName = "";
     private bool _showAddPopup;
     private bool _showAddTypePopup;
-    private bool _showRenamePopup;
     private bool _openDeletePopup;
     private CreateItemType _createItemType = CreateItemType.Collection;
-    private string? _renameTargetPath;
+    private string? _renamingPath;
     private string _renameName = "";
     private string _renameSuffix = "";
+    private bool _requestRenameFocus;
     private string? _deleteTargetPath;
     private bool _deleteTargetIsDirectory;
     private Vector2 _deletePopupPosition;
@@ -109,6 +109,7 @@ internal class Collections : Viewport {
     protected override void OnDraw() {
 
         Validate();
+        if (IsFocused && IsKeyPressed(ImGuiKey.F2)) StartRenameSelected();
         DrawToolbar();
         Separator();
         DrawBrowser();
@@ -367,9 +368,27 @@ internal class Collections : Viewport {
         PopFont();
 
         SameLine(startX + iconWidth + 5f);
-        PushStyleColor(ImGuiCol.Text, color);
-        var clicked = Selectable($"{name}##{path}", false, ImGuiSelectableFlags.None, new Vector2(GetContentRegionAvail().X, 0f));
-        PopStyleColor();
+        var clicked = false;
+
+        if (string.Equals(_renamingPath, path, StringComparison.OrdinalIgnoreCase)) {
+
+            SetNextItemWidth(GetContentRegionAvail().X);
+
+            if (_requestRenameFocus) {
+                SetKeyboardFocusHere();
+                _requestRenameFocus = false;
+            }
+
+            var submitted = InputText($"##rename_{path}", ref _renameName, 128, ImGuiInputTextFlags.EnterReturnsTrue | ImGuiInputTextFlags.AutoSelectAll);
+            if (submitted) ApplyRename();
+            if (IsItemActive() && IsKeyPressed(ImGuiKey.Escape)) _renamingPath = null;
+            if (IsItemDeactivated() && !submitted) _renamingPath = null;
+
+        } else {
+            PushStyleColor(ImGuiCol.Text, color);
+            clicked = Selectable($"{name}##{path}", false, ImGuiSelectableFlags.None, new Vector2(GetContentRegionAvail().X, 0f));
+            PopStyleColor();
+        }
 
         if (!isBuiltIn) DrawEntryContextMenu(path, isDirectory: true);
 
@@ -481,9 +500,27 @@ internal class Collections : Viewport {
             PushStyleColor(ImGuiCol.HeaderActive, Colors.GuiButtonActive.ToVector4());
         }
 
-        PushStyleColor(ImGuiCol.Text, color);
-        var clicked = Selectable($"{name}##{path}", isSelected, ImGuiSelectableFlags.None, new Vector2(GetContentRegionAvail().X, 0f));
-        PopStyleColor();
+        var clicked = false;
+
+        if (string.Equals(_renamingPath, path, StringComparison.OrdinalIgnoreCase)) {
+
+            SetNextItemWidth(GetContentRegionAvail().X);
+
+            if (_requestRenameFocus) {
+                SetKeyboardFocusHere();
+                _requestRenameFocus = false;
+            }
+
+            var submitted = InputText($"##rename_{path}", ref _renameName, 128, ImGuiInputTextFlags.EnterReturnsTrue | ImGuiInputTextFlags.AutoSelectAll);
+            if (submitted) ApplyRename();
+            if (IsItemActive() && IsKeyPressed(ImGuiKey.Escape)) _renamingPath = null;
+            if (IsItemDeactivated() && !submitted) _renamingPath = null;
+
+        } else {
+            PushStyleColor(ImGuiCol.Text, color);
+            clicked = Selectable($"{name}##{path}", isSelected, ImGuiSelectableFlags.None, new Vector2(GetContentRegionAvail().X, 0f));
+            PopStyleColor();
+        }
         DrawEntryContextMenu(path, isDirectory: false);
         var doubleClicked = IsItemHovered() && IsMouseDoubleClicked(ImGuiMouseButton.Left);
 
@@ -498,6 +535,13 @@ internal class Collections : Viewport {
         _entryClickedThisFrame = true;
         LevelBrowser.SelectObject(null);
         Editor.SetSelectedAsset(path);
+    }
+
+    private void StartRenameSelected() {
+
+        if (string.IsNullOrWhiteSpace(_selectedPath) || !File.Exists(_selectedPath)) return;
+
+        StartRename(_selectedPath, isDirectory: false);
     }
 
     private bool TryDrawThumbnail(string path, float startX, float iconWidth, float thumbnailSize) {
@@ -602,50 +646,7 @@ internal class Collections : Viewport {
             Modal.End();
         }
 
-        DrawRenamePopup();
         DrawDeletePopup();
-    }
-
-    private void DrawRenamePopup() {
-
-        if (_showRenamePopup) OpenPopup("Rename Item");
-
-        if (!Modal.Begin("Rename Item", ref _showRenamePopup)) return;
-
-        Text("Enter new name:");
-
-        if (IsWindowAppearing()) SetKeyboardFocusHere();
-
-        if (InputText("##rename", ref _renameName, 128, ImGuiInputTextFlags.EnterReturnsTrue)) {
-
-            ApplyRename();
-            _showRenamePopup = false;
-            CloseCurrentPopup();
-        }
-
-        if (!string.IsNullOrEmpty(_renameSuffix))
-            TextColored(new Vector4(0.7f, 0.7f, 0.7f, 1f), $"Extension: {_renameSuffix}");
-
-        Spacing();
-        Separator();
-        Spacing();
-
-        if (Button("Rename", new Vector2(120, 0))) {
-
-            ApplyRename();
-            _showRenamePopup = false;
-            CloseCurrentPopup();
-        }
-
-        SameLine();
-
-        if (Button("Cancel", new Vector2(120, 0))) {
-
-            _showRenamePopup = false;
-            CloseCurrentPopup();
-        }
-
-        Modal.End();
     }
 
     private void DrawDeletePopup() {
@@ -681,7 +682,7 @@ internal class Collections : Viewport {
 
         var isBuiltInRoot = CollectionData.IsBuiltInRoot(path);
 
-        if (!isBuiltInRoot && MenuItem("Rename")) OpenRenamePopup(path, isDirectory);
+        if (!isBuiltInRoot && MenuItem("Rename")) StartRename(path, isDirectory);
         if (!isBuiltInRoot && isDirectory && !IsAtCollectionsRoot && BeginMenu("Set As")) {
             if (MenuItem("Collection")) SetCollectionType(path, CollectionEntryKind.Collection);
             foreach (var category in Categories) {
@@ -696,12 +697,12 @@ internal class Collections : Viewport {
         EndPopup();
     }
 
-    private void OpenRenamePopup(string path, bool isDirectory) {
+    private void StartRename(string path, bool isDirectory) {
 
-        _renameTargetPath = path;
+        _renamingPath = path;
         _renameSuffix = isDirectory ? "" : GetRenameSuffix(path);
         _renameName = isDirectory ? Path.GetFileName(path) : GetNameWithoutExtension(path);
-        _showRenamePopup = true;
+        _requestRenameFocus = true;
     }
 
     private void OpenCreatePopup(CreateItemType type) {
@@ -757,9 +758,9 @@ internal class Collections : Viewport {
 
     private void ApplyRename() {
 
-        if (string.IsNullOrWhiteSpace(_renameTargetPath) || string.IsNullOrWhiteSpace(_renameName)) return;
+        if (string.IsNullOrWhiteSpace(_renamingPath) || string.IsNullOrWhiteSpace(_renameName)) return;
 
-        var sourcePath = _renameTargetPath;
+        var sourcePath = _renamingPath;
         var parentDir = Path.GetDirectoryName(sourcePath);
         if (string.IsNullOrEmpty(parentDir)) return;
 
@@ -818,6 +819,9 @@ internal class Collections : Viewport {
                 Notifications.Show($"Rename failed: {e.Message}");
             }
         }
+
+        _renamingPath = null;
+        _requestRenameFocus = false;
     }
 
     private void DeleteTarget() {

@@ -347,7 +347,7 @@ internal static class PrefabUtility {
         foreach (var (childName, sourceChild) in source.Children) {
 
             if (target.Children.TryGetValue(childName, out var conflictingChild) && !TryGetSourceObject(conflictingChild, out _))
-                conflictingChild.Name = Generators.AvailableName(conflictingChild.Name, target.Children.Keys.Where(name => !string.Equals(name, conflictingChild.Name, StringComparison.Ordinal)));
+                conflictingChild.Name = Generators.AvailableName(childName, target.Children.Keys.Where(name => !string.Equals(name, conflictingChild.Name, StringComparison.Ordinal)));
 
             if (!target.Children.TryGetValue(childName, out var targetChild)) {
                 targetChild = sourceChild.DeepClone(target, preserveName: true);
