@@ -202,14 +202,16 @@ internal class LevelBrowser : Viewport {
             && mousePos.X >= arrowRectMin.X && mousePos.X <= arrowRectMax.X
             && mousePos.Y >= arrowRectMin.Y && mousePos.Y <= arrowRectMax.Y;
 
-        if (rowHovered && IsMouseReleased(ImGuiMouseButton.Right)) {
+        var isRenamingThis = _renamingObj == obj;
+
+        if (!isRenamingThis && rowHovered && IsMouseReleased(ImGuiMouseButton.Right)) {
             SelectObject(obj);
             _contextTarget = obj;
             _openContextMenu = true;
         }
 
         // Left click - select
-        if (rowHovered && IsMouseReleased(ImGuiMouseButton.Left)) {
+        if (!isRenamingThis && rowHovered && IsMouseReleased(ImGuiMouseButton.Left)) {
             if (arrowHovered)
                 GetStateStorage().SetInt(openId, isOpen ? 0 : 1);
             else
@@ -265,10 +267,11 @@ internal class LevelBrowser : Viewport {
         // Object name
         PushFont(Fonts.ImMontserratRegular);
 
-        if (_renamingObj == obj) {
+        if (isRenamingThis) {
 
             var renameHeight = GetFrameHeight();
             SetCursorScreenPos(new Vector2(labelX, centerY - renameHeight * 0.5f));
+            SetNextItemWidth(rowMax.X - labelX - 10f);
 
             if (_reqRenameFocus) {
 
@@ -282,7 +285,7 @@ internal class LevelBrowser : Viewport {
             }
 
             if (IsItemActive() && IsKeyPressed(ImGuiKey.Escape)) CancelRename();
-            if (IsItemDeactivated()) CancelRename();
+            if (IsItemDeactivated() && !IsItemActive()) CancelRename();
 
         } else {
 
