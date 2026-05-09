@@ -30,9 +30,6 @@
 
     <ItemGroup>
         
-        <PackageReference Include="Buildalyzer" Version="9.0.0" PrivateAssets="all" ExcludeAssets="runtime" />
-        <PackageReference Include="Microsoft.Build.Locator" Version="1.11.2" PrivateAssets="all" ExcludeAssets="runtime" />
-        
         <PackageReference Include="Raylib-cs" Version="7.0.2" />
         <PackageReference Include="rlImgui-cs" Version="3.2.0" />
         <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
