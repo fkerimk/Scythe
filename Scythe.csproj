@@ -1,89 +1,90 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-    <PropertyGroup>
-        
-        <OutputType>Exe</OutputType>
+  <PropertyGroup>
+    <!-- Project Configuration -->
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <ApplicationIcon>Collection/Icon.ico</ApplicationIcon>
+    <NoWarn>SYSLIB1045</NoWarn>
 
-        <TargetFramework>net10.0</TargetFramework>
-        <ImplicitUsings>enable</ImplicitUsings>
-        <Nullable>enable</Nullable>
-        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-        
-        <Prefer32Bit>false</Prefer32Bit>
-        
-        <PublishAot>false</PublishAot>
-        <PublishSingleFile>true</PublishSingleFile>
-        <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
-        <SelfContained>false</SelfContained>
-        <PublishTrimmed>false</PublishTrimmed>
-        <TrimMode>link</TrimMode>
+    <!-- Build Optimization -->
+    <PublishSingleFile>true</PublishSingleFile>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <SelfContained>false</SelfContained>
+    <PublishTrimmed>false</PublishTrimmed>
+  </PropertyGroup>
 
-        <ApplicationIcon>Collection/Icon.ico</ApplicationIcon>
+  <!-- Runtime Mode Flag -->
+  <PropertyGroup Condition="'$(ScytheRuntimeBuild)' == 'true'">
+    <DefineConstants>$(DefineConstants);SCYTHE_RUNTIME_BUILD</DefineConstants>
+  </PropertyGroup>
 
-        <NoWarn>SYSLIB1045</NoWarn>
-        
-    </PropertyGroup>
+  <!-- Essential Core Packages -->
+  <ItemGroup>
+    <PackageReference Include="Raylib-cs" Version="7.0.2" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
+    <PackageReference Include="Jitter2" Version="2.8.5" />
+    <PackageReference Include="AssimpNet" Version="4.1.0" />
+    <PackageReference Include="CliWrap" Version="3.10.1" />
+    <PackageReference Include="DeepCloner" Version="0.10.4" />
+    <PackageReference Include="Scriban" Version="7.1.0" />
+    <PackageReference Include="MemoryPack" Version="1.21.4" />
+  </ItemGroup>
 
-    <PropertyGroup Condition="'$(ScytheRuntimeBuild)' == 'true'">
-        <DefineConstants>$(DefineConstants);SCYTHE_RUNTIME_BUILD</DefineConstants>
-    </PropertyGroup>
+  <!-- Editor Only Packages -->
+  <ItemGroup Condition="'$(ScytheRuntimeBuild)' != 'true'">
+    <PackageReference Include="rlImgui-cs" Version="3.2.0" />
+    <PackageReference Include="NativeFileDialogNET" Version="2.0.2" />
+    <PackageReference Include="TextMateSharp" Version="2.0.3" />
+    <PackageReference Include="TextMateSharp.Grammars" Version="2.0.3" />
+    <PackageReference Include="CompareNETObjects" Version="4.84.0" />
+    <PackageReference Include="JsonDiffPatch.Net" Version="2.5.0" />
+    <PackageReference Include="JsonPath.Net" Version="3.0.2" />
+    <PackageReference Include="Magick.NET-Q8-AnyCPU" Version="14.13.0" />
+    <PackageReference Include="Humanizer" Version="3.0.10" />
+    <PackageReference Include="Nito.AsyncEx" Version="5.1.2" />
+    <PackageReference Include="System.Reactive" Version="6.0.1" />
+    <PackageReference Include="FluentResults" Version="3.16.0" />
+    <PackageReference Include="FluentValidation" Version="11.11.0" />
+    <PackageReference Include="Enums.NET" Version="5.0.0" />
+    <PackageReference Include="FastMember" Version="1.5.0" />
+    <PackageReference Include="Polly" Version="8.5.2" />
+    <PackageReference Include="System.IO.Abstractions" Version="22.0.11" />
+    <PackageReference Include="Ben.Demystifier" Version="0.4.1" />
+  </ItemGroup>
 
-    <ItemGroup>
-        <PackageReference Include="Raylib-cs" Version="7.0.2" />
-        <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
-        <PackageReference Include="Jitter2" Version="2.8.5" />
-        <PackageReference Include="AssimpNet" Version="4.1.0" />
-        <PackageReference Include="CliWrap" Version="3.10.1" />
-        <PackageReference Include="DeepCloner" Version="0.10.4" />
-        <PackageReference Include="Scriban" Version="7.1.0" />
-        <PackageReference Include="MemoryPack" Version="1.21.4" />
-    </ItemGroup>
+  <!-- Project File Management -->
+  <ItemGroup>
+    <Compile Remove="Projects/**" />
+    <None Include="Projects/**" />
+  </ItemGroup>
 
-    <ItemGroup Condition="'$(ScytheRuntimeBuild)' != 'true'">
-        <PackageReference Include="rlImgui-cs" Version="3.2.0" />
-        <PackageReference Include="NativeFileDialogNET" Version="2.0.2" />
-        <PackageReference Include="TextMateSharp" Version="2.0.3" />
-        <PackageReference Include="TextMateSharp.Grammars" Version="2.0.3" />
-        <PackageReference Include="CompareNETObjects" Version="4.84.0" />
-        <PackageReference Include="JsonDiffPatch.Net" Version="2.5.0" />
-        <PackageReference Include="JsonPath.Net" Version="3.0.2" />
-        <PackageReference Include="Magick.NET-Q8-AnyCPU" Version="14.13.0" />
-        <PackageReference Include="Humanizer" Version="3.0.10" />
-        <PackageReference Include="Nito.AsyncEx" Version="5.1.2" />
-        <PackageReference Include="System.Reactive" Version="6.0.1" />
-        <PackageReference Include="FluentResults" Version="3.16.0" />
-        <PackageReference Include="FluentValidation" Version="11.11.0" />
-        <PackageReference Include="Enums.NET" Version="5.0.0" />
-        <PackageReference Include="FastMember" Version="1.5.0" />
-        <PackageReference Include="Polly" Version="8.5.2" />
-        <PackageReference Include="System.IO.Abstractions" Version="22.0.11" />
-        <PackageReference Include="Ben.Demystifier" Version="0.4.1" />
-    </ItemGroup>
+  <!-- Runtime Exclusion Logic -->
+  <ItemGroup Condition="'$(ScytheRuntimeBuild)' == 'true'">
+    <Compile Remove="Source/Editor/**/*.cs" />
+    <Compile Remove="Source/Launcher/**/*.cs" />
+    <Compile Remove="Source/Helpers/Editor/**/*.cs" />
+  </ItemGroup>
 
-    <ItemGroup>
-        <Compile Remove="Projects/**" />
-        <None Include="Projects/**" />
-    </ItemGroup>
+  <!-- Runtime Data Bundling -->
+  <ItemGroup Condition="'$(ScytheRuntimeBuild)' == 'true' and '$(ScytheBundlePath)' != ''">
+    <EmbeddedResource Include="$(ScytheBundlePath)" LogicalName="Scythe.Bundle.zip" />
+  </ItemGroup>
 
-    <ItemGroup Condition="'$(ScytheRuntimeBuild)' == 'true'">
-        <Compile Remove="Source/Editor/**/*.cs" />
-        <Compile Remove="Source/Launcher/**/*.cs" />
-        <Compile Remove="Source/Helpers/Editor/**/*.cs" />
-    </ItemGroup>
+  <!-- Script Visibility -->
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>Scripts</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
 
-    <ItemGroup Condition="'$(ScytheRuntimeBuild)' == 'true' and '$(ScytheBundlePath)' != ''">
-        <EmbeddedResource Include="$(ScytheBundlePath)" LogicalName="Scythe.Bundle.zip" />
-    </ItemGroup>
+  <!-- Runtime System Settings -->
+  <PropertyGroup Condition="'$(ScytheRuntimeBuild)' == 'true'">
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <AppLocalIcu>false</AppLocalIcu>
+  </PropertyGroup>
 
-    <ItemGroup>
-        <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
-            <_Parameter1>Scripts</_Parameter1>
-        </AssemblyAttribute>
-    </ItemGroup>
-
-    <PropertyGroup Condition="'$(ScytheRuntimeBuild)' == 'true'">
-        <InvariantGlobalization>true</InvariantGlobalization>
-        <AppLocalIcu>false</AppLocalIcu>
-    </PropertyGroup>
-    
 </Project>
