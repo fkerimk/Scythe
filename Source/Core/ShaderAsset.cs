@@ -27,7 +27,7 @@ internal class ShaderAsset : Asset {
         var jsonPath = File + ".json";
         if (System.IO.File.Exists(jsonPath)) {
 
-            var meta = Newtonsoft.Json.JsonConvert.DeserializeObject<AssetSidecarData>(System.IO.File.ReadAllText(jsonPath)) ?? new AssetSidecarData();
+            var meta = JsonFile.ReadOrDefault(jsonPath, new AssetSidecarData());
             var changed = false;
             if (string.IsNullOrWhiteSpace(meta.GUID)) {
 
@@ -36,12 +36,12 @@ internal class ShaderAsset : Asset {
             }
 
             GUID = meta.GUID;
-            if (changed) System.IO.File.WriteAllText(jsonPath, Newtonsoft.Json.JsonConvert.SerializeObject(meta, Newtonsoft.Json.Formatting.Indented));
+            if (changed) JsonFile.WriteIndented(jsonPath, meta);
 
         } else {
 
             GUID = System.Guid.NewGuid().ToString("N");
-            System.IO.File.WriteAllText(jsonPath, Newtonsoft.Json.JsonConvert.SerializeObject(new AssetSidecarData { GUID = GUID }, Newtonsoft.Json.Formatting.Indented));
+            JsonFile.WriteIndented(jsonPath, new AssetSidecarData { GUID = GUID });
         }
 
         try {

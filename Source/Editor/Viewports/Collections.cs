@@ -732,7 +732,7 @@ internal class Collections : Viewport {
             var settingsPath = GetCollectionSettingsPath(_currentPath);
             var settings = ReadCollectionSettings(_currentPath);
             settings.TargetPath = Path.GetRelativePath(_currentPath, path).Replace('\\', '/');
-            File.WriteAllText(settingsPath, JsonConvert.SerializeObject(settings, Formatting.Indented));
+            JsonFile.WriteIndented(settingsPath, settings);
             Notifications.Show($"Collection target set to '{Path.GetFileName(path)}'.");
         } catch (Exception e) {
             Notifications.Show($"Set target failed: {e.Message}");
@@ -746,7 +746,7 @@ internal class Collections : Viewport {
             var settingsPath = GetCollectionSettingsPath(path);
             var settings = ReadCollectionSettings(path);
             settings.Type = GetCollectionTypeName(kind);
-            File.WriteAllText(settingsPath, JsonConvert.SerializeObject(settings, Formatting.Indented));
+            JsonFile.WriteIndented(settingsPath, settings);
             Notifications.Show($"Collection type set to '{GetCollectionTypeName(kind)}'.");
         } catch (Exception e) {
             Notifications.Show($"Set collection type failed: {e.Message}");
@@ -875,7 +875,7 @@ internal class Collections : Viewport {
                     Notifications.Show($"Level '{Path.GetFileName(path)}' created.");
                     return true;
                 case CreateItemType.Material:
-                    File.WriteAllText(path, JsonConvert.SerializeObject(new MaterialAsset.MaterialData { GUID = Guid.NewGuid().ToString("N") }, Formatting.Indented));
+                    JsonFile.WriteIndented(path, new MaterialAsset.MaterialData { GUID = Guid.NewGuid().ToString("N") });
                     Notifications.Show($"Material '{Path.GetFileName(path)}' created.");
                     return true;
                 case CreateItemType.Script:
@@ -927,7 +927,7 @@ internal class Collections : Viewport {
         var settingsPath = GetCollectionSettingsPath(collectionPath);
         if (File.Exists(settingsPath)) return;
 
-        File.WriteAllText(settingsPath, JsonConvert.SerializeObject(new CollectionSettings(), Formatting.Indented));
+        JsonFile.WriteIndented(settingsPath, new CollectionSettings());
     }
 
     private static string GetCollectionSettingsPath(string collectionPath) => Path.Combine(collectionPath, "Collection.json");
@@ -937,7 +937,7 @@ internal class Collections : Viewport {
         var settingsPath = GetCollectionSettingsPath(collectionPath);
         if (!File.Exists(settingsPath)) return new CollectionSettings();
 
-        return JsonConvert.DeserializeObject<CollectionSettings>(File.ReadAllText(settingsPath)) ?? new CollectionSettings();
+        return JsonFile.ReadOrDefault(settingsPath, new CollectionSettings());
     }
 
     private CollectionEntryKind GetCollectionEntryKind(string collectionPath) {

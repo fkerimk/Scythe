@@ -14,7 +14,7 @@ if (!CommandLine.Runtime) CommandLine.NoSplash = false;
 
 if (!BundleRuntime.IsActive) {
     PathUtil.ValidateFile("Scythe.json", out var scytheJson, "{}");
-    JsonConvert.PopulateObject(File.ReadAllText(scytheJson), ScytheConfig.Current);
+    JsonFile.PopulateInto(scytheJson, ScytheConfig.Current);
 
     // Resolve relative paths
     if (!string.IsNullOrWhiteSpace(ScytheConfig.Current.Project)) {
@@ -41,14 +41,14 @@ if (!BundleRuntime.IsActive) {
 
     // Ensure full path and save back for next run
     ScytheConfig.Current.Project = Path.GetFullPath(ScytheConfig.Current.Project);
-    File.WriteAllText(scytheJson, JsonConvert.SerializeObject(ScytheConfig.Current, Formatting.Indented));
+    JsonFile.WriteIndented(scytheJson, ScytheConfig.Current);
 } else
     ScytheConfig.Current.Project = BundleRuntime.ProjectRoot;
 
 if (!Directory.Exists(ScytheConfig.Current.Project)) throw new DirectoryNotFoundException(Ansi.ErrorMessage("Project not found"));
 
 PathUtil.ValidateFile("Project.json", out var projectJson, "{}", true);
-JsonConvert.PopulateObject(File.ReadAllText(projectJson), ProjectConfig.Current);
+JsonFile.PopulateInto(projectJson, ProjectConfig.Current);
 
 PathUtil.ValidateDir("Project", out _, true);
 

@@ -37,7 +37,7 @@ internal class TextureAsset : Asset {
         var jsonPath = File + ".json";
         if (System.IO.File.Exists(jsonPath)) {
 
-            var meta = Newtonsoft.Json.JsonConvert.DeserializeObject<AssetSidecarData>(System.IO.File.ReadAllText(jsonPath)) ?? new AssetSidecarData();
+            var meta = JsonFile.ReadOrDefault(jsonPath, new AssetSidecarData());
             var changed = false;
             if (string.IsNullOrWhiteSpace(meta.GUID)) {
 
@@ -59,7 +59,7 @@ internal class TextureAsset : Asset {
 
             GUID = meta.GUID;
             ImportSettings = (AssetSidecarData.TextureImportSettings)meta.TextureImport.Clone();
-            if (changed) System.IO.File.WriteAllText(jsonPath, Newtonsoft.Json.JsonConvert.SerializeObject(meta, Newtonsoft.Json.Formatting.Indented));
+            if (changed) JsonFile.WriteIndented(jsonPath, meta);
 
         } else {
 
@@ -67,7 +67,7 @@ internal class TextureAsset : Asset {
             var meta = new AssetSidecarData { GUID = GUID };
             meta.TextureImport.Format = GetDefaultFormat();
             ImportSettings = (AssetSidecarData.TextureImportSettings)meta.TextureImport.Clone();
-            System.IO.File.WriteAllText(jsonPath, Newtonsoft.Json.JsonConvert.SerializeObject(meta, Newtonsoft.Json.Formatting.Indented));
+            JsonFile.WriteIndented(jsonPath, meta);
         }
 
         if (ImportSettings == null) ImportSettings = new AssetSidecarData.TextureImportSettings();
@@ -149,7 +149,7 @@ internal class TextureAsset : Asset {
         };
 
         AssetManager.RegisterInternalWrite(jsonPath);
-        System.IO.File.WriteAllText(jsonPath, Newtonsoft.Json.JsonConvert.SerializeObject(meta, Newtonsoft.Json.Formatting.Indented));
+        JsonFile.WriteIndented(jsonPath, meta);
     }
 
     public void ApplyTextureFilter() {

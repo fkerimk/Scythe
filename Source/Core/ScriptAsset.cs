@@ -98,15 +98,13 @@ internal class ScriptAsset : Asset {
     private AssetSidecarData ReadSidecarData() {
 
         var jsonPath = File + ".json";
-        return System.IO.File.Exists(jsonPath)
-            ? Newtonsoft.Json.JsonConvert.DeserializeObject<AssetSidecarData>(System.IO.File.ReadAllText(jsonPath)) ?? new AssetSidecarData()
-            : new AssetSidecarData();
+        return JsonFile.ReadOrDefault(jsonPath, new AssetSidecarData());
     }
 
     private void WriteSidecarData(AssetSidecarData meta) {
 
         var jsonPath = File + ".json";
         AssetManager.RegisterInternalWrite(jsonPath);
-        System.IO.File.WriteAllText(jsonPath, Newtonsoft.Json.JsonConvert.SerializeObject(meta, Newtonsoft.Json.Formatting.Indented));
+        JsonFile.WriteIndented(jsonPath, meta);
     }
 }

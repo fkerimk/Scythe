@@ -21,7 +21,7 @@ internal class EditorRender() : Viewport("Render (Editor)") {
 
             SafeExec.Try(() => {
 
-                    var settings = JsonConvert.DeserializeObject<EditorRenderSettings>(File.ReadAllText(path));
+                    var settings = JsonFile.ReadOrDefault<EditorRenderSettings?>(path, null);
 
                     if (settings == null) return;
 
@@ -68,12 +68,10 @@ internal class EditorRender() : Viewport("Render (Editor)") {
     public void Save() {
 
         var path = GetPath();
-        var dir = Path.GetDirectoryName(path);
-        if (dir != null && !Directory.Exists(dir)) Directory.CreateDirectory(dir);
 
         var settings = new EditorRenderSettings { OpenLevels = Core.OpenLevels.Select(l => Path.GetRelativePath(ScytheConfig.Current.Project, l.JsonPath).Replace('\\', '/')).ToList(), ActiveLevelIndex = Core.ActiveLevelIndex };
 
-        File.WriteAllText(path, JsonConvert.SerializeObject(settings, Formatting.Indented));
+        JsonFile.WriteIndented(path, settings);
     }
 
     private class EditorRenderSettings {

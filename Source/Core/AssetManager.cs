@@ -255,7 +255,7 @@ internal static class AssetManager {
 
         if (File.Exists(oldJson) && !File.Exists(newJson) && oldJson != newJson) SafeExec.Try(() => File.Move(oldJson, newJson));
 
-        if (!File.Exists(newJson)) SafeExec.Try(() => File.WriteAllText(newJson, JsonConvert.SerializeObject(new ModelAsset.ModelSettings(), Formatting.Indented)));
+        if (!File.Exists(newJson)) SafeExec.Try(() => JsonFile.WriteIndented(newJson, new ModelAsset.ModelSettings()));
 
         GetOrLoad<ModelAsset>(file);
         GetOrLoad<AnimationAsset>(file);
@@ -265,7 +265,7 @@ internal static class AssetManager {
 
     private static void ImportMaterial(string file) {
 
-        if (!File.Exists(file) || new FileInfo(file).Length < 5) SafeExec.Try(() => File.WriteAllText(file, JsonConvert.SerializeObject(new MaterialAsset.MaterialData(), Formatting.Indented)));
+        if (!File.Exists(file) || new FileInfo(file).Length < 5) SafeExec.Try(() => JsonFile.WriteIndented(file, new MaterialAsset.MaterialData()));
 
         GetOrLoad<MaterialAsset>(file);
     }

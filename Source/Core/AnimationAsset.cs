@@ -14,7 +14,7 @@ internal class AnimationAsset : Asset {
             var jsonPath = File + ".json";
             if (System.IO.File.Exists(jsonPath)) {
 
-                var settings = Newtonsoft.Json.JsonConvert.DeserializeObject<ModelAsset.ModelSettings>(System.IO.File.ReadAllText(jsonPath)) ?? new ModelAsset.ModelSettings();
+                var settings = JsonFile.ReadOrDefault(jsonPath, new ModelAsset.ModelSettings());
                 var changed = false;
                 if (string.IsNullOrWhiteSpace(settings.AnimationGUID)) {
 
@@ -29,7 +29,7 @@ internal class AnimationAsset : Asset {
                 }
 
                 GUID = settings.AnimationGUID;
-                if (changed) System.IO.File.WriteAllText(jsonPath, Newtonsoft.Json.JsonConvert.SerializeObject(settings, Newtonsoft.Json.Formatting.Indented));
+                if (changed) JsonFile.WriteIndented(jsonPath, settings);
             }
 
             ImportedFile = AssetManager.GetImportedModelFile(File, GUID);

@@ -305,9 +305,7 @@ internal static class BuildPipeline {
     private static void LoadSettings() {
 
         var path = GetSettingsPath();
-        var settings = File.Exists(path)
-            ? JsonConvert.DeserializeObject<BuildSettings>(File.ReadAllText(path)) ?? new BuildSettings()
-            : new BuildSettings();
+        var settings = JsonFile.ReadOrDefault(path, new BuildSettings());
 
         _outputDirectory = string.IsNullOrWhiteSpace(settings.OutputDirectory) ? GetDefaultOutputDirectory() : settings.OutputDirectory;
         _buildWindows = settings.BuildWindows;

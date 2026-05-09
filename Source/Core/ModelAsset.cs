@@ -54,7 +54,7 @@ internal class ModelAsset : Asset {
         try {
 
             var jsonPath = File + ".json";
-            if (System.IO.File.Exists(jsonPath)) Settings = JsonConvert.DeserializeObject<ModelSettings>(System.IO.File.ReadAllText(jsonPath)) ?? new ModelSettings();
+            if (System.IO.File.Exists(jsonPath)) Settings = JsonFile.ReadOrDefault(jsonPath, new ModelSettings());
 
             if (string.IsNullOrWhiteSpace(Settings.GUID)) Settings.GUID = System.Guid.NewGuid().ToString("N");
             if (string.IsNullOrWhiteSpace(Settings.AnimationGUID)) Settings.AnimationGUID = System.Guid.NewGuid().ToString("N");
@@ -153,7 +153,7 @@ internal class ModelAsset : Asset {
         for (var i = 0; i < MaterialPaths.Length; i++) Settings.MeshMaterials[i] = MaterialPaths[i];
         for (var i = 0; i < MaterialPaths.Length; i++) Settings.MeshMaterialPaths[i] = AssetManager.GetStoredPath(AssetManager.GetPath<MaterialAsset>(MaterialPaths[i]) ?? Settings.MeshMaterialPaths.GetValueOrDefault(i, ""));
         AssetManager.RegisterInternalWrite(jsonPath);
-        System.IO.File.WriteAllText(jsonPath, JsonConvert.SerializeObject(Settings, Formatting.Indented));
+        JsonFile.WriteIndented(jsonPath, Settings);
     }
 
     public void ApplyMaterial(int index, string path) {
