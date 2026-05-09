@@ -22,7 +22,9 @@ internal class ScriptAsset : Asset {
         ConfigValues = meta.ScriptConfig ?? [];
         if (changed) WriteSidecarData(meta);
 
+#if !SCYTHE_RUNTIME_BUILD
         ScriptCompiler.CompileProject(); 
+#endif
         AssignFromAssembly();
         return true;
     }

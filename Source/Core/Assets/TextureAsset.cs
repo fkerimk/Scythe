@@ -1,4 +1,6 @@
+#if !SCYTHE_RUNTIME_BUILD
 using ImageMagick;
+#endif
 using Raylib_cs;
 using static Raylib_cs.Raylib;
 
@@ -191,6 +193,7 @@ internal class TextureAsset : Asset {
 
     private Image TryLoadImportedFallbackImage() {
 
+#if !SCYTHE_RUNTIME_BUILD
         if (string.IsNullOrWhiteSpace(ImportedFile) || !System.IO.File.Exists(ImportedFile)) return default;
 
         var effectiveFormat = TextureImportProcessor.GetEffectiveFormat(File, ImportSettings);
@@ -211,5 +214,8 @@ internal class TextureAsset : Asset {
             } catch {
             }
         }
+#else
+        return default;
+#endif
     }
 }

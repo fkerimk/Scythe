@@ -1,10 +1,13 @@
 using System.Reflection;
+#if !SCYTHE_RUNTIME_BUILD
 using FluentResults;
 using Scriban;
+#endif
 
 internal static class ScriptCompiler {
     public static Assembly? ProjectAssembly;
 
+#if !SCYTHE_RUNTIME_BUILD
     private static readonly Template DirectoryBuildPropsTemplate = Template.Parse("""
         <Project>
           <PropertyGroup>
@@ -35,11 +38,15 @@ internal static class ScriptCompiler {
           </ItemGroup>
         </Project>
         """);
+#endif
     
+#if !SCYTHE_RUNTIME_BUILD
     private static bool _compiling;
     private static bool _queued;
+#endif
     private static bool _pendingPlayModeRefresh;
 
+#if !SCYTHE_RUNTIME_BUILD
     public static Result<string> BuildProjectAssembly(bool loadIntoRuntime, BackgroundTask? task = null) {
 
         if (CommandLine.Runtime && loadIntoRuntime) {
@@ -121,6 +128,7 @@ internal static class ScriptCompiler {
             }
         });
     }
+#endif
 
     public static void LoadRuntime() {
         
@@ -131,6 +139,7 @@ internal static class ScriptCompiler {
         LoadCompiledAssembly(dllPath, assignAssetsOnMainThread: false);
     }
 
+#if !SCYTHE_RUNTIME_BUILD
     private static void EnsureBuildProjectFiles(string dirPropsPath, string csprojPath, string exePath) {
 
         WriteTemplateIfMissing(dirPropsPath, DirectoryBuildPropsTemplate);
@@ -142,6 +151,7 @@ internal static class ScriptCompiler {
         if (File.Exists(path)) return;
         File.WriteAllText(path, template.Render(model, member => member.Name));
     }
+#endif
 
     private static bool NeedsCompile(string scriptOutDll) {
 

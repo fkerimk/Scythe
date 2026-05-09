@@ -1,4 +1,6 @@
+#if !SCYTHE_RUNTIME_BUILD
 using ImageMagick;
+#endif
 
 internal static class TextureImportProcessor {
 
@@ -59,9 +61,14 @@ internal static class TextureImportProcessor {
         var result = CommandRunner.Run("ffmpeg", args);
         if (result.ExitCode == 0 && File.Exists(importedFile)) return true;
 
+#if !SCYTHE_RUNTIME_BUILD
         return TryImportWithMagick(sourceFile, importedFile, settings);
+#else
+        return false;
+#endif
     }
 
+#if !SCYTHE_RUNTIME_BUILD
     private static bool TryImportWithMagick(string sourceFile, string importedFile, AssetSidecarData.TextureImportSettings settings) {
         try {
             using var image = new MagickImage(sourceFile);
@@ -73,6 +80,7 @@ internal static class TextureImportProcessor {
             return false;
         }
     }
+#endif
 
     private static string BuildScaleFilter(AssetSidecarData.TextureImportSettings settings) {
 
@@ -81,6 +89,7 @@ internal static class TextureImportProcessor {
         return $"scale={settings.MaxSize}:{settings.MaxSize}:force_original_aspect_ratio=decrease:flags={GetScaleFlag(settings.ResizeFilter)}";
     }
 
+#if !SCYTHE_RUNTIME_BUILD
     private static void ApplyResize(MagickImage image, AssetSidecarData.TextureImportSettings settings) {
         if (settings.MaxSize <= 0) return;
 
@@ -97,6 +106,7 @@ internal static class TextureImportProcessor {
         if (UsesQuality(GetEffectiveFormat(sourceFile, settings)))
             image.Quality = (uint)Math.Clamp(settings.Quality, 1, 100);
     }
+#endif
 
     private static void AddEncodingArgs(ICollection<string> args, string sourceFile, AssetSidecarData.TextureImportSettings settings) {
 
@@ -166,12 +176,14 @@ internal static class TextureImportProcessor {
         _ => "Png"
     };
 
+#if !SCYTHE_RUNTIME_BUILD
     private static MagickFormat GetMagickFormat(string sourceFile, AssetSidecarData.TextureImportSettings settings) => GetEffectiveFormat(sourceFile, settings) switch {
         "Jpeg" => MagickFormat.Jpeg,
         "WebP" => MagickFormat.WebP,
         "Avif" => MagickFormat.Avif,
         _ => MagickFormat.Png
     };
+#endif
 
     private static string GetScaleFlag(string filter) => filter switch {
         "Nearest" => "neighbor",
@@ -180,12 +192,14 @@ internal static class TextureImportProcessor {
         _ => "bilinear"
     };
 
+#if !SCYTHE_RUNTIME_BUILD
     private static FilterType GetMagickFilter(string filter) => filter switch {
         "Nearest" => FilterType.Point,
         "Bicubic" => FilterType.Cubic,
         "Lanczos" => FilterType.Lanczos,
         _ => FilterType.Triangle
     };
+#endif
 
     private static string MapJpegQuality(int quality) {
 

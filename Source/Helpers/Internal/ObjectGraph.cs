@@ -1,15 +1,19 @@
 using System.Reflection;
+#if !SCYTHE_RUNTIME_BUILD
 using FastMember;
-using Force.DeepCloner;
 using KellermanSoftware.CompareNetObjects;
+#endif
+using Force.DeepCloner;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
 internal static class ObjectGraph {
+#if !SCYTHE_RUNTIME_BUILD
     private static readonly CompareLogic Comparer = new(new ComparisonConfig {
         MaxDifferences = 1,
         IgnoreCollectionOrder = false
     });
+#endif
 
     public static bool AreEqual(object? left, object? right) {
         if (left == null && right == null) return true;
@@ -17,7 +21,11 @@ internal static class ObjectGraph {
         if (ReferenceEquals(left, right) || Equals(left, right)) return true;
 
         try {
+#if !SCYTHE_RUNTIME_BUILD
             return Comparer.Compare(left, right).AreEqual;
+#else
+            return JToken.DeepEquals(JToken.FromObject(left), JToken.FromObject(right));
+#endif
         } catch {
             try {
                 return JToken.DeepEquals(JToken.FromObject(left), JToken.FromObject(right));
@@ -32,8 +40,10 @@ internal static class ObjectGraph {
 
     public static void CopyJsonState(object source, object target) {
         const BindingFlags flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+#if !SCYTHE_RUNTIME_BUILD
         var sourceAccessor = TypeAccessor.Create(source.GetType(), true);
         var targetAccessor = TypeAccessor.Create(target.GetType(), true);
+#endif
 
         foreach (var property in source.GetType().GetProperties(flags)) {
             if (!property.CanRead) continue;
@@ -42,7 +52,11 @@ internal static class ObjectGraph {
             var targetProperty = target.GetType().GetProperty(property.Name, flags);
             if (targetProperty == null || !targetProperty.CanWrite) continue;
 
+#if !SCYTHE_RUNTIME_BUILD
             targetAccessor[target, property.Name] = CloneMemberValue(sourceAccessor[source, property.Name]);
+#else
+            targetProperty.SetValue(target, CloneMemberValue(property.GetValue(source)));
+#endif
         }
 
         foreach (var field in source.GetType().GetFields(flags)) {
@@ -52,7 +66,11 @@ internal static class ObjectGraph {
             var targetField = target.GetType().GetField(field.Name, flags);
             if (targetField == null || targetField.IsInitOnly) continue;
 
+#if !SCYTHE_RUNTIME_BUILD
             targetAccessor[target, field.Name] = CloneMemberValue(sourceAccessor[source, field.Name]);
+#else
+            targetField.SetValue(target, CloneMemberValue(field.GetValue(source)));
+#endif
         }
     }
 

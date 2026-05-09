@@ -1,14 +1,20 @@
 using System.Numerics;
 using System.Text.Json.Nodes;
+#if !SCYTHE_RUNTIME_BUILD
 using Json.Path;
+#endif
+#if !SCYTHE_RUNTIME_BUILD
 using JsonDiffPatchDotNet;
+#endif
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Raylib_cs;
 
 [JsonObject(MemberSerialization.OptIn)]
 internal class Level {
+#if !SCYTHE_RUNTIME_BUILD
     private static readonly JsonDiffPatch JsonDiffer = new();
+#endif
 
     // Custom converter to handle path relativization
     public class RelativePathConverter : JsonConverter {
@@ -330,10 +336,14 @@ internal class Level {
 
         var sourceToken = JObject.FromObject(source, serializer);
         var full = JObject.FromObject(target, serializer);
+#if !SCYTHE_RUNTIME_BUILD
         var diff = JsonDiffer.Diff(sourceToken, full);
         if (diff == null) return null;
 
         var diffNode = JsonNode.Parse(diff.ToString(Formatting.None));
+#else
+        var diffNode = (JsonNode?)null;
+#endif
         var sparse = new JObject();
         var changedOverrides = new List<string>();
 
@@ -350,10 +360,14 @@ internal class Level {
     }
 
     private static bool HasDiffAtProperty(JsonNode? diffNode, string propertyName) {
+#if !SCYTHE_RUNTIME_BUILD
         if (diffNode == null) return false;
 
         var jsonPath = Json.Path.JsonPath.Parse($"$['{propertyName.Replace("'", "\\'")}']");
         return jsonPath.Evaluate(diffNode).Matches.Count > 0;
+#else
+        return false;
+#endif
     }
 
     private static void BuildHierarchy(KeyValuePair<string, JToken> dataPair, Obj parent) {

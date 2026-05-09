@@ -1,9 +1,11 @@
 using System.Collections.Concurrent;
-using Nito.AsyncEx;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+#if !SCYTHE_RUNTIME_BUILD
+using Nito.AsyncEx;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
+#endif
 using static Raylib_cs.Raylib;
 
 internal static class AssetManager {
@@ -14,11 +16,15 @@ internal static class AssetManager {
     private static readonly Dictionary<string, Asset>     PathLookup     = new();
     private static readonly Dictionary<Type, List<Asset>> TypeCache      = new();
     private static readonly ConcurrentQueue<Action>       PendingActions = new();
+#if !SCYTHE_RUNTIME_BUILD
     private static readonly Subject<string>               ImportRequests = new();
+#endif
     private static readonly HashSet<string>               _textureImportsInProgress = [];
     private static readonly List<string>                  _pendingFiles  = new();
     private static readonly Dictionary<string, int>       _ignoredChanges = new();
+#if !SCYTHE_RUNTIME_BUILD
     private static IDisposable?                           _importRequestSubscription;
+#endif
     private static BackgroundTask?                        _importTask;
     private static bool                                   _isInitializing;
 
@@ -128,6 +134,7 @@ internal static class AssetManager {
     }
 
     private static void EnsureImportPipeline() {
+#if !SCYTHE_RUNTIME_BUILD
         if (_importRequestSubscription != null) return;
 
         _importRequestSubscription = ImportRequests
@@ -135,6 +142,7 @@ internal static class AssetManager {
             .Buffer(TimeSpan.FromMilliseconds(250))
             .Where(batch => batch.Count > 0)
             .Subscribe(batch => EnqueueWatcherAction(() => QueueImportTargets(batch)));
+#endif
     }
 
     private static void QueueImportTargets(IEnumerable<string> files) {
@@ -198,7 +206,9 @@ internal static class AssetManager {
         foreach (var (_, asset) in GetAssetsWatchingPath(file))
             ReloadTrackedAsset(asset);
 
+#if !SCYTHE_RUNTIME_BUILD
         ImportRequests.OnNext(file);
+#endif
     }
 
     private static void StartImportTask() {
@@ -211,12 +221,20 @@ internal static class AssetManager {
             int current = 0;
             foreach (var file in filesToImport) {
 
+#if !SCYTHE_RUNTIME_BUILD
                 var done = new AsyncManualResetEvent(false);
+#else
+                var done = new ManualResetEvent(false);
+#endif
                 Tasks.RunOnMainThread(() => {
                     try { ImportFile(file); }
                     finally { done.Set(); }
                 });
+#if !SCYTHE_RUNTIME_BUILD
                 done.Wait();
+#else
+                done.WaitOne();
+#endif
                 current++;
                 task.Progress = (float)current / filesToImport.Count;
                 task.Status = Path.GetFileName(file);
