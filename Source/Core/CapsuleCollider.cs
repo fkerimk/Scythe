@@ -21,7 +21,13 @@ internal class CapsuleCollider(Obj obj) : Component(obj) {
 
     public override bool Load() {
 
-        Obj.DecomposeWorldMatrix(out _, out _, out var scale);
+        var isPrefabInstance = Obj.FindPrefabRoot() != null;
+        Vector3 scale;
+        if (isPrefabInstance) {
+            scale = Obj.Transform.Scale;
+        } else {
+            Obj.DecomposeWorldMatrix(out _, out _, out scale);
+        }
         var maxScale = MathF.Max(scale.X, scale.Z);
 
         Shape = new CapsuleShape(Radius * maxScale, Height * scale.Y);

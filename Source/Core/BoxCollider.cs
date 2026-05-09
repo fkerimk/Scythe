@@ -18,7 +18,13 @@ internal class BoxCollider(Obj obj) : Component(obj) {
 
     public override bool Load() {
 
-        Obj.DecomposeWorldMatrix(out _, out _, out var scale);
+        var isPrefabInstance = Obj.FindPrefabRoot() != null;
+        Vector3 scale;
+        if (isPrefabInstance) {
+            scale = Obj.Transform.Scale;
+        } else {
+            Obj.DecomposeWorldMatrix(out _, out _, out scale);
+        }
         var width = MathF.Max(0.001f, MathF.Abs(Size.X * scale.X));
         var height = MathF.Max(0.001f, MathF.Abs(Size.Y * scale.Y));
         var length = MathF.Max(0.001f, MathF.Abs(Size.Z * scale.Z));
