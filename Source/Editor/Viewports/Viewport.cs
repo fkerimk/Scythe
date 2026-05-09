@@ -5,7 +5,7 @@ internal abstract class Viewport(string title) {
 
     public string Title { get; } = title;
     public CustomStyle? CustomStyle;
-    protected ImGuiWindowFlags WindowFlags { get; init; } = ImGuiWindowFlags.NoCollapse | ImGuiWindowFlags.NoNav;
+    protected ImGuiWindowFlags WindowFlags { get; init; } = ImGuiWindowFlags.NoCollapse | ImGuiWindowFlags.NoNav | ImGuiWindowFlags.NoFocusOnAppearing;
 
     public Vector2 WindowPos;
     public Vector2 ContentRegion;
