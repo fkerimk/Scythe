@@ -1,14 +1,14 @@
 ﻿internal static class CommandLine {
 
-    public static bool NoSplash;
-    public static bool Runtime;
+    public static bool NoSplash { get; set; }
+    public static bool Runtime { get; set; }
 
     public static void Init() {
+        var args = Environment.GetCommandLineArgs()
+            .Skip(1)
+            .ToHashSet(StringComparer.InvariantCultureIgnoreCase);
 
-        foreach (var arg in Environment.GetCommandLineArgs()) {
-
-            if (arg.Equals("nosplash", StringComparison.InvariantCultureIgnoreCase)) NoSplash = true;
-            if (arg.Equals("runtime", StringComparison.InvariantCultureIgnoreCase)) Runtime = true;
-        }
+        NoSplash = args.Contains("nosplash");
+        Runtime = args.Contains("runtime");
     }
 }

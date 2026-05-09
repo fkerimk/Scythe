@@ -1,4 +1,5 @@
 using System.Reflection;
+using FluentResults;
 using Scriban;
 
 internal static class ScriptCompiler {
@@ -39,18 +40,14 @@ internal static class ScriptCompiler {
     private static bool _queued;
     private static bool _pendingPlayModeRefresh;
 
-    public static bool BuildProjectAssembly(bool loadIntoRuntime, out string scriptOutDll, out string error, BackgroundTask? task = null) {
-
-        scriptOutDll = "";
-        error = "";
+    public static Result<string> BuildProjectAssembly(bool loadIntoRuntime, BackgroundTask? task = null) {
 
         if (CommandLine.Runtime && loadIntoRuntime) {
-            error = "Runtime mode cannot compile scripts.";
-            return false;
+            return Result.Fail("Runtime mode cannot compile scripts.");
         }
-        var assemblyDir = Path.Combine(ScytheConfig.Current.Project, "Assembly");
-        scriptOutDll = Path.Combine(assemblyDir, "Scripts.dll");
 
+        var assemblyDir = Path.Combine(ScytheConfig.Current.Project, "Assembly");
+        var scriptOutDll = Path.Combine(assemblyDir, "Scripts.dll");
 
         var exePath = Path.Combine(AppContext.BaseDirectory, "Scythe.dll");
         var projectName = new DirectoryInfo(ScytheConfig.Current.Project).Name;
@@ -63,7 +60,7 @@ internal static class ScriptCompiler {
 
             if (loadIntoRuntime) LoadCompiledAssembly(scriptOutDll, assignAssetsOnMainThread: true);
             task?.Status = "Up-to-date";
-            return true;
+            return Result.Ok(scriptOutDll);
         }
 
         task?.Status = "Compiling...";
@@ -76,14 +73,12 @@ internal static class ScriptCompiler {
         ]);
 
         if (!File.Exists(scriptOutDll) || result.ExitCode != 0) {
-
-            error = result.GetPreferredError("dotnet build failed.");
-            return false;
+            return Result.Fail(result.GetPreferredError("dotnet build failed."));
         }
 
         if (loadIntoRuntime) LoadCompiledAssembly(scriptOutDll, assignAssetsOnMainThread: true);
         task?.Status = "Success";
-        return true;
+        return Result.Ok(scriptOutDll);
     }
     
     public static void CompileProject() {
@@ -106,8 +101,9 @@ internal static class ScriptCompiler {
                 while (true) {
 
                     _queued = false;
-                    if (!BuildProjectAssembly(loadIntoRuntime: true, out _, out var error, task)) {
-                        Console.WriteLine(error);
+                    var buildResult = BuildProjectAssembly(loadIntoRuntime: true, task);
+                    if (buildResult.IsFailed) {
+                        Console.WriteLine(buildResult.Errors.FirstOrDefault()?.Message ?? "Script build failed.");
                         task.Status = "Fail";
                         break;
                     }

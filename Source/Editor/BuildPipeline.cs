@@ -134,8 +134,10 @@ internal static class BuildPipeline {
     private static void CreateBundle(string bundleZip, string outputDirectory, BackgroundTask task) {
 
         task.Status = "Compiling scripts...";
-        if (!ScriptCompiler.BuildProjectAssembly(loadIntoRuntime: false, out var scriptDll, out var error, task))
-            throw new InvalidOperationException(string.IsNullOrWhiteSpace(error) ? "Script build failed." : error);
+        var buildResult = ScriptCompiler.BuildProjectAssembly(loadIntoRuntime: false, task);
+        if (buildResult.IsFailed)
+            throw new InvalidOperationException(buildResult.Errors.FirstOrDefault()?.Message ?? "Script build failed.");
+        var scriptDll = buildResult.Value;
 
         var bundleRoot = Path.Combine(Path.GetDirectoryName(bundleZip)!, "Bundle");
         var projectRoot = Path.Combine(bundleRoot, "Project");
