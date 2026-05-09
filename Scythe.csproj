@@ -46,13 +46,13 @@
     <PackageReference Include="Magick.NET-Q8-AnyCPU" Version="14.13.0" />
     <PackageReference Include="Humanizer" Version="3.0.10" />
     <PackageReference Include="Nito.AsyncEx" Version="5.1.2" />
-    <PackageReference Include="System.Reactive" Version="6.0.1" />
-    <PackageReference Include="FluentResults" Version="3.16.0" />
-    <PackageReference Include="FluentValidation" Version="11.11.0" />
+    <PackageReference Include="System.Reactive" Version="6.1.0" />
+    <PackageReference Include="FluentResults" Version="4.0.0" />
+    <PackageReference Include="FluentValidation" Version="12.1.1" />
     <PackageReference Include="Enums.NET" Version="5.0.0" />
     <PackageReference Include="FastMember" Version="1.5.0" />
-    <PackageReference Include="Polly" Version="8.5.2" />
-    <PackageReference Include="System.IO.Abstractions" Version="22.0.11" />
+    <PackageReference Include="Polly" Version="8.6.6" />
+    <PackageReference Include="System.IO.Abstractions" Version="22.1.1" />
     <PackageReference Include="Ben.Demystifier" Version="0.4.1" />
   </ItemGroup>
 
