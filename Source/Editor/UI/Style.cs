@@ -82,6 +82,12 @@ internal static class Style {
         Set(ImGuiCol.NavWindowingDimBg, new Color(200, 200, 200, 50));
         Set(ImGuiCol.ModalWindowDimBg, new Color(0, 0, 0, 150));
 
+        Set(ImGuiStyleVar.FrameRounding, 4f);
+        Set(ImGuiStyleVar.WindowRounding, 4f);
+        Set(ImGuiStyleVar.ChildRounding, 4f);
+        Set(ImGuiStyleVar.PopupRounding, 4f);
+        Set(ImGuiStyleVar.GrabRounding, 4f);
+
         if (style?.WindowPadding != null) Set(ImGuiStyleVar.WindowPadding, style.Value.WindowPadding.Value);
         if (style?.CellPadding != null) Set(ImGuiStyleVar.CellPadding, style.Value.CellPadding.Value);
         if (style?.FramePadding != null) Set(ImGuiStyleVar.FramePadding, style.Value.FramePadding.Value);
@@ -111,6 +117,12 @@ internal static class Style {
     }
 
     private static void Set(ImGuiStyleVar id, Vector2 value) {
+
+        PushStyleVar(id, value);
+        PushedVars[_pushes]++;
+    }
+
+    private static void Set(ImGuiStyleVar id, float value) {
 
         PushStyleVar(id, value);
         PushedVars[_pushes]++;

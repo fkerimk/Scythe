@@ -26,18 +26,12 @@ if (!BundleRuntime.IsActive) {
         }
     }
 
-    // Skip launcher if project is valid
-    if (string.IsNullOrWhiteSpace(ScytheConfig.Current.Project) || !Directory.Exists(ScytheConfig.Current.Project)) {
-    
-    #if SCYTHE_RUNTIME_BUILD
-        throw new DirectoryNotFoundException(Ansi.ErrorMessage("Embedded project could not be resolved"));
-    #else
-        var selected = Launcher.Show();
-        if (string.IsNullOrEmpty(selected)) return 0;
-    
-        ScytheConfig.Current.Project = selected;
+    #if !SCYTHE_RUNTIME_BUILD
+    var selected = Launcher.Show();
+    if (string.IsNullOrEmpty(selected)) return 0;
+
+    ScytheConfig.Current.Project = selected;
     #endif
-    }
 
     // Ensure full path and save back for next run
     ScytheConfig.Current.Project = Path.GetFullPath(ScytheConfig.Current.Project);

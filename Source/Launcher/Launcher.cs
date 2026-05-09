@@ -14,10 +14,12 @@ internal static class Launcher {
     private static string _newProjectName = "New Project";
     private static string? _projectToDelete;
     private static string? _popupToOpen;
+    private static Texture2D _logoTexture;
 
     private struct ProjectInfo {
         public string Name;
         public string Path;
+        public bool IsLatest;
     }
 
     public static string? Show() {
@@ -25,6 +27,14 @@ internal static class Launcher {
         Setup(true, true);
         Fonts.Init(); 
         RefreshProjects();
+        
+        if (_logoTexture.Id == 0) {
+            if (PathUtil.GetPath("Collection/Icon.png", out var iconPath)) {
+                var img = LoadImage(iconPath);
+                _logoTexture = LoadTextureFromImage(img);
+                UnloadImage(img);
+            }
+        }
 
         while (!WindowShouldClose() && !_shouldExit) {
             BeginDrawing();
@@ -52,15 +62,32 @@ internal static class Launcher {
         Projects.Clear();
         var projectsDir = Path.GetFullPath("Projects");
         if (!Directory.Exists(projectsDir)) Directory.CreateDirectory(projectsDir);
+        
+        var latestPath = string.IsNullOrEmpty(ScytheConfig.Current.Project) ? "" : Path.GetFullPath(ScytheConfig.Current.Project).Replace('\\', '/');
+
         foreach (var dir in Directory.GetDirectories(projectsDir)) {
             var jsonPath = Path.Combine(dir, "Project.json");
             if (File.Exists(jsonPath)) {
                 try {
                     var config = JsonFile.ReadOrDefault<ProjectConfig?>(jsonPath, null);
-                    Projects.Add(new ProjectInfo { Name = config?.Name ?? Path.GetFileName(dir), Path = dir });
+                    var fullPath = Path.GetFullPath(dir).Replace('\\', '/');
+                    var isLatest = !string.IsNullOrEmpty(latestPath) && string.Equals(fullPath, latestPath, StringComparison.OrdinalIgnoreCase);
+                    
+                    Projects.Add(new ProjectInfo { 
+                        Name = config?.Name ?? Path.GetFileName(dir), 
+                        Path = dir,
+                        IsLatest = isLatest
+                    });
                 } catch { }
             }
         }
+
+        // Sort: Latest first, then by name
+        Projects.Sort((a, b) => {
+            if (a.IsLatest && !b.IsLatest) return -1;
+            if (!a.IsLatest && b.IsLatest) return 1;
+            return string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase);
+        });
     }
 
     private static void DrawUI() {
@@ -68,49 +95,46 @@ internal static class Launcher {
         SetNextWindowPos(viewport.Pos);
         SetNextWindowSize(viewport.Size);
 
+        PushStyleVar(ImGuiStyleVar.WindowPadding, new Vector2(0, 0));
         if (Begin("Launcher", ImGuiWindowFlags.NoDecoration | ImGuiWindowFlags.NoMove)) {
             var windowSize = GetWindowSize();
             var windowPos = GetWindowPos();
             var drawList = GetWindowDrawList();
 
-            // Background Header
-            drawList.AddRectFilled(windowPos, windowPos + new Vector2(windowSize.X, 130), ColorConvertFloat4ToU32(new Vector4(0.08f, 0.08f, 0.12f, 1f)));
-            drawList.AddLine(windowPos + new Vector2(0, 130), windowPos + new Vector2(windowSize.X, 130), ColorConvertFloat4ToU32(Colors.GuiBorder.ToVector4()));
+            // --- HEADER ---
+            var headerHeight = 80f;
+            drawList.AddRectFilled(windowPos, windowPos + new Vector2(windowSize.X, headerHeight), ColorConvertFloat4ToU32(new Vector4(0.08f, 0.08f, 0.12f, 1f)));
+            drawList.AddLine(windowPos + new Vector2(0, headerHeight), windowPos + new Vector2(windowSize.X, headerHeight), ColorConvertFloat4ToU32(Colors.GuiBorder.ToVector4()));
 
-            // Center-ish Logo
-            Dummy(new Vector2(0, 15));
-            Indent(25);
-            PushFont(Fonts.ImFontAwesomeLarge);
-            TextColored(Colors.Primary.ToVector4(), Icons.FaCube);
-            PopFont();
-            SameLine();
-            Dummy(new Vector2(5, 0)); SameLine();
-            Text("SCYTHE"); SameLine(); TextDisabled("PRO ENGINE");
+            // Logo
+            if (_logoTexture.Id != 0) {
+                SetCursorPos(new Vector2(20, (headerHeight - 32) / 2));
+                rlImGui.ImageSize(_logoTexture, 32, 32);
+            }
 
-            // Close button
-            SameLine(windowSize.X - 45);
-            PushFont(Fonts.ImFontAwesomeNormal);
-            if (Button(Icons.FaXMark + "##Close", new Vector2(30, 30))) _shouldExit = true;
-            PopFont();
-            
-            // Toolbar
-            Dummy(new Vector2(0, 45));
-            Text("Recent Projects");
-            SameLine(windowSize.X - 185);
+            // Branding (SCYTHE ENGINE)
+            SetCursorPos(new Vector2(_logoTexture.Id != 0 ? 62 : 20, (headerHeight - GetTextLineHeight()) / 2));
+            Text("SCYTHE"); SameLine(0, 8);
+            TextDisabled("ENGINE");
+
+            // Create Project Button
+            SetCursorPos(new Vector2(windowSize.X - 180, (headerHeight - 34) / 2));
             if (Button("Create New###btnCreate", new Vector2(160, 34))) _popupToOpen = "Create Project";
-            Unindent(25);
 
-            Dummy(new Vector2(0, 15));
+            // Validate header extent
+            SetCursorPos(new Vector2(0, headerHeight));
+            Dummy(new Vector2(windowSize.X, 0));
 
-            // Project List Area
+            // --- PROJECT LIST ---
+            SetCursorPos(new Vector2(0, headerHeight + 10));
+            
             Indent(20);
-            var childHeight = windowSize.Y - GetCursorPosY() - 25;
-            if (BeginChild("ProjectList", new Vector2(windowSize.X - 40, childHeight))) {
+            var childHeight = windowSize.Y - GetCursorPosY() - 20;
+            if (BeginChild("ProjectList", new Vector2(windowSize.X - 40, childHeight), ImGuiChildFlags.None, ImGuiWindowFlags.NoBackground | ImGuiWindowFlags.NoScrollbar)) {
                 var childDrawList = GetWindowDrawList();
                 
                 if (Projects.Count == 0) {
-                   Dummy(new Vector2(0, 50));
-                   SetCursorPosX(GetContentRegionAvail().X / 2 - 100);
+                   SetCursorPos(new Vector2(GetContentRegionAvail().X / 2 - 100, 50));
                    TextDisabled("No projects found.");
                 }
 
@@ -118,45 +142,61 @@ internal static class Launcher {
                     var project = Projects[i];
                     PushID(project.Path);
 
+                    var itemHeight = 64f;
                     var screenPos = GetCursorScreenPos();
                     var width = GetContentRegionAvail().X;
-                    var itemHeight = 90f;
+                    var isHovered = IsMouseHoveringRect(screenPos, screenPos + new Vector2(width, itemHeight));
 
-                    if (IsMouseHoveringRect(screenPos, screenPos + new Vector2(width, itemHeight))) {
-                        childDrawList.AddRectFilled(screenPos, screenPos + new Vector2(width, itemHeight), ColorConvertFloat4ToU32(new Vector4(1f, 1f, 1f, 0.05f)));
-                        if (IsMouseDoubleClicked(ImGuiMouseButton.Left)) { CommandLine.Runtime = false; _selectedProject = project.Path; _shouldExit = true; }
+                    // Background
+                    var bgColor = i % 2 == 0 ? new Vector4(1f, 1f, 1f, 0.02f) : new Vector4(0f, 0f, 0f, 0.04f);
+                    if (isHovered) bgColor = new Vector4(1f, 1f, 1f, 0.08f);
+                    childDrawList.AddRectFilled(screenPos, screenPos + new Vector2(width, itemHeight), ColorConvertFloat4ToU32(bgColor), 4f);
+
+                    if (isHovered && IsMouseDoubleClicked(ImGuiMouseButton.Left)) { 
+                        CommandLine.Runtime = false; _selectedProject = project.Path; _shouldExit = true; 
                     }
 
-                    Dummy(new Vector2(width, itemHeight));
-                    var itemStartPos = GetCursorPos() - new Vector2(0, itemHeight);
+                    // Content Positioning
+                    var itemStartPos = GetCursorPos();
                     
-                    SetCursorPos(itemStartPos + new Vector2(15, 20));
+                    // Text (LATEST: Name)
+                    var textY = (itemHeight - (GetTextLineHeight() * 2 + 4)) / 2;
+                    SetCursorPos(itemStartPos + new Vector2(15, textY));
+                    
+                    if (project.IsLatest) {
+                        TextColored(Colors.Primary.ToVector4(), "LATEST:"); SameLine(0, 6);
+                    }
                     Text(project.Name);
-                    SetCursorPos(itemStartPos + new Vector2(15, 45));
+                    
+                    SetCursorPos(itemStartPos + new Vector2(15, textY + GetTextLineHeight() + 4));
                     TextDisabled(project.Path);
 
-                    SetCursorPos(itemStartPos + new Vector2(width - 240, 25));
-                    if (Button("EDITOR", new Vector2(85, 40))) { CommandLine.Runtime = false; _selectedProject = project.Path; _shouldExit = true; }
-                    SameLine();
-                    if (Button("RUNTIME", new Vector2(85, 40))) { CommandLine.Runtime = true; _selectedProject = project.Path; _shouldExit = true; }
-                    SameLine();
+                    // Buttons
+                    var btnWidth = 80f;
+                    var btnHeight = 32f;
+                    var btnY = (itemHeight - btnHeight) / 2;
                     
+                    SetCursorPos(itemStartPos + new Vector2(width - 220, btnY));
+                    if (Button("EDITOR", new Vector2(btnWidth, btnHeight))) { CommandLine.Runtime = false; _selectedProject = project.Path; _shouldExit = true; }
+                    
+                    SameLine(0, 8);
+                    if (Button("RUNTIME", new Vector2(btnWidth, btnHeight))) { CommandLine.Runtime = true; _selectedProject = project.Path; _shouldExit = true; }
+                    
+                    SameLine(0, 8);
                     PushStyleColor(ImGuiCol.Button, new Vector4(0.4f, 0.15f, 0.15f, 1f));
                     PushFont(Fonts.ImFontAwesomeNormal);
-                    if (Button(Icons.FaTrashAlt + "##DelBtn", new Vector2(40, 40))) {
+                    if (Button(Icons.FaTrashAlt + "##DelBtn", new Vector2(btnHeight, btnHeight))) {
                         _projectToDelete = project.Path;
                         _popupToOpen = "DeleteConfirm";
                     }
                     PopFont();
                     PopStyleColor();
 
-                    if (i < Projects.Count - 1) {
-                        SetCursorPos(itemStartPos + new Vector2(0, itemHeight));
-                        Separator();
-                    }
+                    // Advance cursor for next item
+                    SetCursorPos(itemStartPos + new Vector2(0, itemHeight + 4));
+                    Dummy(new Vector2(width, 0));
                     PopID();
                 }
-                Dummy(new Vector2(0, 30)); 
                 EndChild();
             }
             Unindent(20);
@@ -169,6 +209,7 @@ internal static class Launcher {
 
             DrawModals();
         }
+        PopStyleVar();
         ImGui.End();
     }
 
