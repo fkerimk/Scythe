@@ -387,9 +387,8 @@ internal static partial class Extensions {
             if (!string.Equals(clone.Name, source.Name, StringComparison.Ordinal) && clone.FindPrefabRoot() == clone)
                 clone.SetPrefabOverride(nameof(Obj.Name), true);
 
-            // Copy Transform
-            var transformJson = JsonConvert.SerializeObject(source.Transform);
-            JsonConvert.PopulateObject(transformJson, clone.Transform);
+            // Copy serialized transform state only; runtime-only fields stay reset.
+            ObjectGraph.CopyJsonState(source.Transform, clone.Transform);
             clone.Transform.PrefabOverrides = [.. source.Transform.PrefabOverrides];
 
             // Copy Components
@@ -399,8 +398,7 @@ internal static partial class Extensions {
 
                 if (Activator.CreateInstance(compType, clone) is not Component cloneComp) continue;
 
-                var compJson = JsonConvert.SerializeObject(sourceComponent);
-                JsonConvert.PopulateObject(compJson, cloneComp);
+                ObjectGraph.CopyJsonState(sourceComponent, cloneComp);
                 cloneComp.PrefabOverrides = [.. sourceComponent.PrefabOverrides];
 
                 clone.Components[key] = cloneComp;

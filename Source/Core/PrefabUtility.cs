@@ -453,7 +453,7 @@ internal static class PrefabUtility {
     private static Component CloneComponent(Component sourceComponent, Obj owner) {
 
         var clone = (Component)(Activator.CreateInstance(sourceComponent.GetType(), owner) ?? throw new InvalidOperationException());
-        JsonConvert.PopulateObject(JsonConvert.SerializeObject(sourceComponent), clone);
+        ObjectGraph.CopyJsonState(sourceComponent, clone);
         clone.PrefabOverrides.Clear();
         return clone;
     }
