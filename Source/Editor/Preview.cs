@@ -1,11 +1,9 @@
 using System.Numerics;
 using System.Text;
-using System.Threading;
-using System.Text.RegularExpressions;
-using ColorCode;
-using ColorCode.Parsing;
 using ImGuiNET;
 using Raylib_cs;
+using TextMateSharp.Grammars;
+using TextMateSharp.Registry;
 using static Raylib_cs.Raylib;
 using static ImGuiNET.ImGui;
 
@@ -37,27 +35,9 @@ internal class Preview : Viewport {
     private readonly List<List<ColoredTextSegment>> _scriptPreviewLines = [];
     private Level? _previewLevel;
     private string _previewLevelFile = "";
-    private static readonly HashSet<string> ShaderKeywords = [
-        "attribute", "break", "case", "const", "continue", "default", "discard", "do", "else", "for", "if", "in", "inout",
-        "out", "precision", "return", "struct", "switch", "uniform", "varying", "while", "layout"
-    ];
-    private static readonly HashSet<string> ShaderTypes = [
-        "void", "bool", "int", "float", "vec2", "vec3", "vec4", "ivec2", "ivec3", "ivec4", "bvec2", "bvec3", "bvec4",
-        "mat2", "mat3", "mat4", "sampler2D", "samplerCube", "uint"
-    ];
-    private static readonly HashSet<string> ShaderBuiltins = [
-        "gl_FragColor", "gl_FragCoord", "gl_Position", "gl_PointCoord", "gl_PointSize", "texture", "texture2D", "textureCube",
-        "mix", "clamp", "smoothstep", "step", "normalize", "length", "dot", "cross", "reflect", "refract", "pow", "exp",
-        "log", "sqrt", "abs", "min", "max", "sin", "cos", "tan", "fract", "floor", "ceil", "mod"
-    ];
-    private static readonly Regex ShaderTokenRegex = new(
-        @"(#.*$|//.*$|/\*[\s\S]*?\*/|""(?:\\.|[^""\\])*""|'(?:\\.|[^'\\])*'|\b\d+(?:\.\d+)?(?:[eE][+-]?\d+)?\b|\b[A-Za-z_][A-Za-z0-9_]*\b|[^\s])",
-        RegexOptions.Compiled | RegexOptions.Multiline
-    );
-    private static readonly ILanguageParser ScriptPreviewParser = new LanguageParser(
-        new ColorCode.Compilation.LanguageCompiler(new Dictionary<string, ColorCode.Compilation.CompiledLanguage>(), new ReaderWriterLockSlim()),
-        new ColorCode.Common.LanguageRepository(new Dictionary<string, ILanguage>())
-    );
+    private static readonly RegistryOptions PreviewRegistryOptions = new(ThemeName.DarkPlus);
+    private static readonly Registry PreviewSyntaxRegistry = new(PreviewRegistryOptions);
+    private static readonly Dictionary<string, IGrammar?> PreviewGrammars = new(StringComparer.OrdinalIgnoreCase);
 
     // Interactive Preview State
     private float _zoom = 1.0f;
@@ -214,51 +194,12 @@ internal class Preview : Viewport {
 
         if (!File.Exists(path)) return;
 
-        if (CollectionData.IsShader(path)) {
-            CacheShaderPreview(path);
-            return;
-        }
-
-        if (!IsScript(path)) {
+        if (!IsCodePreviewFile(path)) {
             CachePlainTextPreview(path);
             return;
         }
 
-        var currentLine = new List<ColoredTextSegment>();
-        var currentText = new System.Text.StringBuilder();
-        var currentColor = Colors.GuiCodePlain.ToVector4();
-
-        var source = File.ReadAllText(path).Replace("\r\n", "\n");
-
-        ScriptPreviewParser.Parse(source, Languages.CSharp, (parsedSource, scopes) => {
-            var chunkColors = Enumerable.Repeat(Colors.GuiCodePlain.ToVector4(), parsedSource.Length).ToArray();
-
-            foreach (var scope in scopes) ApplyScopeColorRecursive(scope, chunkColors, parsedSource.Length);
-
-            for (var i = 0; i < parsedSource.Length; i++) {
-                var c = parsedSource[i];
-
-                if (c == '\n') {
-                    FlushScriptSegment(currentLine, currentText, currentColor);
-                    _scriptPreviewLines.Add(currentLine);
-                    currentLine = [];
-                    continue;
-                }
-
-                var color = chunkColors[i];
-                if (!ApproximatelyEqual(color, currentColor) && currentText.Length > 0) {
-                    FlushScriptSegment(currentLine, currentText, currentColor);
-                    currentColor = color;
-                } else if (currentText.Length == 0) {
-                    currentColor = color;
-                }
-
-                currentText.Append(c);
-            }
-        });
-
-        FlushScriptSegment(currentLine, currentText, currentColor);
-        _scriptPreviewLines.Add(currentLine);
+        CacheTextMatePreview(path);
     }
 
     private void CachePlainTextPreview(string path) {
@@ -270,68 +211,27 @@ internal class Preview : Viewport {
             _scriptPreviewLines.Add([]);
     }
 
-    private void CacheShaderPreview(string path) {
+    private void CacheTextMatePreview(string path) {
 
-        var source = File.ReadAllText(path).Replace("\r\n", "\n");
-        var lines = source.Split('\n');
+        var grammar = GetPreviewGrammar(path);
+        if (grammar == null) {
+            CachePlainTextPreview(path);
+            return;
+        }
 
-        foreach (var line in lines)
-            _scriptPreviewLines.Add(ParseShaderLine(line));
+        IStateStack? state = null;
+
+        foreach (var line in File.ReadLines(path)) {
+            var result = state == null
+                ? grammar.TokenizeLine(line)
+                : grammar.TokenizeLine(line, state, TimeSpan.FromMilliseconds(50));
+
+            state = result.RuleStack;
+            _scriptPreviewLines.Add(ConvertTokensToSegments(line, result.Tokens));
+        }
 
         if (_scriptPreviewLines.Count == 0)
             _scriptPreviewLines.Add([]);
-    }
-
-    private static List<ColoredTextSegment> ParseShaderLine(string line) {
-
-        var segments = new List<ColoredTextSegment>();
-        var lastIndex = 0;
-
-        foreach (Match match in ShaderTokenRegex.Matches(line)) {
-
-            if (match.Index > lastIndex)
-                segments.Add(new ColoredTextSegment(line[lastIndex..match.Index], Colors.GuiCodePlain.ToVector4()));
-
-            var token = match.Value;
-            segments.Add(new ColoredTextSegment(token, GetShaderTokenColor(token)));
-            lastIndex = match.Index + match.Length;
-        }
-
-        if (lastIndex < line.Length)
-            segments.Add(new ColoredTextSegment(line[lastIndex..], Colors.GuiCodePlain.ToVector4()));
-
-        return segments;
-    }
-
-    private static Vector4 GetShaderTokenColor(string token) {
-
-        if (string.IsNullOrEmpty(token)) return Colors.GuiCodePlain.ToVector4();
-        if (token.StartsWith("//", StringComparison.Ordinal) || token.StartsWith("/*", StringComparison.Ordinal))
-            return Colors.GuiCodeComment.ToVector4();
-        if (token.StartsWith("#", StringComparison.Ordinal))
-            return Colors.GuiCodePreprocessor.ToVector4();
-        if (token.StartsWith("\"", StringComparison.Ordinal) || token.StartsWith("'", StringComparison.Ordinal))
-            return Colors.GuiCodeString.ToVector4();
-        if (char.IsDigit(token[0]))
-            return Colors.GuiCodeNumber.ToVector4();
-        if (ShaderKeywords.Contains(token))
-            return Colors.GuiCodeKeyword.ToVector4();
-        if (ShaderTypes.Contains(token))
-            return Colors.GuiCodeType.ToVector4();
-        if (ShaderBuiltins.Contains(token) || token.StartsWith("gl_", StringComparison.Ordinal))
-            return Colors.GuiCodePreprocessor.ToVector4();
-
-        return Colors.GuiCodePlain.ToVector4();
-    }
-
-    private void ApplyScopeColorRecursive(Scope scope, Vector4[] charColors, int sourceLength) {
-
-        var color = GetFallbackCodeColor(scope.Name);
-        var start = Math.Clamp(scope.Index, 0, sourceLength);
-        var end = Math.Clamp(scope.Index + scope.Length, 0, sourceLength);
-
-        for (var i = start; i < end; i++) charColors[i] = color;
-        foreach (var child in scope.Children) ApplyScopeColorRecursive(child, charColors, sourceLength);
     }
 
     private static void FlushScriptSegment(List<ColoredTextSegment> line, System.Text.StringBuilder text, Vector4 color) {
@@ -394,6 +294,8 @@ internal class Preview : Viewport {
         if (name.Contains("keyword")) return Colors.GuiCodeKeyword.ToVector4();
         if (name.Contains("number") || name.Contains("numeric")) return Colors.GuiCodeNumber.ToVector4();
         if (name.Contains("preprocessor")) return Colors.GuiCodePreprocessor.ToVector4();
+        if (name.Contains("function") || name.Contains("method")) return Colors.GuiCodePreprocessor.ToVector4();
+        if (name.Contains("constant") || name.Contains("builtin")) return Colors.GuiCodePreprocessor.ToVector4();
         if (name.Contains("class") || name.Contains("type") || name.Contains("interface") || name.Contains("namespace")) return Colors.GuiCodeType.ToVector4();
 
         return Colors.GuiCodeText.ToVector4();
@@ -407,6 +309,61 @@ internal class Preview : Viewport {
 
     private static bool IsScript(string path) => path.EndsWith(".cs", StringComparison.OrdinalIgnoreCase);
     private static bool IsCodePreviewFile(string path) => IsScript(path) || CollectionData.IsShader(path);
+
+    private static IGrammar? GetPreviewGrammar(string path) {
+
+        var scopeName = CollectionData.IsShader(path)
+            ? PreviewRegistryOptions.GetScopeByLanguageId("hlsl")
+            : PreviewRegistryOptions.GetScopeByLanguageId("csharp");
+
+        if (string.IsNullOrEmpty(scopeName)) return null;
+        if (PreviewGrammars.TryGetValue(scopeName, out var grammar)) return grammar;
+
+        grammar = PreviewSyntaxRegistry.LoadGrammar(scopeName);
+        PreviewGrammars[scopeName] = grammar;
+
+        return grammar;
+    }
+
+    private static List<ColoredTextSegment> ConvertTokensToSegments(string line, IToken[] tokens) {
+
+        if (tokens.Length == 0)
+            return [new ColoredTextSegment(line, Colors.GuiCodePlain.ToVector4())];
+
+        var segments = new List<ColoredTextSegment>();
+        var currentText = new StringBuilder();
+        var currentColor = Colors.GuiCodePlain.ToVector4();
+        var hasColor = false;
+
+        foreach (var token in tokens) {
+            var start = Math.Clamp(token.StartIndex, 0, line.Length);
+            var end = Math.Clamp(token.EndIndex, start, line.Length);
+            if (end <= start) continue;
+
+            var color = GetTokenColor(token.Scopes);
+
+            if (hasColor && !ApproximatelyEqual(color, currentColor))
+                FlushScriptSegment(segments, currentText, currentColor);
+
+            currentColor = color;
+            hasColor = true;
+            currentText.Append(line[start..end]);
+        }
+
+        FlushScriptSegment(segments, currentText, currentColor);
+        return segments.Count == 0 ? [new ColoredTextSegment(line, Colors.GuiCodePlain.ToVector4())] : segments;
+    }
+
+    private static Vector4 GetTokenColor(List<string> scopes) {
+
+        for (var i = scopes.Count - 1; i >= 0; i--) {
+            var color = GetFallbackCodeColor(scopes[i]);
+            if (!ApproximatelyEqual(color, Colors.GuiCodeText.ToVector4()))
+                return color;
+        }
+
+        return Colors.GuiCodePlain.ToVector4();
+    }
 
     private void DrawTexturePreview(TextureAsset tex) {
 
