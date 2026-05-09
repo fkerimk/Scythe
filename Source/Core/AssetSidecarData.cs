@@ -13,13 +13,6 @@ internal class AssetSidecarData {
         public int Quality = 90;
         public string TextureFilter = "Bilinear";
 
-        public object Clone() => new TextureImportSettings {
-            MaxSize = MaxSize,
-            ResizeFilter = ResizeFilter,
-            Format = Format,
-            Compression = Compression,
-            Quality = Quality,
-            TextureFilter = TextureFilter
-        };
+        public object Clone() => ObjectGraph.DeepClone(this);
     }
 }

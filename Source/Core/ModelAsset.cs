@@ -28,7 +28,7 @@ internal class ModelAsset : Asset {
         public Dictionary<int, string> MeshMaterialPaths = new();
         public float ImportScale = 1.0f;
 
-        public object Clone() => new ModelSettings { GUID = GUID, AnimationGUID = AnimationGUID, AnimationPath = AnimationPath, MeshMaterials = new Dictionary<int, string>(MeshMaterials), MeshMaterialPaths = new Dictionary<int, string>(MeshMaterialPaths), ImportScale = ImportScale };
+        public object Clone() => ObjectGraph.DeepClone(this);
     }
 
     public void ApplySettings() {

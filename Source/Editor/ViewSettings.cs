@@ -28,15 +28,11 @@ internal static class ViewSettings {
     public static void Save() {
 
         var path = GetPath();
-        var dir = Path.GetDirectoryName(path);
-        if (dir != null && !Directory.Exists(dir)) Directory.CreateDirectory(dir);
 
         var settings = new Dictionary<string, bool>();
 
         foreach (var (field, viewport) in GetViewports()) settings[field.Name] = viewport.IsOpen;
-
-        var json = JsonConvert.SerializeObject(settings, Formatting.Indented);
-        File.WriteAllText(path, json);
+        JsonFile.WriteIndented(path, settings);
     }
 
     public static void Load() {
@@ -47,8 +43,7 @@ internal static class ViewSettings {
 
         SafeExec.Try(() => {
 
-                var json = File.ReadAllText(path);
-                var settings = JsonConvert.DeserializeObject<Dictionary<string, bool>>(json);
+                var settings = JsonFile.ReadOrDefault(path, new Dictionary<string, bool>());
 
                 if (settings == null) return;
 

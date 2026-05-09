@@ -34,19 +34,7 @@ internal class MaterialAsset : Asset {
 
         public Dictionary<string, Vector2> Vectors = new() { ["tiling"] = Vector2.One, ["offset"] = Vector2.Zero };
 
-        public object Clone() {
-            return new MaterialData {
-                Shader = Shader,
-                GUID = GUID,
-                ShaderPath = ShaderPath,
-                Textures = new Dictionary<string, string>(Textures),
-                TexturePaths = new Dictionary<string, string>(TexturePaths),
-                Floats = new Dictionary<string, float>(Floats),
-                Ints = new Dictionary<string, int>(Ints),
-                Colors = new Dictionary<string, Color>(Colors),
-                Vectors = new Dictionary<string, Vector2>(Vectors)
-            };
-        }
+        public object Clone() => ObjectGraph.DeepClone(this);
     }
 
     public static MaterialAsset Default {

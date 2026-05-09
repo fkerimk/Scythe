@@ -78,7 +78,7 @@ internal static class CollectionData {
         var settingsPath = GetSettingsPath(collectionPath);
         if (File.Exists(settingsPath)) return;
 
-        File.WriteAllText(settingsPath, JsonConvert.SerializeObject(new CollectionDataSettings(), Formatting.Indented));
+        JsonFile.WriteIndented(settingsPath, new CollectionDataSettings());
     }
 
     public static string GetSettingsPath(string collectionPath) => Path.Combine(collectionPath, "Collection.json");
@@ -88,13 +88,13 @@ internal static class CollectionData {
         var settingsPath = GetSettingsPath(collectionPath);
         if (!File.Exists(settingsPath)) return new CollectionDataSettings();
 
-        return JsonConvert.DeserializeObject<CollectionDataSettings>(File.ReadAllText(settingsPath)) ?? new CollectionDataSettings();
+        return JsonFile.ReadOrDefault(settingsPath, new CollectionDataSettings());
     }
 
     public static void SaveSettings(string collectionPath, CollectionDataSettings settings) {
 
         EnsureSettings(collectionPath);
-        File.WriteAllText(GetSettingsPath(collectionPath), JsonConvert.SerializeObject(settings, Formatting.Indented));
+        JsonFile.WriteIndented(GetSettingsPath(collectionPath), settings);
     }
 
     public static CollectionAssetKind GetKind(string collectionPath) {

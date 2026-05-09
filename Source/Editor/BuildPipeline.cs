@@ -326,7 +326,7 @@ internal static class BuildPipeline {
             BuildLinux = _buildLinux
         };
 
-        File.WriteAllText(path, JsonConvert.SerializeObject(settings, Formatting.Indented));
+        JsonFile.WriteIndented(path, settings);
     }
 
     private static string FindEngineProjectFile() {
