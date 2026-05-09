@@ -145,7 +145,7 @@ internal class Transform(Obj obj) : Component(obj) {
 
     private const float MoveSnap = 0.2f;
 
-    private int _mode;
+    private static int _mode;
     private float _activeMove;
     private string _activeId = "";
 
