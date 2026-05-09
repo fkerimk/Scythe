@@ -107,7 +107,7 @@ internal class Preview : Viewport {
             _previewModelBones.Clear();
             _previewBoneMap.Clear();
 
-            if (CollectionData.IsLevel(selectedFile!)) {
+            if (CollectionData.IsLevel(selectedFile!) || CollectionData.IsPrefab(selectedFile!)) {
 
                 _zoom = 1.0f;
                 var level = EnsurePreviewLevel(selectedFile!);
@@ -168,7 +168,7 @@ internal class Preview : Viewport {
 
             if (IsCodePreviewFile(selectedFile!)) {
                 DrawScriptPreview();
-            } else if (CollectionData.IsLevel(selectedFile!)) {
+            } else if (CollectionData.IsLevel(selectedFile!) || CollectionData.IsPrefab(selectedFile!)) {
 
                 var level = EnsurePreviewLevel(selectedFile!);
                 if (level != null) DrawLevelPreview(level);

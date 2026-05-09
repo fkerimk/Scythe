@@ -1,5 +1,6 @@
 {
   "Root": {
+    "Name": "Root",
     "Children": {
       "Ground": {
         "Children": {},
@@ -17,6 +18,8 @@
             "IsIdentity": true
           }
         },
+        "Prefab": "",
+        "PrefabPath": "",
         "Components": {
           "Model": {
             "GUID": "2cd053e9959f4b91ba52c0cb4d7826a6",
@@ -70,6 +73,8 @@
                                 "IsIdentity": true
                               }
                             },
+                            "Prefab": "",
+                            "PrefabPath": "",
                             "Components": {
                               "Model": {
                                 "GUID": "9847c8670e4a413582f5efda90f899c5",
@@ -108,6 +113,8 @@
                             "IsIdentity": true
                           }
                         },
+                        "Prefab": "",
+                        "PrefabPath": "",
                         "Components": {
                           "Camera": {
                             "Fov": 90.0,
@@ -128,6 +135,8 @@
                         "IsIdentity": true
                       }
                     },
+                    "Prefab": "",
+                    "PrefabPath": "",
                     "Components": {
                       "Script": {
                         "GUID": "4d4bed84c69c4274977227983260088d",
@@ -148,6 +157,8 @@
                     "IsIdentity": true
                   }
                 },
+                "Prefab": "",
+                "PrefabPath": "",
                 "Components": {
                   "Script": {
                     "GUID": "c4b5e23733264efa97d6a46dce4bec1a",
@@ -171,6 +182,8 @@
                 "IsIdentity": true
               }
             },
+            "Prefab": "",
+            "PrefabPath": "",
             "Components": {}
           }
         },
@@ -188,6 +201,8 @@
             "IsIdentity": true
           }
         },
+        "Prefab": "",
+        "PrefabPath": "",
         "Components": {
           "CapsuleCollider": {
             "Height": 2.0,
@@ -232,6 +247,8 @@
             "IsIdentity": true
           }
         },
+        "Prefab": "",
+        "PrefabPath": "",
         "Components": {
           "Model": {
             "GUID": "2cd053e9959f4b91ba52c0cb4d7826a6",
@@ -277,6 +294,8 @@
             "W": 0.6532813
           }
         },
+        "Prefab": "",
+        "PrefabPath": "",
         "Components": {
           "Light": {
             "Type": 0,
@@ -292,29 +311,17 @@
           }
         }
       }
-    },
-    "Transform": {
-      "Scale": {
-        "X": 1.0,
-        "Y": 1.0,
-        "Z": 1.0
-      },
-      "Rot": {
-        "W": 1.0,
-        "IsIdentity": true
-      }
-    },
-    "Components": {}
+    }
   },
   "EditorCamera": {
     "Position": {
-      "X": -1.9664538,
-      "Y": 2.4757633,
-      "Z": -0.9501285
+      "X": -3.318456,
+      "Y": 4.568854,
+      "Z": -2.709674
     },
     "Rotation": {
-      "X": -0.53783196,
-      "Y": 0.7488004
+      "X": -0.66683173,
+      "Y": 0.88680077
     }
   },
   "GUID": "1a1ba6d01f0e4ddabcfa301ed352494d",

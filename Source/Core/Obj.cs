@@ -27,11 +27,18 @@ internal class Obj {
             }
 
             field = value;
+            PrefabUtility.UpdateObjectOverrideState(this, nameof(Name), value);
         }
     } = null!;
 
     public Obj? Parent;
     [JsonProperty] public readonly Dictionary<string, Obj> Children = [];
+    [JsonProperty, FindAsset("PrefabAsset")]
+    public string Prefab { get; set; } = "";
+    [JsonProperty]
+    public string PrefabPath { get; set; } = "";
+    [JsonProperty]
+    public HashSet<string> PrefabOverrides { get; set; } = [];
 
     // Components
     [JsonProperty] public Transform Transform = null!;
@@ -73,6 +80,33 @@ internal class Obj {
     public Vector3 Pos {
         get => Transform.Pos;
         set => Transform.Pos = value;
+    }
+
+    public bool HasPrefabOverride(string propertyName) => PrefabOverrides.Contains(propertyName);
+
+    public void SetPrefabOverride(string propertyName, bool isOverridden) {
+
+        if (string.IsNullOrWhiteSpace(propertyName)) return;
+
+        if (isOverridden)
+            PrefabOverrides.Add(propertyName);
+        else
+            PrefabOverrides.Remove(propertyName);
+    }
+
+    private bool HasPrefabLinkInHierarchy() {
+
+        var current = this;
+
+        while (current != null) {
+
+            if (!string.IsNullOrWhiteSpace(current.Prefab) || !string.IsNullOrWhiteSpace(current.PrefabPath))
+                return true;
+
+            current = current.Parent;
+        }
+
+        return false;
     }
 
     public Quaternion Rot {
@@ -188,15 +222,23 @@ internal class Obj {
         Parent.Children.Remove(Name);
 
         var orderedChildren = obj.Children.Values.Where(child => child != this).ToList();
+        var finalName = orderedChildren.Any(child => string.Equals(child.Name, Name, StringComparison.Ordinal))
+            ? Generators.AvailableName(Name, orderedChildren.Select(child => child.Name))
+            : Name;
         insertIndex = Math.Clamp(insertIndex, 0, orderedChildren.Count);
         orderedChildren.Insert(insertIndex, this);
 
         obj.Children.Clear();
-
-        foreach (var child in orderedChildren)
-            obj.Children.Add(child.Name, child);
-
         Parent = obj;
+
+        if (!string.Equals(finalName, Name, StringComparison.Ordinal))
+            Name = finalName;
+
+        foreach (var child in orderedChildren) {
+            child.Parent = obj;
+            if (!obj.Children.ContainsKey(child.Name))
+                obj.Children.Add(child.Name, child);
+        }
 
         if (keepWorld) {
 
@@ -330,19 +372,25 @@ internal static partial class Extensions {
 
     extension(Obj source) {
 
-        private Obj Clone(Obj? parent = null) {
+        private Obj CloneInternal(Obj? parent = null, bool preserveName = false) {
 
             parent ??= source.Parent;
 
             var name = source.Name;
 
-            if (parent != null) name = Generators.AvailableName(name, parent.Children.Keys);
+            if (parent != null && !preserveName) name = Generators.AvailableName(name, parent.Children.Keys);
 
             var clone = new Obj(name, parent);
+            clone.Prefab = source.Prefab;
+            clone.PrefabPath = source.PrefabPath;
+            clone.PrefabOverrides = [.. source.PrefabOverrides];
+            if (!string.Equals(clone.Name, source.Name, StringComparison.Ordinal) && clone.FindPrefabRoot() == clone)
+                clone.SetPrefabOverride(nameof(Obj.Name), true);
 
             // Copy Transform
             var transformJson = JsonConvert.SerializeObject(source.Transform);
             JsonConvert.PopulateObject(transformJson, clone.Transform);
+            clone.Transform.PrefabOverrides = [.. source.Transform.PrefabOverrides];
 
             // Copy Components
             foreach (var (key, sourceComponent) in source.Components) {
@@ -353,24 +401,51 @@ internal static partial class Extensions {
 
                 var compJson = JsonConvert.SerializeObject(sourceComponent);
                 JsonConvert.PopulateObject(compJson, cloneComp);
+                cloneComp.PrefabOverrides = [.. sourceComponent.PrefabOverrides];
 
                 clone.Components[key] = cloneComp;
             }
 
             // Clone children recursively
-            foreach (var child in source.Children.Values.ToList()) child.Clone(clone);
+            foreach (var child in source.Children.Values.ToList()) child.CloneInternal(clone, preserveName: true);
 
             return clone;
         }
 
+        public Obj DeepClone(Obj? parent = null, bool preserveName = false) => source.CloneInternal(parent, preserveName);
+
         public Obj CloneRecorded() {
 
-            var clone = source.Clone();
+            var clone = source.CloneInternal();
             var parent = source.Parent!;
 
             History.Execute($"Duplicate {source.Name}", redo: () => clone.SetParent(parent), undo: clone.Delete);
 
             return clone;
+        }
+
+        public void ClearPrefabLinksRecursive() {
+
+            source.Prefab = "";
+            source.PrefabPath = "";
+
+            foreach (var child in source.Children.Values)
+                child.ClearPrefabLinksRecursive();
+        }
+
+        public Obj? FindPrefabRoot() {
+
+            var current = source;
+
+            while (current != null) {
+
+                if (!string.IsNullOrWhiteSpace(current.Prefab) || !string.IsNullOrWhiteSpace(current.PrefabPath))
+                    return current;
+
+                current = current.Parent!;
+            }
+
+            return null;
         }
     }
 }

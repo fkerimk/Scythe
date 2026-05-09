@@ -67,7 +67,7 @@ internal static unsafe class Editor {
         ProjectSettingsSelected = true;
     }
 
-    public static void OnLevelPathMoved(string oldPath, string newPath) {
+    public static void OnDocumentPathMoved(string oldPath, string newPath) {
 
         var oldFullPath = Path.GetFullPath(oldPath);
         var newFullPath = Path.GetFullPath(newPath);

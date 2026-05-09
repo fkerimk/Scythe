@@ -96,6 +96,16 @@ internal class Collections : Viewport {
         if (Directory.Exists(parent)) _currentPath = parent;
     }
 
+    public bool CanDeleteSelectedAsset =>
+        !string.IsNullOrWhiteSpace(_selectedPath) && (File.Exists(_selectedPath) || Directory.Exists(_selectedPath));
+
+    public void DeleteSelectedAsset() {
+
+        if (!CanDeleteSelectedAsset || string.IsNullOrWhiteSpace(_selectedPath)) return;
+
+        OpenDeletePopup(_selectedPath, Directory.Exists(_selectedPath), centerOnViewport: true);
+    }
+
     protected override void OnDraw() {
 
         Validate();
@@ -243,12 +253,13 @@ internal class Collections : Viewport {
                 .OrderBy(entry => entry.Kind == BrowserEntryKind.Project ? -1 : 0)
                 .ThenBy(entry => entry.Name, new NaturalStringComparer()!);
 
-        var collectionEntry = BrowserEntry.CreateCollectionGroup(GetCollectionEntries(CollectionEntryKind.Collection).Count());
+        var collectionCount = GetCollectionEntries(CollectionEntryKind.Collection).Count();
+        var collectionEntries = (_hideEmptyCategories && collectionCount == 0 ? [] : new[] { BrowserEntry.CreateCollectionGroup(collectionCount) });
         var categories = GetCategoryStates()
             .Where(state => !_hideEmptyCategories || state.Count > 0)
             .Select(BrowserEntry.CreateCategory);
 
-        return new[] { collectionEntry }
+        return collectionEntries
             .Concat(categories)
             .OrderByDescending(entry => entry.IsActive)
             .ThenBy(entry => entry.Name, new NaturalStringComparer()!);
@@ -478,7 +489,7 @@ internal class Collections : Viewport {
         var doubleClicked = IsItemHovered() && IsMouseDoubleClicked(ImGuiMouseButton.Left);
 
         if (isSelected) PopStyleColor(3);
-        if (doubleClicked && CollectionData.IsLevel(path)) {
+        if (doubleClicked && (CollectionData.IsLevel(path) || CollectionData.IsPrefab(path))) {
             _entryClickedThisFrame = true;
             Editor.OpenLevel(path);
             return;
@@ -679,6 +690,7 @@ internal class Collections : Viewport {
             }
             EndMenu();
         }
+        if (!isBuiltInRoot && !isDirectory && CollectionPathMenu.DrawProjectDirectoryMenu("Move To", destination => MoveAssetTo(path, destination), Path.GetDirectoryName(path))) { }
         if (!isBuiltInRoot && !isDirectory && !IsAtCollectionsRoot && HasCollectionTargetCandidate(path) && MenuItem("Set as Target")) SetCollectionTarget(path);
         if (!isBuiltInRoot && MenuItem("Delete")) OpenDeletePopup(path, isDirectory);
 
@@ -701,11 +713,13 @@ internal class Collections : Viewport {
         _showAddTypePopup = false;
     }
 
-    private void OpenDeletePopup(string path, bool isDirectory) {
+    private void OpenDeletePopup(string path, bool isDirectory, bool centerOnViewport = false) {
 
         _deleteTargetPath = path;
         _deleteTargetIsDirectory = isDirectory;
-        _deletePopupPosition = GetMousePos() + new Vector2(0f, 4f);
+        _deletePopupPosition = centerOnViewport
+            ? GetMainViewport().GetCenter()
+            : GetMousePos() + new Vector2(0f, 4f);
         _openDeletePopup = true;
     }
 
@@ -792,7 +806,7 @@ internal class Collections : Viewport {
                 }
 
                 if (string.Equals(_selectedPath, sourcePath, StringComparison.OrdinalIgnoreCase)) Editor.SetSelectedAsset(newPath);
-                if (CollectionData.IsLevel(sourcePath)) Editor.OnLevelPathMoved(sourcePath, newPath);
+                if (CollectionData.IsLevel(sourcePath) || CollectionData.IsPrefab(sourcePath)) Editor.OnDocumentPathMoved(sourcePath, newPath);
                 Notifications.Show($"File renamed to '{Path.GetFileName(newPath)}'.");
             } catch (Exception e) {
                 try {
@@ -869,7 +883,14 @@ internal class Collections : Viewport {
                     Notifications.Show($"Script '{Path.GetFileName(path)}' created.");
                     return true;
                 case CreateItemType.Prefab:
-                    File.WriteAllText(path, "{}");
+                    File.WriteAllText(path, $$"""
+                                             {
+                                               "GUID": "{{Guid.NewGuid():N}}",
+                                               "Root": {
+                                                 "Children": {}
+                                               }
+                                             }
+                                             """);
                     Notifications.Show($"Prefab '{Path.GetFileName(path)}' created.");
                     return true;
                 default:
@@ -1132,6 +1153,47 @@ internal class Collections : Viewport {
     }
 
     private static bool HasCollectionTargetCandidate(string path) => CollectionData.IsTexture(path) || CollectionData.IsMaterial(path) || CollectionData.IsModel(path) || CollectionData.IsScript(path) || CollectionData.IsLevel(path) || CollectionData.IsPrefab(path);
+
+    private bool MoveAssetTo(string sourcePath, string destinationDirectory) {
+
+        try {
+            if (!File.Exists(sourcePath) || !Directory.Exists(destinationDirectory)) return false;
+
+            var fileName = Path.GetFileName(sourcePath);
+            var baseName = CollectionData.GetNameWithoutExtension(sourcePath);
+            var suffix = GetRenameSuffix(sourcePath);
+            var existingNames = Directory.EnumerateFiles(destinationDirectory)
+                .Select(CollectionData.GetNameWithoutExtension)
+                .ToList();
+            var finalBaseName = File.Exists(Path.Combine(destinationDirectory, fileName))
+                ? Generators.AvailableName(baseName, existingNames)
+                : baseName;
+            var destinationPath = Path.Combine(destinationDirectory, finalBaseName + suffix);
+
+            if (Path.GetFullPath(sourcePath).Equals(Path.GetFullPath(destinationPath), StringComparison.OrdinalIgnoreCase))
+                return false;
+
+            var sourceSidecar = GetSidecarMetaPathFor(sourcePath);
+            var destinationSidecar = GetSidecarMetaPathFor(destinationPath);
+            var hasSidecar = !CollectionData.IsLevel(sourcePath) && !CollectionData.IsPrefab(sourcePath) && File.Exists(sourceSidecar);
+
+            File.Move(sourcePath, destinationPath);
+            if (hasSidecar) File.Move(sourceSidecar, destinationSidecar);
+
+            if (string.Equals(_selectedPath, sourcePath, StringComparison.OrdinalIgnoreCase))
+                Editor.SetSelectedAsset(destinationPath);
+
+            if (CollectionData.IsLevel(sourcePath) || CollectionData.IsPrefab(sourcePath))
+                Editor.OnDocumentPathMoved(sourcePath, destinationPath);
+
+            Notifications.Show($"Moved '{Path.GetFileName(sourcePath)}' to '{AssetManager.GetStoredPath(destinationDirectory)}'.");
+            return true;
+
+        } catch (Exception e) {
+            Notifications.Show($"Move failed: {e.Message}");
+            return false;
+        }
+    }
 
     private readonly record struct CollectionCategory(string Name, Func<string, bool> Match, string Icon);
     private readonly record struct CategoryState(CollectionCategory Category, int Count);

@@ -142,7 +142,7 @@ internal class ObjectBrowser : Viewport {
         NextColumn();
     }
 
-    private (bool changed, bool deactivated) DrawInspectorField(string id, ref object? value, Type type, List<object> targets, string? propName, string? pickerType = null, bool showResetButton = false, bool highlightOverride = false, object? resetValue = null) {
+    private (bool changed, bool deactivated) DrawInspectorField(string id, ref object? value, Type type, List<object> targets, string? propName, string? pickerType = null, bool showResetButton = false, bool highlightOverride = false, object? resetValue = null, Action? applyOverride = null) {
 
         var changed = false;
         var deactivated = false;
@@ -195,6 +195,7 @@ internal class ObjectBrowser : Viewport {
         var resetButtonSize = GetFrameHeight();
         var availableWidth = GetContentRegionAvail().X;
         if (showResetButton) availableWidth = MathF.Max(1f, availableWidth - resetButtonSize - 4f);
+        if (applyOverride != null) availableWidth = MathF.Max(1f, availableWidth - resetButtonSize - 4f);
         SetNextItemWidth(availableWidth);
 
         if (highlightOverride) {
@@ -352,7 +353,26 @@ internal class ObjectBrowser : Viewport {
             EndDisabled();
 
             if (IsItemHovered())
-                SetTooltip("Reset to script default");
+                SetTooltip("Reset override");
+        }
+
+        if (applyOverride != null) {
+
+            SameLine();
+            BeginDisabled(!highlightOverride);
+            PushFont(Fonts.ImFontAwesomeSmall);
+
+            if (Button($"{Icons.FaCheck}##{id}_apply", new Vector2(resetButtonSize, resetButtonSize))) {
+
+                applyOverride.Invoke();
+                deactivated = true;
+            }
+
+            PopFont();
+            EndDisabled();
+
+            if (IsItemHovered())
+                SetTooltip("Apply override to prefab");
         }
 
         // Picker Popup logic
@@ -1237,19 +1257,22 @@ internal class ObjectBrowser : Viewport {
                 var allSame = values.All(v => Equals(v, values[0]));
                 var val = allSame ? values[0] : null;
 
-                DrawShadowedLabel(labelAttr.Value);
-
                 var fileAttr = prop.GetCustomAttribute<FilePathAttribute>();
                 var assetAttr = prop.GetCustomAttribute<FindAssetAttribute>();
                 var picker = assetAttr?.TypeName ?? fileAttr?.Category;
+                var (highlightOverride, resetValue) = GetPrefabOverrideState(first, prop);
+                var applyOverride = GetPrefabApplyAction(first, prop, val);
 
-                var (changed, deactivated) = DrawInspectorField(id, ref val, prop.PropertyType, targets, prop.Name, picker);
+                DrawShadowedLabel(labelAttr.Value, highlightOverride);
+
+                var (changed, deactivated) = DrawInspectorField(id, ref val, prop.PropertyType, targets, prop.Name, picker, showResetButton: highlightOverride, highlightOverride: highlightOverride, resetValue: resetValue, applyOverride: applyOverride);
 
                 if (changed) {
 
                     foreach (var t in targets) {
 
                         prop.SetValue(t, val);
+                        ApplyPrefabOverrideMarker(t, prop, val, resetValue);
                         if (t is Component comp && (fileAttr != null || assetAttr != null)) comp.UnloadAndQuit();
                     }
 
@@ -1335,6 +1358,42 @@ internal class ObjectBrowser : Viewport {
 
             if (fieldDeactivated) History.StopRecording();
         }
+    }
+
+    private static (bool HighlightOverride, object? ResetValue) GetPrefabOverrideState(object target, PropertyInfo property) {
+
+        if (target is Obj obj && PrefabUtility.TryGetObjectPropertyOverride(obj, property, out var objValue))
+            return (true, objValue);
+
+        if (target is Transform transform && PrefabUtility.TryGetTransformPropertyOverride(transform, property, out var transformValue))
+            return (true, transformValue);
+
+        if (target is Component component && PrefabUtility.TryGetComponentPropertyOverride(component, property, out var componentValue))
+            return (true, componentValue);
+
+        return (false, null);
+    }
+
+    private static void ApplyPrefabOverrideMarker(object target, PropertyInfo property, object? value, object? sourceValue) {
+
+        var isOverridden = Newtonsoft.Json.JsonConvert.SerializeObject(value) != Newtonsoft.Json.JsonConvert.SerializeObject(sourceValue);
+
+        if (target is Obj obj)
+            obj.SetPrefabOverride(property.Name, isOverridden);
+        else if (target is Transform transform)
+            transform.SetPrefabOverride(PrefabUtility.GetTransformOverrideKey(property.Name), isOverridden);
+        else if (target is Component component)
+            component.SetPrefabOverride(property.Name, isOverridden);
+    }
+
+    private static Action? GetPrefabApplyAction(object target, PropertyInfo property, object? value) {
+
+        return target switch {
+            Obj obj when obj.HasPrefabOverride(property.Name) => () => PrefabUtility.ApplyObjectPropertyToPrefab(obj, property, property.GetValue(obj)),
+            Transform transform when transform.HasPrefabOverride(PrefabUtility.GetTransformOverrideKey(property.Name)) => () => PrefabUtility.ApplyTransformPropertyToPrefab(transform, property, property.GetValue(transform)),
+            Component component when component.HasPrefabOverride(property.Name) => () => PrefabUtility.ApplyComponentPropertyToPrefab(component, property, property.GetValue(component)),
+            _ => null
+        };
     }
 
     private void DrawTextureAssetInspector(TextureAsset texture) {
@@ -1468,6 +1527,7 @@ internal class ObjectBrowser : Viewport {
         return pickerType switch {
             "ShaderAsset" => AssetManager.Get<ShaderAsset>(value) is { } asset ? Path.GetFileNameWithoutExtension(asset.File) : value,
             "LevelAsset" => AssetManager.Get<LevelAsset>(value) is { } levelAsset ? CollectionData.GetLevelDisplayName(levelAsset.File) : value,
+            "PrefabAsset" => AssetManager.Get<PrefabAsset>(value) is { } prefabAsset ? CollectionData.GetLevelDisplayName(prefabAsset.File) : value,
             "TextureAsset" => AssetManager.Get<TextureAsset>(value) is { } asset ? Path.GetFileNameWithoutExtension(asset.File) : value,
             "ModelAsset" => AssetManager.Get<ModelAsset>(value) is { } asset ? Path.GetFileNameWithoutExtension(asset.File) : value,
             "AnimationAsset" => AssetManager.Get<AnimationAsset>(value) is { } asset ? Path.GetFileNameWithoutExtension(asset.File) : value,
@@ -1484,6 +1544,7 @@ internal class ObjectBrowser : Viewport {
 
         return pickerType switch {
             "LevelAsset" => AssetManager.GetPath<LevelAsset>(value) ?? value,
+            "PrefabAsset" => AssetManager.GetPath<PrefabAsset>(value) ?? value,
             "ShaderAsset" => AssetManager.GetPath<ShaderAsset>(value) ?? value,
             "TextureAsset" => AssetManager.GetPath<TextureAsset>(value) ?? value,
             "ModelAsset" => AssetManager.GetPath<ModelAsset>(value) ?? value,
@@ -1540,19 +1601,21 @@ internal class ObjectBrowser : Viewport {
             entries.Add(new PickerSearchEntry(logicalPath, targetPath == null ? logicalPath : AssetManager.GetStoredPath(targetPath), value));
         }
 
-        if (pickerType == "LevelAsset") {
+        if (pickerType is "LevelAsset" or "PrefabAsset") {
 
-            foreach (var file in EnumerateProjectLevels()) {
+            foreach (var file in EnumerateProjectDocuments(pickerType == "PrefabAsset")) {
                 if (CollectionData.ShouldHideAssetPath(file, pickerType)) continue;
 
                 var storedPath = AssetManager.GetStoredPath(file);
                 var label = storedPath.Replace('\\', '/');
                 label = CollectionData.GetLevelDisplayName(label);
 
-                var levelGuid = AssetManager.GetOrImport<LevelAsset>(file)?.GUID;
-                if (string.IsNullOrWhiteSpace(levelGuid)) continue;
+                var assetGuid = pickerType == "PrefabAsset"
+                    ? AssetManager.GetOrImport<PrefabAsset>(file)?.GUID
+                    : AssetManager.GetOrImport<LevelAsset>(file)?.GUID;
+                if (string.IsNullOrWhiteSpace(assetGuid)) continue;
 
-                entries.Add(new PickerSearchEntry(label, storedPath, levelGuid));
+                entries.Add(new PickerSearchEntry(label, storedPath, assetGuid));
             }
 
             return entries
@@ -1579,19 +1642,22 @@ internal class ObjectBrowser : Viewport {
         "TextureAsset" => AssetManager.GetNames<TextureAsset>(),
         "ModelAsset" => AssetManager.GetNames<ModelAsset>(),
         "MaterialAsset" => AssetManager.GetNames<MaterialAsset>(),
+        "PrefabAsset" => AssetManager.GetNames<PrefabAsset>(),
         "ScriptAsset" => AssetManager.GetNames<ScriptAsset>(),
         _ => []
     };
 
-    private static IEnumerable<string> EnumerateProjectLevels() {
+    private static IEnumerable<string> EnumerateProjectDocuments(bool prefabs) {
 
         if (!Directory.Exists(ScytheConfig.Current.Project)) yield break;
 
-        foreach (var file in Directory.EnumerateFiles(ScytheConfig.Current.Project, "*.json", SearchOption.AllDirectories)) {
+        foreach (var file in Directory.EnumerateFiles(ScytheConfig.Current.Project, "*", SearchOption.AllDirectories)) {
             if (CollectionData.IsSidecarMetaFile(file)) continue;
 
             var normalized = file.Replace('\\', '/');
-            if (!normalized.Contains("/Levels/", StringComparison.OrdinalIgnoreCase) && !CollectionData.IsLevel(file)) continue;
+            if (prefabs) {
+                if (!CollectionData.IsPrefab(file)) continue;
+            } else if (!normalized.Contains("/Levels/", StringComparison.OrdinalIgnoreCase) && !CollectionData.IsLevel(file)) continue;
 
             yield return file;
         }
@@ -1609,6 +1675,7 @@ internal class ObjectBrowser : Viewport {
 
     private static string ResolvePickerAssetValue(string path, string pickerType) => pickerType switch {
         "LevelAsset" => AssetManager.GetOrImport<LevelAsset>(path)?.GUID ?? "",
+        "PrefabAsset" => AssetManager.GetOrImport<PrefabAsset>(path)?.GUID ?? "",
         "TextureAsset" => AssetManager.GetOrImport<TextureAsset>(path)?.GUID ?? "",
         "ModelAsset" => AssetManager.GetOrImport<ModelAsset>(path)?.GUID ?? "",
         "MaterialAsset" => AssetManager.GetOrImport<MaterialAsset>(path)?.GUID ?? "",

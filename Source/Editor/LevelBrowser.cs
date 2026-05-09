@@ -30,7 +30,8 @@ internal class LevelBrowser : Viewport {
     private int _rowCount;
     private readonly Dictionary<int, float> _expandProgress = [];
     private readonly Dictionary<int, float> _childHeights = [];
-
+    private Obj? _contextTarget;
+    private bool _openContextMenu;
     // Rename
     private Obj?    _renamingObj;
     private string  _renameBuf = "";
@@ -44,6 +45,8 @@ internal class LevelBrowser : Viewport {
         if (IsMouseReleased(ImGuiMouseButton.Left)) IsDragCancelled = false;
 
         _rowCount = 0;
+        _openContextMenu = false;
+        PrefabUtility.ClearSourceCache();
 
         BeginChild("scroll", new Vector2(0, 0));
 
@@ -77,7 +80,7 @@ internal class LevelBrowser : Viewport {
         // Delete object
         if (_scheduledDeleteObject != null) {
 
-            if (_scheduledDeleteObject != Core.ActiveLevel.Root) {
+            if (!IsDocumentRoot(_scheduledDeleteObject)) {
 
                 if (SelectedObjects.Contains(_scheduledDeleteObject)) SelectObject(null);
 
@@ -98,15 +101,29 @@ internal class LevelBrowser : Viewport {
         }
 
         // Draw objects
-        DrawObject(Core.ActiveLevel.Root, 0, [], GetWindowDrawList());
+        DrawObject(GetDocumentRoot(), 0, [], GetWindowDrawList());
 
         if (IsWindowHovered() && IsMouseReleased(ImGuiMouseButton.Left) && !IsAnyItemHovered())
             SelectObject(null);
 
         EndChild();
+        DrawContextMenu();
     }
 
     private static bool IsAncestorOf(Obj ancestor, Obj? target) => Obj.IsAncestorOf(ancestor, target?.Parent);
+
+    private static Obj GetDocumentRoot() {
+
+        var level = Core.ActiveLevel;
+        if (level == null) throw new InvalidOperationException();
+
+        if (level.IsPrefabDocument && level.Root.Children.Count == 1)
+            return level.Root.Children.Values.First();
+
+        return level.Root;
+    }
+
+    private static bool IsDocumentRoot(Obj obj) => Core.ActiveLevel != null && ReferenceEquals(obj, GetDocumentRoot());
 
     private bool DrawObject(Obj obj, int indent, List<bool> branchHasMore, ImDrawListPtr mainDrawList) {
 
@@ -180,12 +197,14 @@ internal class LevelBrowser : Viewport {
             && mousePos.X >= arrowRectMin.X && mousePos.X <= arrowRectMax.X
             && mousePos.Y >= arrowRectMin.Y && mousePos.Y <= arrowRectMax.Y;
 
-        // Right click - context
-        if (rowHovered && IsMouseReleased(ImGuiMouseButton.Right))
-            OpenPopupOnItemClick("context##" + objId);
+        if (rowHovered && IsMouseReleased(ImGuiMouseButton.Right)) {
+            SelectObject(obj);
+            _contextTarget = obj;
+            _openContextMenu = true;
+        }
 
         // Left click - select
-        else if (rowHovered && IsMouseReleased(ImGuiMouseButton.Left)) {
+        if (rowHovered && IsMouseReleased(ImGuiMouseButton.Left)) {
             if (arrowHovered)
                 GetStateStorage().SetInt(openId, isOpen ? 0 : 1);
             else
@@ -230,86 +249,12 @@ internal class LevelBrowser : Viewport {
             EndDragDropTarget();
         }
 
-        // Object context
-
-        if (BeginPopup("context##" + objId)) {
-
-            Text(obj.Name);
-
-            Separator();
-
-            if (BeginMenu("Insert")) {
-
-                //var types = Assembly.GetExecutingAssembly().GetTypes().Where(t => t.IsSubclassOf(typeof(Component)) && !t.IsAbstract);
-
-                if (MenuItem("Object")) Level.RecordedMakeObject("Object", obj);
-
-                Separator();
-
-                if (BeginMenu("Lighting")) {
-
-                    if (MenuItem("Directional Light")) {
-
-                        var light = Level.RecordedMakeObject("Directional Light", obj);
-                        (light.MakeComponent("Light") as Light)?.Type = 0;
-                        SelectObject(light);
-                    }
-
-                    if (MenuItem("Point Light")) {
-
-                        var light = Level.RecordedMakeObject("Point Light", obj);
-                        (light.MakeComponent("Light") as Light)?.Type = 1;
-                        SelectObject(light);
-                    }
-
-                    if (MenuItem("Spot Light")) {
-
-                        var light = Level.RecordedMakeObject("Point Light", obj);
-                        (light.MakeComponent("Light") as Light)?.Type = 2;
-                        SelectObject(light);
-                    }
-
-                    EndMenu();
-                }
-
-                if (BeginMenu("Models")) {
-
-                    PathUtil.GetPath("Models", out var checkPath);
-
-                    var modelPaths = Directory.GetFiles(checkPath, "*.*", SearchOption.AllDirectories);
-
-                    foreach (var modelPath in modelPaths) {
-
-                        if (Path.GetExtension(modelPath) != ".iqm") continue;
-
-                        var pre  = checkPath + "\\";
-                        var path = modelPath[pre.Length..^4].Replace('\\', '/');
-                        var name = Path.GetFileName(path);
-
-                        if (!MenuItem(path)) continue;
-
-                        var model = Level.MakeObject(name, obj);
-                        (model.MakeComponent("Model") as Model)!.GUID = AssetManager.GetGuid<ModelAsset>(path) ?? path;
-                        SelectObject(model);
-                    }
-
-                    EndMenu();
-                }
-                
-                EndMenu();
-            }
-
-            if (MenuItem("Rename")) StartRename(obj);
-            if (MenuItem("Delete")) _scheduledDeleteObject = obj;
-
-            EndPopup();
-        }
-
         // object icon
         PushFont(Fonts.ImFontAwesomeSmall);
         var iconSize = CalcTextSize(Icons.FaDotCircleO);
         SetCursorScreenPos(new Vector2(iconX, centerY - iconSize.Y * 0.5f));
-        TextColored(Colors.GuiTypeObject.ToVector4(), Icons.FaDotCircleO);
+        var iconColor = GetObjectIconColor(obj);
+        TextColored(iconColor, Icons.FaDotCircleO);
         PopFont();
 
         // Object name
@@ -338,7 +283,7 @@ internal class LevelBrowser : Viewport {
 
             var textSize = CalcTextSize(obj.Name);
             SetCursorScreenPos(new Vector2(labelX, centerY - textSize.Y * 0.5f));
-            TextColored(new Vector4(1, 1, 1, 1), obj.Name);
+            TextColored(GetObjectTextColor(obj), obj.Name);
         }
 
         PopFont();
@@ -376,6 +321,67 @@ internal class LevelBrowser : Viewport {
         PopStyleVar(3);
 
         return true;
+    }
+
+    private void DrawContextMenu() {
+
+        if (_openContextMenu) OpenPopup("LevelBrowserContext");
+        if (!BeginPopup("LevelBrowserContext")) return;
+
+        var obj = _contextTarget;
+        if (obj == null) {
+            EndPopup();
+            return;
+        }
+
+        Text(obj.Name);
+        Separator();
+
+        if (BeginMenu("Insert")) {
+
+            if (MenuItem("Object")) Level.RecordedMakeObject("Object", obj);
+
+            Separator();
+
+            if (BeginMenu("Lighting")) {
+
+                if (MenuItem("Directional Light")) {
+                    var light = Level.RecordedMakeObject("Directional Light", obj);
+                    (light.MakeComponent("Light") as Light)?.Type = 0;
+                    SelectObject(light);
+                }
+
+                if (MenuItem("Point Light")) {
+                    var light = Level.RecordedMakeObject("Point Light", obj);
+                    (light.MakeComponent("Light") as Light)?.Type = 1;
+                    SelectObject(light);
+                }
+
+                if (MenuItem("Spot Light")) {
+                    var light = Level.RecordedMakeObject("Point Light", obj);
+                    (light.MakeComponent("Light") as Light)?.Type = 2;
+                    SelectObject(light);
+                }
+
+                EndMenu();
+            }
+
+            CollectionPathMenu.DrawProjectPrefabMenu("Prefabs", prefabPath => InsertPrefab(obj, prefabPath));
+            EndMenu();
+        }
+
+        BeginDisabled(IsDocumentRoot(obj));
+        if (MenuItem("Rename")) StartRename(obj);
+        if (obj.FindPrefabRoot() == obj && MenuItem("Resolve")) {
+            PrefabUtility.ResolvePrefabRoot(obj);
+            if (Core.ActiveLevel != null) Core.ActiveLevel.IsDirty = true;
+        }
+        if (obj.FindPrefabRoot() == null)
+            CollectionPathMenu.DrawProjectDirectoryMenu("Make Prefab", directory => MakePrefab(obj, directory));
+        if (MenuItem("Delete")) _scheduledDeleteObject = obj;
+        EndDisabled();
+
+        EndPopup();
     }
 
     private float UpdateExpandProgress(int objId, bool isOpen) {
@@ -499,12 +505,12 @@ internal class LevelBrowser : Viewport {
         _scheduledDeleteObject = SelectedObject;
     }
 
-    public static bool CanDeleteSelectedObject => SelectedObject != Core.ActiveLevel?.Root;
+    public static bool CanDeleteSelectedObject => SelectedObject != null && !IsDocumentRoot(SelectedObject);
 
     // Rename
     public void RenameSelected() {
 
-        if (SelectedObject != null && SelectedObject != Core.ActiveLevel?.Root) StartRename(SelectedObject);
+        if (SelectedObject != null && !IsDocumentRoot(SelectedObject)) StartRename(SelectedObject);
     }
 
     private void StartRename(Obj obj) {
@@ -513,6 +519,91 @@ internal class LevelBrowser : Viewport {
         _renameBuf      = obj.Name;
         _reqRenameFocus = true;
     }
+
+    private bool InsertPrefab(Obj parent, string prefabPath) {
+
+        if (!PrefabUtility.TryInstantiateInto(prefabPath, parent, out var instance) || instance == null) {
+            Notifications.Show($"Insert prefab failed: '{Path.GetFileName(prefabPath)}'.");
+            return false;
+        }
+
+        History.StartRecording(parent, $"Insert Prefab {instance.Name}");
+        History.SetUndoAction(instance.Delete);
+        History.SetRedoAction(() => {
+            if (instance.Parent != parent) instance.SetParent(parent);
+        });
+        if (Core.ActiveLevel != null) Core.ActiveLevel.IsDirty = true;
+        History.StopRecording();
+        SelectObject(instance);
+        Notifications.Show($"Prefab '{Path.GetFileName(prefabPath)}' inserted.");
+        return true;
+    }
+
+    private bool MakePrefab(Obj obj, string directory) {
+
+        var existingNames = Directory.EnumerateFiles(directory)
+            .Where(CollectionData.IsPrefab)
+            .Select(CollectionData.GetNameWithoutExtension)
+            .ToList();
+        var fileName = Generators.AvailableName(obj.Name, existingNames);
+        var path = Path.Combine(directory, fileName + ".pre");
+
+        if (!PrefabUtility.SavePrefabFromObject(obj, path, out var message)) {
+            Notifications.Show(message);
+            return false;
+        }
+
+        var asset = AssetManager.GetOrImport<PrefabAsset>(path);
+        if (asset != null) {
+            var parent = obj.Parent;
+            if (parent == null) return false;
+
+            var originalName = obj.Name;
+            var originalPos = obj.Transform.Pos;
+            var originalScale = obj.Transform.Scale;
+            var originalRot = obj.Transform.Rot;
+            var siblings = parent.Children.Values.ToList();
+            var siblingIndex = siblings.IndexOf(obj);
+            var nextSibling = siblingIndex >= 0 && siblingIndex + 1 < siblings.Count ? siblings[siblingIndex + 1] : null;
+
+            if (!PrefabUtility.TryInstantiateInto(asset.GUID, parent, out var instance) || instance == null) {
+                Notifications.Show("Prefab instance creation failed.");
+                return false;
+            }
+
+            instance.Name = originalName;
+            instance.Transform.Pos = originalPos;
+            instance.Transform.Scale = originalScale;
+            instance.Transform.Rot = originalRot;
+
+            if (nextSibling != null)
+                instance.MoveBefore(nextSibling);
+
+            obj.Delete();
+            SelectObject(instance);
+            if (Core.ActiveLevel != null) Core.ActiveLevel.IsDirty = true;
+        }
+
+        Notifications.Show(message);
+        return true;
+    }
+
+    private Vector4 GetObjectColor(Obj obj) {
+
+        if (PrefabUtility.ObjectHasOverrides(obj)) return Colors.Primary.ToVector4();
+        if (obj.FindPrefabRoot() != null) return new Vector4(0.35f, 1f, 1f, 1f);
+        return Colors.GuiTypeObject.ToVector4();
+    }
+
+    private static Vector4 GetObjectTextColor(Obj obj) =>
+        PrefabUtility.ObjectHasOverrides(obj)
+            ? Colors.Primary.ToVector4()
+            : obj.FindPrefabRoot() != null ? new Vector4(0.35f, 1f, 1f, 1f) : Vector4.One;
+
+    private static Vector4 GetObjectIconColor(Obj obj) =>
+        PrefabUtility.ObjectHasOverrides(obj)
+            ? Colors.Primary.ToVector4()
+            : obj.FindPrefabRoot() != null ? new Vector4(0.35f, 1f, 1f, 1f) : Colors.GuiTypeObject.ToVector4();
 
     private void ConfirmRename() {
 

@@ -16,6 +16,7 @@ internal class Transform(Obj obj) : Component(obj) {
         get;
         set {
             field = value;
+            PrefabUtility.UpdateTransformOverrideState(this, nameof(Pos), value);
             UpdateTransform();
         }
     } = Vector3.Zero;
@@ -35,6 +36,7 @@ internal class Transform(Obj obj) : Component(obj) {
 
             if (MathF.Abs(Quaternion.Dot(Rot, q)) > 0.9999f) return;
 
+            PrefabUtility.UpdateTransformOverrideState(this, nameof(Euler), value);
             Rot = q;
         }
     }
@@ -44,6 +46,7 @@ internal class Transform(Obj obj) : Component(obj) {
         get;
         set {
             field = value;
+            PrefabUtility.UpdateTransformOverrideState(this, nameof(Scale), value);
             UpdateTransform();
         }
     } = Vector3.One;
@@ -53,6 +56,7 @@ internal class Transform(Obj obj) : Component(obj) {
         get;
         set {
             field = value;
+            PrefabUtility.UpdateTransformOverrideState(this, nameof(Rot), value);
             UpdateTransform();
         }
     } = Quaternion.Identity;

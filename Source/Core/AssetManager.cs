@@ -193,6 +193,11 @@ internal static class AssetManager {
                     break;
                 }
 
+                if (file.EndsWith(".pre", StringComparison.OrdinalIgnoreCase)) {
+                    ImportPrefab(file);
+                    break;
+                }
+
                 if (file.EndsWith(".mat", StringComparison.OrdinalIgnoreCase))
                     ImportMaterial(file);
 
@@ -310,6 +315,7 @@ internal static class AssetManager {
     }
 
     private static void ImportLevel(string file) => GetOrLoad<LevelAsset>(file);
+    private static void ImportPrefab(string file) => GetOrLoad<PrefabAsset>(file);
 
     private static void ImportTexture(string file) => GetOrLoad<TextureAsset>(file);
 
@@ -455,6 +461,12 @@ internal static class AssetManager {
         if (fullPath.EndsWith(".lvl", StringComparison.OrdinalIgnoreCase)) {
 
             if (Get<LevelAsset>(fullPath) == null) ImportLevel(fullPath);
+            return;
+        }
+
+        if (fullPath.EndsWith(".pre", StringComparison.OrdinalIgnoreCase)) {
+
+            if (Get<PrefabAsset>(fullPath) == null) ImportPrefab(fullPath);
             return;
         }
 
@@ -977,6 +989,10 @@ internal static class AssetManager {
             case ModelAsset model:
                 Preview.UpdateThumbnail(model);
                 break;
+
+            case PrefabAsset prefab:
+                PrefabUtility.RefreshOpenPrefabInstances(prefab.File);
+                break;
         }
     }
 
@@ -1057,6 +1073,7 @@ internal static class AssetManager {
         "AnimationAsset" => NormalizeReference<AnimationAsset>(value),
         "MaterialAsset" => NormalizeReference<MaterialAsset>(value),
         "ScriptAsset" => NormalizeReference<ScriptAsset>(value),
+        "PrefabAsset" => NormalizeReference<PrefabAsset>(value),
         _ => value
     };
 

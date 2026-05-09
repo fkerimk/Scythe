@@ -6,6 +6,7 @@ using Raylib_cs;
 internal class Component(Obj obj) {
 
     public readonly Obj Obj = obj;
+    [JsonProperty] public HashSet<string> PrefabOverrides { get; set; } = [];
 
     public virtual string LabelIcon => Icons.FaDotCircleO;
     public virtual Color LabelColor => Colors.GuiTypeObject;
@@ -42,5 +43,17 @@ internal class Component(Obj obj) {
     public Quaternion Rot {
         get => Obj.Transform.Rot;
         set => Obj.Transform.Rot = value;
+    }
+
+    public bool HasPrefabOverride(string propertyName) => PrefabOverrides.Contains(propertyName);
+
+    public void SetPrefabOverride(string propertyName, bool isOverridden) {
+
+        if (string.IsNullOrWhiteSpace(propertyName)) return;
+
+        if (isOverridden)
+            PrefabOverrides.Add(propertyName);
+        else
+            PrefabOverrides.Remove(propertyName);
     }
 }

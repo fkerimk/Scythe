@@ -25,7 +25,13 @@ internal static class Shortcuts {
             if (IsKeyPressed(KeyboardKey.Y)) History.Redo();
         }
 
-        if (IsKeyPressed(KeyboardKey.Delete)) LevelBrowser.DeleteSelectedObject();
+        if (IsKeyPressed(KeyboardKey.Delete)) {
+
+            if (Editor.SelectedAssetPath != null)
+                Editor.Collections.DeleteSelectedAsset();
+            else
+                LevelBrowser.DeleteSelectedObject();
+        }
     }
 
     private static void DuplicateSelectedObject() {

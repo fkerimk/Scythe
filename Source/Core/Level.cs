@@ -69,6 +69,7 @@ internal class Level {
     public string Name { get; set; } = null!;
     [JsonProperty] public string GUID { get; set; } = System.Guid.NewGuid().ToString("N");
     public string JsonPath { get; set; } = null!;
+    public bool IsPrefabDocument { get; private set; }
     public bool IsDirty { get; set; }
     [JsonProperty] public string Skybox { get; set; } = "";
     [JsonProperty] public string SkyboxPath { get; set; } = "";
@@ -108,6 +109,7 @@ internal class Level {
                 throw new FileNotFoundException($"Could not find level file {Name} with .lvl extension");
 
         JsonPath = path;
+        IsPrefabDocument = path.EndsWith(".pre", StringComparison.OrdinalIgnoreCase);
         Root = new Obj("Root", null);
 
         LoadInternal();
@@ -118,6 +120,7 @@ internal class Level {
         Name = name;
         GUID = System.Guid.NewGuid().ToString("N");
         JsonPath = path;
+        IsPrefabDocument = path.EndsWith(".pre", StringComparison.OrdinalIgnoreCase);
         Root = new Obj("Root", null);
 
         if (load) LoadInternal(applyEditorCamera: applyEditorCamera);
@@ -128,6 +131,7 @@ internal class Level {
         Name = name;
         GUID = System.Guid.NewGuid().ToString("N");
         JsonPath = path;
+        IsPrefabDocument = path.EndsWith(".pre", StringComparison.OrdinalIgnoreCase);
         Root = new Obj("Root", null);
         LoadInternal(jsonBody, applyEditorCamera);
     }
@@ -162,6 +166,8 @@ internal class Level {
                     foreach (var property in children.Properties()) BuildHierarchy(new KeyValuePair<string, JToken>(property.Name, property.Value), Root);
                 }
 
+                PrefabUtility.ApplyPrefabInstances(this);
+
                 // Load camera
                 if (!CommandLine.Runtime && rawData["EditorCamera"] is JObject cameraJson) {
 
@@ -190,8 +196,135 @@ internal class Level {
         }
 
         var settings = new JsonSerializerSettings { DefaultValueHandling = DefaultValueHandling.Ignore, NullValueHandling = NullValueHandling.Ignore, TypeNameHandling = TypeNameHandling.None, Converters = { new RelativePathConverter() } };
+        var serializer = JsonSerializer.Create(settings);
+        var root = JObject.FromObject(this, serializer);
+        root["Root"] = BuildRootSnapshot(Root, serializer);
+        return root.ToString(Formatting.Indented);
+    }
 
-        return JsonConvert.SerializeObject(this, Formatting.Indented, settings);
+    private static JObject BuildRootSnapshot(Obj root, JsonSerializer serializer) {
+
+        var children = new JObject();
+
+        foreach (var child in root.Children.Values) {
+
+            var childToken = BuildObjectSnapshot(child, serializer);
+            if (childToken != null)
+                children[child.Name] = childToken;
+        }
+
+        return new JObject {
+            ["Name"] = root.Name,
+            ["Children"] = children
+        };
+    }
+
+    private static JObject? BuildObjectSnapshot(Obj obj, JsonSerializer serializer) {
+
+        var prefabRoot = obj.FindPrefabRoot();
+        var isPrefabRoot = prefabRoot == obj && !string.IsNullOrWhiteSpace(obj.Prefab);
+
+        if (prefabRoot == null || string.IsNullOrWhiteSpace(prefabRoot.Prefab)) {
+            return CreateFullObjectSnapshot(obj, serializer);
+        }
+
+        if (!PrefabUtility.TryGetSourceObject(obj, out var sourceObj) || sourceObj == null) {
+            var added = CreateFullObjectSnapshot(obj, serializer);
+            added.Remove(nameof(Obj.Prefab));
+            added.Remove(nameof(Obj.PrefabPath));
+            return added;
+        }
+
+        var token = new JObject();
+
+        if (isPrefabRoot) {
+            token["Prefab"] = obj.Prefab;
+            token["PrefabPath"] = obj.PrefabPath;
+            if (obj.PrefabOverrides.Count > 0) token["PrefabOverrides"] = JArray.FromObject(obj.PrefabOverrides.OrderBy(value => value));
+            token["Transform"] = CreateFullComponentSnapshot(obj.Transform, serializer);
+        } else if (obj.PrefabOverrides.Count > 0)
+            token["PrefabOverrides"] = JArray.FromObject(obj.PrefabOverrides.OrderBy(value => value));
+
+        if (!isPrefabRoot) {
+            var transform = BuildSparseComponentSnapshot(obj.Transform, sourceObj.Transform, obj.Transform.PrefabOverrides, serializer);
+            if (transform != null) token["Transform"] = transform;
+        }
+
+        var components = new JObject();
+
+        foreach (var (componentName, component) in obj.Components) {
+
+            if (!sourceObj.Components.TryGetValue(componentName, out var sourceComponent)) {
+                components[componentName] = JObject.FromObject(component, serializer);
+                continue;
+            }
+
+            var componentToken = BuildSparseComponentSnapshot(component, sourceComponent, component.PrefabOverrides, serializer);
+            if (componentToken != null) components[componentName] = componentToken;
+        }
+
+        if (components.Count > 0) token["Components"] = components;
+
+        var children = new JObject();
+
+        foreach (var child in obj.Children.Values) {
+
+            var childToken = BuildObjectSnapshot(child, serializer);
+            if (childToken != null) children[child.Name] = childToken;
+        }
+
+        if (children.Count > 0) token["Children"] = children;
+
+        return token.Count == 0 ? null : token;
+    }
+
+    private static JObject CreateFullObjectSnapshot(Obj obj, JsonSerializer serializer) {
+
+        var token = JObject.FromObject(obj, serializer);
+        StripPrefabMetadata(token);
+        return token;
+    }
+
+    private static JObject CreateFullComponentSnapshot(object component, JsonSerializer serializer) {
+
+        var token = JObject.FromObject(component, serializer);
+        token.Remove(nameof(Component.PrefabOverrides));
+        return token;
+    }
+
+    private static void StripPrefabMetadata(JObject token) {
+
+        token.Remove(nameof(Obj.PrefabOverrides));
+
+        if (token["Transform"] is JObject transformToken)
+            transformToken.Remove(nameof(Component.PrefabOverrides));
+
+        if (token["Components"] is JObject componentsToken)
+            foreach (var componentToken in componentsToken.Properties().Select(property => property.Value).OfType<JObject>())
+                componentToken.Remove(nameof(Component.PrefabOverrides));
+
+        if (token["Children"] is JObject childrenToken)
+            foreach (var childToken in childrenToken.Properties().Select(property => property.Value).OfType<JObject>())
+                StripPrefabMetadata(childToken);
+    }
+
+    private static JObject? BuildSparseComponentSnapshot(object target, object source, IEnumerable<string> overrides, JsonSerializer serializer) {
+
+        var overrideSet = overrides.Where(value => !string.IsNullOrWhiteSpace(value)).ToHashSet(StringComparer.Ordinal);
+        if (overrideSet.Remove(nameof(Transform.Euler)))
+            overrideSet.Add(nameof(Transform.Rot));
+        if (overrideSet.Count == 0) return null;
+
+        var full = JObject.FromObject(target, serializer);
+        var sparse = new JObject();
+
+        foreach (var propertyName in overrideSet)
+            if (full.TryGetValue(propertyName, out var value))
+                sparse[propertyName] = value;
+
+        sparse["PrefabOverrides"] = JArray.FromObject(overrideSet.OrderBy(value => value));
+        if (sparse.Count == 0) return null;
+        return sparse;
     }
 
     private static void BuildHierarchy(KeyValuePair<string, JToken> dataPair, Obj parent) {
@@ -202,7 +335,18 @@ internal class Level {
         var obj = MakeObject(name, parent);
 
         // Load transform
-        if (data["Transform"] is JObject) JsonConvert.PopulateObject(data["Transform"]!.ToString(), obj.Transform);
+        if (data["Transform"] is JObject transformData) {
+            JsonConvert.PopulateObject(transformData.ToString(), obj.Transform);
+
+            if (transformData["PrefabOverrides"] is JArray transformOverrides) {
+                obj.Transform.PrefabOverrides.Clear();
+
+                foreach (var value in transformOverrides.Values<string>().Where(value => !string.IsNullOrWhiteSpace(value))) {
+                    var overrideName = value == nameof(Transform.Euler) ? nameof(Transform.Rot) : value!;
+                    obj.Transform.PrefabOverrides.Add(overrideName);
+                }
+            }
+        }
 
         // Load components
         var components = new Dictionary<string, Component>();
@@ -214,11 +358,29 @@ internal class Level {
                 if (Activator.CreateInstance(Type.GetType(property.Name) ?? throw new KeyNotFoundException($"{property.Name} cant be found"), obj) is not Component component) continue;
 
                 JsonConvert.PopulateObject(data["Components"]![property.Name]!.ToString(), component);
+
+                if (data["Components"]![property.Name]!["PrefabOverrides"] is JArray componentOverrides) {
+                    component.PrefabOverrides.Clear();
+
+                    foreach (var value in componentOverrides.Values<string>().Where(value => !string.IsNullOrWhiteSpace(value)))
+                        component.PrefabOverrides.Add(value!);
+                }
+
                 components[property.Name] = component;
             }
         }
 
         obj.Components = components;
+
+        obj.Prefab = data["Prefab"]?.Value<string>() ?? "";
+        obj.PrefabPath = data["PrefabPath"]?.Value<string>() ?? "";
+
+        if (data["PrefabOverrides"] is JArray prefabOverrides) {
+            obj.PrefabOverrides.Clear();
+
+            foreach (var value in prefabOverrides.Values<string>().Where(value => !string.IsNullOrWhiteSpace(value)))
+                obj.PrefabOverrides.Add(value!);
+        }
 
         if (data["Children"] is not JObject children) return;
 

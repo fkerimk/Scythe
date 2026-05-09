@@ -8,6 +8,7 @@ internal static class Editor {
     public static void CreateLevel(string path) { }
     public static void SetSelectedAsset(string? path) { }
     public static void SelectProjectSettings() { }
+    public static void OnDocumentPathMoved(string oldPath, string newPath) { }
 }
 
 internal static class CollectionData {
