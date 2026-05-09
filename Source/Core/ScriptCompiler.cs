@@ -1,7 +1,39 @@
 using System.Reflection;
+using Scriban;
 
 internal static class ScriptCompiler {
     public static Assembly? ProjectAssembly;
+
+    private static readonly Template DirectoryBuildPropsTemplate = Template.Parse("""
+        <Project>
+          <PropertyGroup>
+            <BaseIntermediateOutputPath>Assembly\obj\</BaseIntermediateOutputPath>
+            <MSBuildProjectExtensionsPath>Assembly\obj\</MSBuildProjectExtensionsPath>
+          </PropertyGroup>
+        </Project>
+        """);
+
+    private static readonly Template ScriptProjectTemplate = Template.Parse("""
+        <Project Sdk="Microsoft.NET.Sdk">
+          <PropertyGroup>
+            <TargetFramework>net10.0</TargetFramework>
+            <ImplicitUsings>enable</ImplicitUsings>
+            <Nullable>enable</Nullable>
+            <ProduceReferenceAssembly>false</ProduceReferenceAssembly>
+            <BaseOutputPath>Assembly\bin\</BaseOutputPath>
+            <OutputPath>Assembly</OutputPath>
+            <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+            <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
+            <AssemblyName>Scripts</AssemblyName>
+          </PropertyGroup>
+          <ItemGroup>
+            <PackageReference Include="Raylib-cs" Version="7.0.2" />
+            <Reference Include="Scythe">
+              <HintPath>{{ exe_path }}</HintPath>
+            </Reference>
+          </ItemGroup>
+        </Project>
+        """);
     
     private static bool _compiling;
     private static bool _queued;
@@ -105,40 +137,14 @@ internal static class ScriptCompiler {
 
     private static void EnsureBuildProjectFiles(string dirPropsPath, string csprojPath, string exePath) {
 
-        if (!File.Exists(dirPropsPath)) {
-            File.WriteAllText(dirPropsPath, """
-                                           <Project>
-                                             <PropertyGroup>
-                                               <BaseIntermediateOutputPath>Assembly\obj\</BaseIntermediateOutputPath>
-                                               <MSBuildProjectExtensionsPath>Assembly\obj\</MSBuildProjectExtensionsPath>
-                                             </PropertyGroup>
-                                           </Project>
-                                           """);
-        }
+        WriteTemplateIfMissing(dirPropsPath, DirectoryBuildPropsTemplate);
+        WriteTemplateIfMissing(csprojPath, ScriptProjectTemplate, new { exe_path = exePath });
+    }
 
-        if (!File.Exists(csprojPath)) {
-            File.WriteAllText(csprojPath, $"""
-                                           <Project Sdk="Microsoft.NET.Sdk">
-                                             <PropertyGroup>
-                                               <TargetFramework>net10.0</TargetFramework>
-                                               <ImplicitUsings>enable</ImplicitUsings>
-                                               <Nullable>enable</Nullable>
-                                               <ProduceReferenceAssembly>false</ProduceReferenceAssembly>
-                                               <BaseOutputPath>Assembly\bin\</BaseOutputPath>
-                                               <OutputPath>Assembly</OutputPath>
-                                               <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
-                                               <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
-                                               <AssemblyName>Scripts</AssemblyName>
-                                             </PropertyGroup>
-                                             <ItemGroup>
-                                               <PackageReference Include="Raylib-cs" Version="7.0.2" />
-                                               <Reference Include="Scythe">
-                                                 <HintPath>{exePath}</HintPath>
-                                               </Reference>
-                                             </ItemGroup>
-                                           </Project>
-                                           """);
-        }
+    private static void WriteTemplateIfMissing(string path, Template template, object? model = null) {
+
+        if (File.Exists(path)) return;
+        File.WriteAllText(path, template.Render(model, member => member.Name));
     }
 
     private static bool NeedsCompile(string scriptOutDll) {

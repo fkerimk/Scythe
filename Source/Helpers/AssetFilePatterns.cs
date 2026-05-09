@@ -1,16 +1,16 @@
-using DotNet.Globbing;
-
 internal static class AssetFilePatterns {
+    private static readonly HashSet<string> TextureExtensions = new(StringComparer.OrdinalIgnoreCase) { ".png", ".jpg", ".jpeg", ".tga", ".bmp", ".webp", ".avif", ".dds", ".stex" };
+    private static readonly HashSet<string> ScriptExtensions = new(StringComparer.OrdinalIgnoreCase) { ".cs" };
+    private static readonly HashSet<string> ShaderExtensions = new(StringComparer.OrdinalIgnoreCase) { ".vs", ".fs" };
+    private static readonly HashSet<string> FontExtensions = new(StringComparer.OrdinalIgnoreCase) { ".ttf", ".otf" };
+    private static readonly HashSet<string> ModelExtensions = new(StringComparer.OrdinalIgnoreCase) { ".fbx", ".obj", ".gltf", ".glb", ".iqm", ".scymodel" };
 
-    private static readonly Glob TextureGlob = Glob.Parse("*.{png,jpg,jpeg,tga,bmp,webp,avif,dds,stex}");
-    private static readonly Glob ScriptGlob = Glob.Parse("*.cs");
-    private static readonly Glob ShaderGlob = Glob.Parse("*.{vs,fs}");
-    private static readonly Glob FontGlob = Glob.Parse("*.{ttf,otf}");
-    private static readonly Glob ModelGlob = Glob.Parse("*.{fbx,obj,gltf,glb,iqm,scymodel}");
+    public static bool IsTexture(string path) => TextureExtensions.Contains(Path.GetExtension(path));
+    public static bool IsScript(string path) => ScriptExtensions.Contains(Path.GetExtension(path));
+    public static bool IsShader(string path) => ShaderExtensions.Contains(Path.GetExtension(path));
+    public static bool IsFont(string path) => FontExtensions.Contains(Path.GetExtension(path));
+    public static bool IsModel(string path) => ModelExtensions.Contains(Path.GetExtension(path));
 
-    public static bool IsTexture(string path) => TextureGlob.IsMatch(Path.GetFileName(path));
-    public static bool IsScript(string path) => ScriptGlob.IsMatch(Path.GetFileName(path));
-    public static bool IsShader(string path) => ShaderGlob.IsMatch(Path.GetFileName(path));
-    public static bool IsFont(string path) => FontGlob.IsMatch(Path.GetFileName(path));
-    public static bool IsModel(string path) => ModelGlob.IsMatch(Path.GetFileName(path));
+    public static bool IsImportable(string path) =>
+        IsTexture(path) || IsScript(path) || IsShader(path) || IsModel(path);
 }

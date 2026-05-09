@@ -155,16 +155,7 @@ internal class ObjectBrowser : Viewport {
 
             if (Button($"{Icons.FaSearch}##{id}_btn")) {
 
-                List<(string Name, string Path, string GUID)> names = pickerType switch {
-
-                    "ShaderAsset"    => AssetManager.GetNames<ShaderAsset>(),
-                    "TextureAsset"   => AssetManager.GetNames<TextureAsset>(),
-                    "ModelAsset"     => AssetManager.GetNames<ModelAsset>(),
-                    "AnimationAsset" => AssetManager.GetNames<AnimationAsset>(),
-                    "MaterialAsset"  => AssetManager.GetNames<MaterialAsset>(),
-                    "ScriptAsset"    => AssetManager.GetNames<ScriptAsset>(),
-                    _                => new List<(string, string, string)>()
-                };
+                var names = AssetManager.GetNames(pickerType);
 
                 _foundAssets = names.ToArray();
                 _pickerEntries = BuildPickerEntries(pickerType);
@@ -1638,14 +1629,8 @@ internal class ObjectBrowser : Viewport {
             .ToArray();
     }
 
-    private static IEnumerable<(string Name, string Path, string GUID)> GetNamedAssetsForPicker(string pickerType) => pickerType switch {
-        "TextureAsset" => AssetManager.GetNames<TextureAsset>(),
-        "ModelAsset" => AssetManager.GetNames<ModelAsset>(),
-        "MaterialAsset" => AssetManager.GetNames<MaterialAsset>(),
-        "PrefabAsset" => AssetManager.GetNames<PrefabAsset>(),
-        "ScriptAsset" => AssetManager.GetNames<ScriptAsset>(),
-        _ => []
-    };
+    private static IEnumerable<(string Name, string Path, string GUID)> GetNamedAssetsForPicker(string pickerType) =>
+        AssetManager.GetNames(pickerType);
 
     private static IEnumerable<string> EnumerateProjectDocuments(bool prefabs) {
 
@@ -1670,15 +1655,8 @@ internal class ObjectBrowser : Viewport {
         return Path.ChangeExtension(value, null) ?? value;
     }
 
-    private static string ResolvePickerAssetValue(string path, string pickerType) => pickerType switch {
-        "LevelAsset" => AssetManager.GetOrImport<LevelAsset>(path)?.GUID ?? "",
-        "PrefabAsset" => AssetManager.GetOrImport<PrefabAsset>(path)?.GUID ?? "",
-        "TextureAsset" => AssetManager.GetOrImport<TextureAsset>(path)?.GUID ?? "",
-        "ModelAsset" => AssetManager.GetOrImport<ModelAsset>(path)?.GUID ?? "",
-        "MaterialAsset" => AssetManager.GetOrImport<MaterialAsset>(path)?.GUID ?? "",
-        "ScriptAsset" => AssetManager.GetOrImport<ScriptAsset>(path)?.GUID ?? "",
-        _ => ""
-    };
+    private static string ResolvePickerAssetValue(string path, string pickerType) =>
+        AssetManager.GetGuidForPickerType(path, pickerType);
 
     private static string GetPickerTypeForKind(CollectionAssetKind kind) => kind switch {
         CollectionAssetKind.Level => "LevelAsset",

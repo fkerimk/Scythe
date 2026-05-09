@@ -331,13 +331,6 @@ internal static class CollectionData {
         return Path.GetFileNameWithoutExtension(file);
     }
 
-    private static string GetGuidForAssetPath(string path, string pickerType) => pickerType switch {
-        "LevelAsset" => AssetManager.GetOrImport<LevelAsset>(path)?.GUID ?? "",
-        "PrefabAsset" => AssetManager.GetOrImport<PrefabAsset>(path)?.GUID ?? "",
-        "MaterialAsset" => AssetManager.GetOrImport<MaterialAsset>(path)?.GUID ?? "",
-        "ModelAsset" => AssetManager.GetOrImport<ModelAsset>(path)?.GUID ?? "",
-        "ScriptAsset" => AssetManager.GetOrImport<ScriptAsset>(path)?.GUID ?? "",
-        "TextureAsset" => AssetManager.GetOrImport<TextureAsset>(path)?.GUID ?? "",
-        _ => ""
-    };
+    private static string GetGuidForAssetPath(string path, string pickerType) =>
+        AssetManager.GetGuidForPickerType(path, pickerType);
 }

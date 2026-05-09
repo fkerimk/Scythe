@@ -176,45 +176,11 @@ internal static class AssetManager {
         file = Path.GetFullPath(file);
 
         if (!File.Exists(file) && !AssetPaths.IsMaterial(file)) return;
+        if (TryImportKnownAsset(file)) return;
 
-        var ext = Path.GetExtension(file).ToLowerInvariant();
-
-        switch (ext) {
-
-            case ".fbx" or ".obj" or ".gltf":                     ImportModel(file); break;
-            case ".cs":                                           ImportScript(file); break;
-            case ".vs" or ".fs":                                  ImportShader(file); break;
-            case ".png" or ".jpg" or ".jpeg" or ".tga" or ".bmp": ImportTexture(file); break;
-
-            default: {
-
-                if (AssetPaths.IsLevel(file)) {
-                    ImportLevel(file);
-                    break;
-                }
-
-                if (AssetPaths.IsPrefab(file)) {
-                    ImportPrefab(file);
-                    break;
-                }
-
-                if (AssetPaths.IsMaterial(file))
-                    ImportMaterial(file);
-
-                else
-                    switch (ext) {
-
-                        case ".json": {
-
-                            var assetFile = file[..^5];
-                            if (File.Exists(assetFile)) ImportFile(assetFile);
-
-                            break;
-                        }
-                    }
-
-                break;
-            }
+        if (AssetPaths.IsJson(file)) {
+            var assetFile = file[..^5];
+            if (File.Exists(assetFile)) ImportFile(assetFile);
         }
     }
 
@@ -256,16 +222,6 @@ internal static class AssetManager {
             var owner = file[..^5];
             if (File.Exists(owner)) yield return owner;
             yield break;
-        }
-
-        if (AssetPaths.IsFragmentShader(file)) {
-
-            var vs = Path.ChangeExtension(file, ".vs");
-            if (File.Exists(vs)) {
-
-                yield return vs;
-                yield break;
-            }
         }
 
         yield return file;
@@ -320,14 +276,6 @@ internal static class AssetManager {
     private static void ImportTexture(string file) => GetOrLoad<TextureAsset>(file);
 
     private static void ImportShader(string file) {
-
-        if (AssetPaths.IsFragmentShader(file)) {
-
-            var vs = Path.ChangeExtension(file, ".vs");
-
-            if (File.Exists(vs)) return;
-        }
-
         GetOrLoad<ShaderAsset>(file);
     }
 
@@ -443,49 +391,33 @@ internal static class AssetManager {
         if (!PathUtil.GetPath(path, out var fullPath) && !File.Exists(path)) return;
         fullPath = Path.GetFullPath(PathUtil.GetPath(path, out var resolvedPath) ? resolvedPath : path);
 
-        var normalized = fullPath.Replace('\\', '/').ToLowerInvariant();
-        var ext = Path.GetExtension(fullPath).ToLowerInvariant();
+        TryEnsureImported<LevelAsset>(fullPath, AssetPaths.IsLevel, ImportLevel);
+        TryEnsureImported<PrefabAsset>(fullPath, AssetPaths.IsPrefab, ImportPrefab);
+        TryEnsureImported<MaterialAsset>(fullPath, AssetPaths.IsMaterial, ImportMaterial);
+        TryEnsureImported<TextureAsset>(fullPath, AssetFilePatterns.IsTexture, ImportTexture);
+        TryEnsureImported<ModelAsset>(fullPath, AssetFilePatterns.IsModel, ImportModel);
+        TryEnsureImported<ScriptAsset>(fullPath, AssetFilePatterns.IsScript, ImportScript);
+        TryEnsureImported<ShaderAsset>(fullPath, AssetFilePatterns.IsShader, ImportShader);
+    }
 
-        if (ext is ".png" or ".jpg" or ".jpeg" or ".tga" or ".bmp") {
+    private static bool TryImportKnownAsset(string file) {
 
-            if (Get<TextureAsset>(fullPath) == null) ImportTexture(fullPath);
-            return;
-        }
+        if (TryEnsureImported<LevelAsset>(file, AssetPaths.IsLevel, ImportLevel)) return true;
+        if (TryEnsureImported<PrefabAsset>(file, AssetPaths.IsPrefab, ImportPrefab)) return true;
+        if (TryEnsureImported<MaterialAsset>(file, AssetPaths.IsMaterial, ImportMaterial)) return true;
+        if (TryEnsureImported<TextureAsset>(file, AssetFilePatterns.IsTexture, ImportTexture, importIfMissingOnly: false)) return true;
+        if (TryEnsureImported<ModelAsset>(file, AssetFilePatterns.IsModel, ImportModel, importIfMissingOnly: false)) return true;
+        if (TryEnsureImported<ScriptAsset>(file, AssetFilePatterns.IsScript, ImportScript, importIfMissingOnly: false)) return true;
+        if (TryEnsureImported<ShaderAsset>(file, AssetFilePatterns.IsShader, ImportShader, importIfMissingOnly: false)) return true;
 
-        if (AssetPaths.IsMaterial(fullPath)) {
+        return false;
+    }
 
-            if (Get<MaterialAsset>(fullPath) == null) ImportMaterial(fullPath);
-            return;
-        }
+    private static bool TryEnsureImported<T>(string fullPath, Func<string, bool> matches, Action<string> import, bool importIfMissingOnly = true) where T : Asset {
 
-        if (AssetPaths.IsLevel(fullPath)) {
-
-            if (Get<LevelAsset>(fullPath) == null) ImportLevel(fullPath);
-            return;
-        }
-
-        if (AssetPaths.IsPrefab(fullPath)) {
-
-            if (Get<PrefabAsset>(fullPath) == null) ImportPrefab(fullPath);
-            return;
-        }
-
-        if (ext is ".fbx" or ".obj" or ".gltf") {
-
-            if (Get<ModelAsset>(fullPath) == null) ImportModel(fullPath);
-            return;
-        }
-
-        if (ext == ".cs") {
-
-            if (Get<ScriptAsset>(fullPath) == null) ImportScript(fullPath);
-            return;
-        }
-
-        if (ext is ".vs" or ".fs") {
-
-            if (Get<ShaderAsset>(fullPath) == null) ImportShader(fullPath);
-        }
+        if (!matches(fullPath)) return false;
+        if (!importIfMissingOnly || Get<T>(fullPath) == null) import(fullPath);
+        return true;
     }
 
     public static string GetImportedTextureFile(string sourceFile, string guid, AssetSidecarData.TextureImportSettings? settings = null) =>
@@ -737,6 +669,30 @@ internal static class AssetManager {
                    .OrderBy(n => n.Item1)
                    .ToList();
     }
+
+    public static List<(string Name, string Path, string GUID)> GetNames(string pickerType) => pickerType switch {
+        "ShaderAsset" => GetNames<ShaderAsset>(),
+        "TextureAsset" => GetNames<TextureAsset>(),
+        "ModelAsset" => GetNames<ModelAsset>(),
+        "AnimationAsset" => GetNames<AnimationAsset>(),
+        "MaterialAsset" => GetNames<MaterialAsset>(),
+        "ScriptAsset" => GetNames<ScriptAsset>(),
+        "PrefabAsset" => GetNames<PrefabAsset>(),
+        "LevelAsset" => GetNames<LevelAsset>(),
+        _ => []
+    };
+
+    public static string GetGuidForPickerType(string path, string pickerType) => pickerType switch {
+        "LevelAsset" => GetOrImport<LevelAsset>(path)?.GUID ?? "",
+        "PrefabAsset" => GetOrImport<PrefabAsset>(path)?.GUID ?? "",
+        "MaterialAsset" => GetOrImport<MaterialAsset>(path)?.GUID ?? "",
+        "ModelAsset" => GetOrImport<ModelAsset>(path)?.GUID ?? "",
+        "ScriptAsset" => GetOrImport<ScriptAsset>(path)?.GUID ?? "",
+        "TextureAsset" => GetOrImport<TextureAsset>(path)?.GUID ?? "",
+        "ShaderAsset" => GetOrImport<ShaderAsset>(path)?.GUID ?? "",
+        "AnimationAsset" => GetOrImport<AnimationAsset>(path)?.GUID ?? "",
+        _ => ""
+    };
 
     public static IEnumerable<T> GetAll<T>() where T : Asset => !TypeCache.TryGetValue(typeof(T), out var list) ? [] : list.Cast<T>();
 
