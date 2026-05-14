@@ -585,49 +585,77 @@ internal class LevelBrowser : Viewport {
             .ToList();
         var fileName = Generators.AvailableName(obj.Name, existingNames);
         var path = Path.Combine(directory, fileName + ".pre");
+        var parent = obj.Parent;
+        if (parent == null) return false;
 
-        if (!PrefabUtility.SavePrefabFromObject(obj, path, out var message)) {
-            Notifications.Show(message);
-            return false;
-        }
+        var originalName = obj.Name;
+        var originalPos = obj.Transform.Pos;
+        var originalScale = obj.Transform.Scale;
+        var originalRot = obj.Transform.Rot;
+        var siblings = parent.ChildEntries.Values.ToList();
+        var siblingIndex = siblings.IndexOf(obj);
+        var nextSibling = siblingIndex >= 0 && siblingIndex + 1 < siblings.Count ? siblings[siblingIndex + 1] : null;
+        Obj? instance = null;
 
-        var asset = AssetManager.GetOrImport<PrefabAsset>(path);
-        if (asset != null) {
-            var parent = obj.Parent;
-            if (parent == null) return false;
+        History.Execute(
+            $"Make Prefab {obj.Name}",
+            redo: () => {
+                if (!File.Exists(path) && !PrefabUtility.SavePrefabFromObject(obj, path, out _))
+                    return;
 
-            var originalName = obj.Name;
-            var originalPos = obj.Transform.Pos;
-            var originalScale = obj.Transform.Scale;
-            var originalRot = obj.Transform.Rot;
-            var siblings = parent.ChildEntries.Values.ToList();
-            var siblingIndex = siblings.IndexOf(obj);
-            var nextSibling = siblingIndex >= 0 && siblingIndex + 1 < siblings.Count ? siblings[siblingIndex + 1] : null;
+                var asset = AssetManager.GetOrImport<PrefabAsset>(path);
+                if (asset == null) return;
 
-            obj.Parent = null;
-            parent.ChildEntries.Remove(obj);
+                if (obj.Parent == parent) {
+                    obj.Parent = null;
+                    parent.ChildEntries.Remove(obj);
+                }
 
-            if (!PrefabUtility.TryInstantiateInto(asset.GUID, parent, out var instance) || instance == null) {
-                obj.Parent = parent;
-                parent.ChildEntries.Add(obj);
-                Notifications.Show("Prefab instance creation failed.");
-                return false;
+                if (instance?.Parent != null) {
+                    instance.Parent.ChildEntries.Remove(instance);
+                    instance.Dispose();
+                    instance = null;
+                }
+
+                if (!PrefabUtility.TryInstantiateInto(asset.GUID, parent, out instance) || instance == null)
+                    return;
+
+                instance.Name = originalName;
+                instance.Transform.Pos = originalPos;
+                instance.Transform.Scale = originalScale;
+                instance.Transform.Rot = originalRot;
+
+                if (nextSibling != null)
+                    instance.MoveBefore(nextSibling);
+
+                SelectObject(instance);
+                if (Core.ActiveLevel != null) Core.ActiveLevel.IsDirty = true;
+            },
+            undo: () => {
+                if (instance?.Parent != null) {
+                    instance.Parent.ChildEntries.Remove(instance);
+                    instance.Dispose();
+                }
+
+                instance = null;
+
+                if (File.Exists(path))
+                    File.Delete(path);
+
+                if (obj.Parent != parent) {
+                    obj.Parent = parent;
+                    parent.ChildEntries.Add(obj);
+
+                    if (nextSibling != null)
+                        obj.MoveBefore(nextSibling);
+                }
+
+                SelectObject(obj);
+                if (Core.ActiveLevel != null) Core.ActiveLevel.IsDirty = true;
             }
+        );
 
-            instance.Name = originalName;
-            instance.Transform.Pos = originalPos;
-            instance.Transform.Scale = originalScale;
-            instance.Transform.Rot = originalRot;
-
-            if (nextSibling != null)
-                instance.MoveBefore(nextSibling);
-
-            obj.Dispose();
-            SelectObject(instance);
-            if (Core.ActiveLevel != null) Core.ActiveLevel.IsDirty = true;
-        }
-
-        Notifications.Show(message);
+        Notifications.Show($"Prefab '{Path.GetFileName(path)}' created.");
         return true;
     }
 

@@ -219,7 +219,7 @@ internal static class PrefabUtility {
         var prefabRoot = component.Obj.FindPrefabRoot();
         if (prefabRoot == null) return false;
 
-        return IsAddedComponent(component) || !TryGetSourceComponent(component, out _);
+        return IsAddedComponent(component);
     }
 
     public static void MarkAddedChildSubtree(Obj obj) {
@@ -338,7 +338,6 @@ internal static class PrefabUtility {
 
     public static bool ApplyObjectPropertyToPrefab(Obj obj, PropertyInfo property, object? value) {
 
-        if (!obj.HasPrefabOverride(property.Name)) return false;
         if (!TryGetSourceObject(obj, out var sourceObj) || sourceObj == null) return false;
 
         var sourceProperty = sourceObj.GetType().GetProperty(property.Name, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
@@ -352,7 +351,6 @@ internal static class PrefabUtility {
     public static bool ApplyTransformPropertyToPrefab(Transform transform, PropertyInfo property, object? value) {
 
         var overrideKey = GetTransformOverrideKey(property.Name);
-        if (!transform.HasPrefabOverride(overrideKey)) return false;
         if (!TryGetSourceObject(transform.Obj, out var sourceObj) || sourceObj == null) return false;
 
         var sourcePropertyName = property.Name == nameof(Transform.Euler) ? nameof(Transform.Euler) : overrideKey;
@@ -366,7 +364,6 @@ internal static class PrefabUtility {
 
     public static bool ApplyComponentPropertyToPrefab(Component component, PropertyInfo property, object? value) {
 
-        if (!component.HasPrefabOverride(property.Name)) return false;
         if (!TryGetSourceComponent(component, out var sourceComponent) || sourceComponent == null) return false;
 
         var sourceProperty = sourceComponent.GetType().GetProperty(property.Name, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
@@ -463,7 +460,20 @@ internal static class PrefabUtility {
                 target.ComponentEntries.Add(targetComponent);
             }
 
+            targetComponent.PrefabOverrides.Remove(AddedComponentMarker);
             SyncComponentProperties(targetComponent, sourceComponent);
+        }
+
+        var targetExtraComponentIndices = new Dictionary<string, int>(StringComparer.Ordinal);
+
+        foreach (var targetComponent in target.ComponentEntries.Values) {
+            var componentName = targetComponent.GetType().Name;
+            var targetIndex = targetExtraComponentIndices.GetValueOrDefault(componentName, 0);
+            targetExtraComponentIndices[componentName] = targetIndex + 1;
+
+            if (source.ComponentEntries.TryGetValue(componentName, targetIndex, out _)) continue;
+
+            MarkAsAddedComponent(targetComponent);
         }
 
         var sourceChildNameCounts = source.ChildEntries.Values
@@ -592,6 +602,35 @@ internal static class PrefabUtility {
 
     public static string GetTransformOverrideKey(string propertyName) =>
         propertyName == nameof(Transform.Euler) ? nameof(Transform.Rot) : propertyName;
+
+    public static bool TryGetSourcePrefabFile(Obj obj, out string prefabFile) {
+
+        prefabFile = "";
+
+        var prefabRoot = obj.FindPrefabRoot();
+        if (prefabRoot == null) return false;
+
+        var guid = prefabRoot.Prefab;
+        var path = prefabRoot.PrefabPath;
+        var asset = AssetManager.ResolveReference<PrefabAsset>(ref guid, ref path);
+        if (asset == null || string.IsNullOrWhiteSpace(asset.File)) return false;
+
+        prefabRoot.Prefab = guid;
+        prefabRoot.PrefabPath = path;
+        prefabFile = asset.File;
+        return true;
+    }
+
+    public static bool RestoreSourcePrefabFile(string prefabFile, string json) {
+
+        if (string.IsNullOrWhiteSpace(prefabFile)) return false;
+
+        File.WriteAllText(prefabFile, json);
+        ClearSourceCache();
+        AssetManager.EnsureImported(prefabFile);
+        RefreshOpenPrefabInstances(prefabFile);
+        return true;
+    }
 
     private static bool ValuesEqual(object? left, object? right) =>
         ObjectGraph.AreEqual(left, right);

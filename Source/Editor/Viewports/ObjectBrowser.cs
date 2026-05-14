@@ -78,11 +78,14 @@ internal class ObjectBrowser : Viewport {
             .OrderBy(name => name, new NaturalStringComparer());
 
         foreach (var compName in componentTypes) {
-            var maxSharedCount = targets.Min(t => t.ComponentEntries.Values.Count(component => component.GetType().Name == compName));
+            var groupedComponents = targets
+                .Select(t => t.ComponentEntries.Values.Where(component => component.GetType().Name == compName).ToList())
+                .ToList();
+            var maxSharedCount = groupedComponents.Min(components => components.Count);
 
             for (var index = 0; index < maxSharedCount; index++) {
-                var compInstances = targets
-                    .Select(t => t.ComponentEntries.Values.Where(component => component.GetType().Name == compName).ElementAt(index))
+                var compInstances = groupedComponents
+                    .Select(components => components[index])
                     .Cast<object>()
                     .ToList();
                 DrawProperties(compInstances, true, compName, false);
@@ -122,16 +125,27 @@ internal class ObjectBrowser : Viewport {
             if (Activator.CreateInstance(type, targetObj) is not Component component) continue;
 
             var compName = type.Name;
+            History.Execute(
+                $"Add Component {compName}",
+                redo: () => {
+                    if (!targetObj.ComponentEntries.Values.Any(existing => ReferenceEquals(existing, component))) {
+                        targetObj.ComponentEntries.Add(component);
+                        if (targetObj.FindPrefabRoot() != null && Core.ActiveLevel?.IsPrefabDocument != true)
+                            PrefabUtility.MarkAsAddedComponent(component);
+                    }
 
-            History.StartRecording(targetObj, $"Add Component {compName}");
-            targetObj.ComponentEntries.Add(component);
-            if (targetObj.FindPrefabRoot() != null && Core.ActiveLevel?.IsPrefabDocument != true)
-                PrefabUtility.MarkAsAddedComponent(component);
-            if (component.Load()) component.IsLoaded = true;
-            if (Core.ActiveLevel != null) Core.ActiveLevel.IsDirty = true;
-
-            History.StopRecording();
-            if (component is Animation anim && targetObj.ComponentEntries.TryGetValue("Model", out var m)) anim.GUID = (m as Model)!.GUID;
+                    if (component.Load()) component.IsLoaded = true;
+                    if (component is Animation anim && targetObj.ComponentEntries.TryGetValue("Model", out var m)) anim.GUID = (m as Model)!.GUID;
+                    if (Core.ActiveLevel != null) Core.ActiveLevel.IsDirty = true;
+                },
+                undo: () => {
+                    var current = targetObj.ComponentEntries.Values.FirstOrDefault(existing => ReferenceEquals(existing, component));
+                    if (current == null) return;
+                    current.UnloadAndQuit();
+                    targetObj.ComponentEntries.Remove(current);
+                    if (Core.ActiveLevel != null) Core.ActiveLevel.IsDirty = true;
+                }
+            );
         }
 
         EndPopup();
@@ -336,7 +350,7 @@ internal class ObjectBrowser : Viewport {
 
         if (highlightOverride) PopStyleColor(3);
 
-        if (showResetButton) {
+        if (showResetButton && highlightOverride) {
 
             SameLine();
             BeginDisabled(!highlightOverride);
@@ -357,15 +371,52 @@ internal class ObjectBrowser : Viewport {
                 SetTooltip("Reset override");
         }
 
-        if (applyOverride != null) {
+        if (applyOverride != null && highlightOverride) {
 
             SameLine();
             BeginDisabled(!highlightOverride);
             PushFont(Fonts.ImFontAwesomeSmall);
 
             if (Button($"{Icons.FaCheck}##{id}_apply", new Vector2(resetButtonSize, resetButtonSize))) {
+                if (propName != null)
+                    History.StopRecording();
 
-                applyOverride.Invoke();
+                var applyTarget = targets.Count == 1 ? targets[0] : null;
+                var applyObj = applyTarget switch {
+                    Obj obj => obj,
+                    Transform transform => transform.Obj,
+                    Component component => component.Obj,
+                    _ => null
+                };
+                var applyProperty = applyTarget == null || string.IsNullOrWhiteSpace(propName)
+                    ? null
+                    : applyTarget.GetType().GetProperty(propName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+
+                if (applyObj != null && applyProperty != null && PrefabUtility.TryGetSourcePrefabFile(applyObj, out var prefabFile) && File.Exists(prefabFile)) {
+                    var beforeJson = File.ReadAllText(prefabFile);
+                    var beforeLocalValue = CloneApplyHistoryValue(applyProperty.GetValue(applyTarget));
+                    string? afterJson = null;
+                    History.Execute(
+                        $"Apply {propName ?? "Override"} To Prefab",
+                        redo: () => {
+                            if (afterJson == null) {
+                                applyOverride.Invoke();
+                                afterJson = File.Exists(prefabFile) ? File.ReadAllText(prefabFile) : beforeJson;
+                                return;
+                            }
+
+                            if (!PrefabUtility.RestoreSourcePrefabFile(prefabFile, afterJson) || applyTarget == null) return;
+                            RestoreApplyHistoryTargetState(applyTarget, applyProperty, pickerType, beforeLocalValue, isOverridden: false);
+                        },
+                        undo: () => {
+                            if (!PrefabUtility.RestoreSourcePrefabFile(prefabFile, beforeJson) || applyTarget == null) return;
+
+                            RestoreApplyHistoryTargetState(applyTarget, applyProperty, pickerType, beforeLocalValue, isOverridden: true);
+                        }
+                    );
+                } else
+                    applyOverride.Invoke();
+
                 deactivated = true;
             }
 
@@ -1269,7 +1320,19 @@ internal class ObjectBrowser : Viewport {
                 PopStyleVar();
 
                 if (Button("Apply Component To Prefab", new Vector2(GetContentRegionAvail().X, 0))) {
-                    PrefabUtility.ApplyAddedComponentToPrefab(component);
+                    if (PrefabUtility.TryGetSourcePrefabFile(component.Obj, out var prefabFile) && File.Exists(prefabFile)) {
+                        var beforeJson = File.ReadAllText(prefabFile);
+                        History.Execute(
+                            $"Apply Component {component.GetType().Name} To Prefab",
+                            redo: () => {
+                                PrefabUtility.ApplyAddedComponentToPrefab(component);
+                                if (Core.ActiveLevel != null) Core.ActiveLevel.IsDirty = true;
+                            },
+                            undo: () => PrefabUtility.RestoreSourcePrefabFile(prefabFile, beforeJson)
+                        );
+                    } else
+                        PrefabUtility.ApplyAddedComponentToPrefab(component);
+
                     if (Core.ActiveLevel != null) Core.ActiveLevel.IsDirty = true;
                 }
 
@@ -1423,16 +1486,54 @@ internal class ObjectBrowser : Viewport {
 
         if (!IsPrefabBoundTarget(target)) return (false, null);
 
-        if (target is Obj obj && PrefabUtility.TryGetObjectPropertyOverride(obj, property, out var objValue))
-            return (true, objValue);
+        if (target is Obj obj && TryGetPrefabSourceValue(obj, property, out var objValue))
+            return (!ObjectGraph.AreEqual(property.GetValue(obj), objValue), objValue);
 
-        if (target is Transform transform && PrefabUtility.TryGetTransformPropertyOverride(transform, property, out var transformValue))
-            return (true, transformValue);
+        if (target is Transform transform && TryGetPrefabSourceValue(transform, property, out var transformValue))
+            return (!ObjectGraph.AreEqual(property.GetValue(transform), transformValue), transformValue);
 
-        if (target is Component component && PrefabUtility.TryGetComponentPropertyOverride(component, property, out var componentValue))
-            return (true, componentValue);
+        if (target is Component component && TryGetPrefabSourceValue(component, property, out var componentValue))
+            return (!ObjectGraph.AreEqual(property.GetValue(component), componentValue), componentValue);
 
         return (false, null);
+    }
+
+    private static bool TryGetPrefabSourceValue(Obj obj, PropertyInfo property, out object? sourceValue) {
+
+        sourceValue = null;
+        if (!PrefabUtility.TryGetSourceObject(obj, out var sourceObj) || sourceObj == null) return false;
+
+        var sourceProp = sourceObj.GetType().GetProperty(property.Name, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+        if (sourceProp == null || !sourceProp.CanRead) return false;
+
+        sourceValue = sourceProp.GetValue(sourceObj);
+        return true;
+    }
+
+    private static bool TryGetPrefabSourceValue(Transform transform, PropertyInfo property, out object? sourceValue) {
+
+        sourceValue = null;
+        if (!PrefabUtility.TryGetSourceObject(transform.Obj, out var sourceObj) || sourceObj == null) return false;
+
+        var sourcePropertyName = property.Name == nameof(Transform.Euler) ? nameof(Transform.Euler) : PrefabUtility.GetTransformOverrideKey(property.Name);
+        var sourceProp = sourceObj.Transform.GetType().GetProperty(sourcePropertyName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+        if (sourceProp == null || !sourceProp.CanRead) return false;
+
+        sourceValue = sourceProp.GetValue(sourceObj.Transform);
+        return true;
+    }
+
+    private static bool TryGetPrefabSourceValue(Component component, PropertyInfo property, out object? sourceValue) {
+
+        sourceValue = null;
+        if (!PrefabUtility.TryGetSourceObject(component.Obj, out var sourceObj) || sourceObj == null) return false;
+        if (!sourceObj.ComponentEntries.TryGetValue(component.GetType().Name, component.Obj.ComponentEntries.GetOccurrenceIndex(component), out var sourceComponent)) return false;
+
+        var sourceProp = sourceComponent.GetType().GetProperty(property.Name, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+        if (sourceProp == null || !sourceProp.CanRead) return false;
+
+        sourceValue = sourceProp.GetValue(sourceComponent);
+        return true;
     }
 
     private static void SyncAssetReferencePath(object target, PropertyInfo property, string? pickerType, string? selectedValue) {
@@ -1482,9 +1583,9 @@ internal class ObjectBrowser : Viewport {
         if (!IsPrefabBoundTarget(target)) return null;
 
         return target switch {
-            Obj obj when obj.HasPrefabOverride(property.Name) => () => PrefabUtility.ApplyObjectPropertyToPrefab(obj, property, property.GetValue(obj)),
-            Transform transform when transform.HasPrefabOverride(PrefabUtility.GetTransformOverrideKey(property.Name)) => () => PrefabUtility.ApplyTransformPropertyToPrefab(transform, property, property.GetValue(transform)),
-            Component component when component.HasPrefabOverride(property.Name) => () => PrefabUtility.ApplyComponentPropertyToPrefab(component, property, property.GetValue(component)),
+            Obj obj when TryGetPrefabSourceValue(obj, property, out _) => () => PrefabUtility.ApplyObjectPropertyToPrefab(obj, property, property.GetValue(obj)),
+            Transform transform when TryGetPrefabSourceValue(transform, property, out _) => () => PrefabUtility.ApplyTransformPropertyToPrefab(transform, property, property.GetValue(transform)),
+            Component component when TryGetPrefabSourceValue(component, property, out _) => () => PrefabUtility.ApplyComponentPropertyToPrefab(component, property, property.GetValue(component)),
             _ => null
         };
     }
@@ -1668,6 +1769,36 @@ internal class ObjectBrowser : Viewport {
         DrawShadowedLabel(label);
         TextDisabled(value);
         NextColumn();
+    }
+
+    private static object? CloneApplyHistoryValue(object? value) {
+
+        if (value == null) return null;
+        if (value is string) return value;
+        if (value.GetType().IsValueType) return value;
+        return ObjectGraph.DeepClone(value);
+    }
+
+    private static void RestoreApplyHistoryTargetState(object target, PropertyInfo property, string? pickerType, object? localValue, bool isOverridden) {
+
+        var restoredValue = CloneApplyHistoryValue(localValue);
+        property.SetValue(target, restoredValue);
+        SyncAssetReferencePath(target, property, pickerType, restoredValue as string);
+
+        switch (target) {
+            case Obj obj:
+                obj.SetPrefabOverride(property.Name, isOverridden);
+                break;
+            case Transform transform:
+                transform.SetPrefabOverride(PrefabUtility.GetTransformOverrideKey(property.Name), isOverridden);
+                break;
+            case Component component:
+                component.SetPrefabOverride(property.Name, isOverridden);
+                break;
+        }
+
+        if (target is Component componentTarget && pickerType != null)
+            componentTarget.UnloadAndQuit();
     }
 
     private static string FormatFileSize(string path) {

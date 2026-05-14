@@ -7,6 +7,7 @@ using static ImGuiNET.ImGui;
 namespace Viewports;
 
 internal class Collections : Viewport {
+    private static readonly string HistoryTrashRoot = Path.Combine(Path.GetTempPath(), "ScytheHistory");
 
     private readonly string _collectionsRoot;
     private const string ChildCollectionsLabel = "Collections";
@@ -869,20 +870,35 @@ internal class Collections : Viewport {
         if (string.IsNullOrWhiteSpace(_deleteTargetPath)) return;
 
         var targetPath = _deleteTargetPath;
+        var selectedBeforeDelete = _selectedPath;
 
         if (_deleteTargetIsDirectory) {
+            var trashPath = BuildHistoryTrashPath(targetPath);
 
-            if (Directory.Exists(targetPath)) Directory.Delete(targetPath, true);
+            History.Execute(
+                $"Delete {Path.GetFileName(targetPath)}",
+                redo: () => MoveDirectoryToTrash(targetPath, trashPath),
+                undo: () => RestoreDirectoryFromTrash(trashPath, targetPath)
+            );
+
+            if (string.Equals(selectedBeforeDelete, targetPath, StringComparison.OrdinalIgnoreCase))
+                Editor.SetSelectedAsset(null);
+
             Notifications.Show($"Collection '{Path.GetFileName(targetPath)}' deleted.");
 
         } else {
 
             var sidecarPath = GetSidecarMetaPath(targetPath);
+            var trashPath = BuildHistoryTrashPath(targetPath);
+            var trashSidecarPath = sidecarPath == null ? null : BuildHistoryTrashPath(sidecarPath);
 
-            if (File.Exists(targetPath)) File.Delete(targetPath);
-            if (sidecarPath != null && File.Exists(sidecarPath)) File.Delete(sidecarPath);
+            History.Execute(
+                $"Delete {Path.GetFileName(targetPath)}",
+                redo: () => MoveFileToTrash(targetPath, trashPath, sidecarPath, trashSidecarPath),
+                undo: () => RestoreFileFromTrash(trashPath, targetPath, trashSidecarPath, sidecarPath)
+            );
 
-            if (string.Equals(_selectedPath, targetPath, StringComparison.OrdinalIgnoreCase)) Editor.SetSelectedAsset(null);
+            if (string.Equals(selectedBeforeDelete, targetPath, StringComparison.OrdinalIgnoreCase)) Editor.SetSelectedAsset(null);
             Notifications.Show($"File '{Path.GetFileName(targetPath)}' deleted.");
         }
     }
@@ -900,48 +916,112 @@ internal class Collections : Viewport {
         }
 
         try {
-            switch (type) {
-                case CreateItemType.Collection:
-                    Directory.CreateDirectory(path);
-                    EnsureCollectionSettings(path);
-                    Notifications.Show($"Collection '{trimmedName}' created.");
-                    return true;
-                case CreateItemType.Level:
-                    File.WriteAllText(path, $$"""
-                                             {
-                                               "Root": {
-                                                 "Name": "{{trimmedName}}",
-                                                 "Children": {}
-                                               }
-                                             }
-                                             """);
-                    Notifications.Show($"Level '{Path.GetFileName(path)}' created.");
-                    return true;
-                case CreateItemType.Material:
-                    JsonFile.WriteIndented(path, new MaterialAsset.MaterialData { GUID = Guid.NewGuid().ToString("N") });
-                    Notifications.Show($"Material '{Path.GetFileName(path)}' created.");
-                    return true;
-                case CreateItemType.Script:
-                    File.WriteAllText(path, BuildScriptTemplate(trimmedName));
-                    Notifications.Show($"Script '{Path.GetFileName(path)}' created.");
-                    return true;
-                case CreateItemType.Prefab:
-                    File.WriteAllText(path, $$"""
-                                             {
-                                               "GUID": "{{Guid.NewGuid():N}}",
-                                               "Root": {
-                                                 "Children": {}
-                                               }
-                                             }
-                                             """);
-                    Notifications.Show($"Prefab '{Path.GetFileName(path)}' created.");
-                    return true;
-                default:
-                    return false;
-            }
+            History.Execute(
+                $"Create {GetCreateItemLabel(type)} {Path.GetFileName(path)}",
+                redo: () => CreateItemAtPath(type, trimmedName, path),
+                undo: () => DeleteCreatedItemAtPath(type, path)
+            );
+
+            Notifications.Show($"{GetCreateItemLabel(type)} '{Path.GetFileName(path)}' created.");
+            return true;
         } catch (Exception e) {
             Notifications.Show($"{GetCreateItemLabel(type)} creation failed: {e.Message}");
             return false;
+        }
+    }
+
+    private void CreateItemAtPath(CreateItemType type, string trimmedName, string path) {
+
+        switch (type) {
+            case CreateItemType.Collection:
+                Directory.CreateDirectory(path);
+                EnsureCollectionSettings(path);
+                break;
+            case CreateItemType.Level:
+                File.WriteAllText(path, $$"""
+                                         {
+                                           "Root": {
+                                             "Name": "{{trimmedName}}",
+                                             "Children": {}
+                                           }
+                                         }
+                                         """);
+                break;
+            case CreateItemType.Material:
+                JsonFile.WriteIndented(path, new MaterialAsset.MaterialData { GUID = Guid.NewGuid().ToString("N") });
+                break;
+            case CreateItemType.Script:
+                File.WriteAllText(path, BuildScriptTemplate(trimmedName));
+                break;
+            case CreateItemType.Prefab:
+                File.WriteAllText(path, $$"""
+                                         {
+                                           "GUID": "{{Guid.NewGuid():N}}",
+                                           "Root": {
+                                             "Children": {}
+                                           }
+                                         }
+                                         """);
+                break;
+        }
+    }
+
+    private static void DeleteCreatedItemAtPath(CreateItemType type, string path) {
+
+        if (type == CreateItemType.Collection) {
+            if (Directory.Exists(path)) Directory.Delete(path, true);
+            return;
+        }
+
+        if (File.Exists(path)) File.Delete(path);
+
+        var sidecarPath = GetSidecarMetaPathFor(path);
+        if (File.Exists(sidecarPath)) File.Delete(sidecarPath);
+    }
+
+    private static string BuildHistoryTrashPath(string originalPath) {
+
+        Directory.CreateDirectory(HistoryTrashRoot);
+        return Path.Combine(HistoryTrashRoot, $"{Guid.NewGuid():N}_{Path.GetFileName(originalPath)}");
+    }
+
+    private static void MoveDirectoryToTrash(string sourcePath, string trashPath) {
+
+        if (!Directory.Exists(sourcePath)) return;
+        if (Directory.Exists(trashPath)) Directory.Delete(trashPath, true);
+        Directory.Move(sourcePath, trashPath);
+    }
+
+    private static void RestoreDirectoryFromTrash(string trashPath, string targetPath) {
+
+        if (!Directory.Exists(trashPath)) return;
+        if (Directory.Exists(targetPath)) Directory.Delete(targetPath, true);
+        Directory.Move(trashPath, targetPath);
+    }
+
+    private static void MoveFileToTrash(string sourcePath, string trashPath, string? sidecarPath, string? trashSidecarPath) {
+
+        if (File.Exists(sourcePath)) {
+            if (File.Exists(trashPath)) File.Delete(trashPath);
+            File.Move(sourcePath, trashPath);
+        }
+
+        if (!string.IsNullOrWhiteSpace(sidecarPath) && !string.IsNullOrWhiteSpace(trashSidecarPath) && File.Exists(sidecarPath)) {
+            if (File.Exists(trashSidecarPath)) File.Delete(trashSidecarPath);
+            File.Move(sidecarPath, trashSidecarPath);
+        }
+    }
+
+    private static void RestoreFileFromTrash(string trashPath, string targetPath, string? trashSidecarPath, string? sidecarPath) {
+
+        if (File.Exists(trashPath)) {
+            if (File.Exists(targetPath)) File.Delete(targetPath);
+            File.Move(trashPath, targetPath);
+        }
+
+        if (!string.IsNullOrWhiteSpace(trashSidecarPath) && !string.IsNullOrWhiteSpace(sidecarPath) && File.Exists(trashSidecarPath)) {
+            if (File.Exists(sidecarPath)) File.Delete(sidecarPath);
+            File.Move(trashSidecarPath, sidecarPath);
         }
     }
 
@@ -1220,14 +1300,11 @@ internal class Collections : Viewport {
             var destinationSidecar = GetSidecarMetaPathFor(destinationPath);
             var hasSidecar = !CollectionData.IsLevel(sourcePath) && !CollectionData.IsPrefab(sourcePath) && File.Exists(sourceSidecar);
 
-            File.Move(sourcePath, destinationPath);
-            if (hasSidecar) File.Move(sourceSidecar, destinationSidecar);
-
-            if (string.Equals(_selectedPath, sourcePath, StringComparison.OrdinalIgnoreCase))
-                Editor.SetSelectedAsset(destinationPath);
-
-            if (CollectionData.IsLevel(sourcePath) || CollectionData.IsPrefab(sourcePath))
-                Editor.OnDocumentPathMoved(sourcePath, destinationPath);
+            History.Execute(
+                $"Move {Path.GetFileName(sourcePath)}",
+                redo: () => RenameFile(sourcePath, destinationPath, hasSidecar),
+                undo: () => RenameFile(destinationPath, sourcePath, hasSidecar)
+            );
 
             Notifications.Show($"Moved '{Path.GetFileName(sourcePath)}' to '{AssetManager.GetStoredPath(destinationDirectory)}'.");
             return true;
