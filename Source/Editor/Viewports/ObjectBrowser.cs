@@ -7,6 +7,8 @@ using static ImGuiNET.ImGui;
 
 internal class ObjectBrowser : Viewport {
 
+    private delegate bool InspectorFieldRenderer(string id, ref object? value, string? pickerType);
+
     private int _propIndex;
     private readonly IEnumerable<Type> _addComponentTypes;
     private (string Name, string Path, string GUID)[] _foundAssets = [];
@@ -15,6 +17,11 @@ internal class ObjectBrowser : Viewport {
     private bool _showAnimationFrames;
     private readonly Dictionary<string, int> _pendingTextureQuality = new();
     private readonly Dictionary<string, PickerBrowserState> _pickerStates = new();
+    private static readonly Dictionary<Type, InspectorFieldRenderer> _fieldRenderers = CreateFieldRenderers();
+    private static readonly Dictionary<Type, InspectableProperty[]> _inspectablePropertyCache = new();
+    private static readonly Dictionary<string, PickerTypeMetadata> _pickerTypeMetadata = CreatePickerTypeMetadata();
+    private static readonly Dictionary<CollectionAssetKind, PickerCategoryMetadata> _pickerCategoryMetadata = CreatePickerCategoryMetadata();
+    private static readonly Dictionary<string, Action<ObjectBrowser, string>> _assetInspectorByExtension = CreateAssetInspectorByExtension();
 
     public ObjectBrowser() : base("Object") {
 
@@ -226,126 +233,10 @@ internal class ObjectBrowser : Viewport {
         }
 
         // Field drawing
-        if (type == typeof(string)) {
-
-            var val = (string)(value ?? "");
-            var display = GetAssetDisplayValue(val, pickerType);
-
-            if (string.IsNullOrEmpty(display)) display = val;
-
-            if (InputTextWithHint($"##{id}", "None", ref display, 512, string.IsNullOrEmpty(pickerType) ? ImGuiInputTextFlags.None : ImGuiInputTextFlags.ReadOnly) && string.IsNullOrEmpty(pickerType)) {
-
-                value = display;
-                changed = true;
-            }
-        } else if (type == typeof(float)) {
-
-            var val = (float)(value ?? 0f);
-
-            if (InputFloat($"##{id}", ref val)) {
-
-                value = val;
-                changed = true;
-            }
-        } else if (type == typeof(int)) {
-
-            var val = (int)(value ?? 0);
-
-            if (id.Contains("is_")) {
-
-                var bVal = val == 1;
-
-                if (Checkbox($"##{id}", ref bVal)) {
-
-                    value = bVal ? 1 : 0;
-                    changed = true;
-                }
-            } else if (InputInt($"##{id}", ref val)) {
-
-                value = val;
-                changed = true;
-            }
-        } else if (type == typeof(bool)) {
-
-            var val = (bool)(value ?? false);
-
-            if (Checkbox($"##{id}", ref val)) {
-
-                value = val;
-                changed = true;
-            }
-        } else if (type == typeof(Vector3)) {
-
-            var val = (Vector3)(value ?? Vector3.Zero);
-
-            if (InputFloat3($"##{id}", ref val)) {
-                value = val;
-                changed = true;
-            }
-        } else if (type == typeof(Bool3)) {
-
-            var val = (Bool3)(value ?? new Bool3(false, false, false));
-
-            PushStyleVar(ImGuiStyleVar.ItemSpacing, new Vector2(4, 0));
-
-            if (Checkbox($"##{id}_x", ref val.X)) {
-                value = val;
-                changed = true;
-            }
-
-            SameLine();
-            Text("X");
-            SameLine();
-
-            if (Checkbox($"##{id}_y", ref val.Y)) {
-                value = val;
-                changed = true;
-            }
-
-            SameLine();
-            Text("Y");
-            SameLine();
-
-            if (Checkbox($"##{id}_z", ref val.Z)) {
-                value = val;
-                changed = true;
-            }
-
-            SameLine();
-            Text("Z");
-
-            PopStyleVar();
-        } else if (type == typeof(Vector2)) {
-
-            var val = (Vector2)(value ?? Vector2.Zero);
-
-            if (InputFloat2($"##{id}", ref val)) {
-
-                value = val;
-                changed = true;
-            }
-        } else if (type == typeof(Color)) {
-
-            var col = (Color)(value ?? Color.White);
-            var v4 = col.ToVector4();
-
-            if (ColorEdit4($"##{id}", ref v4, ImGuiColorEditFlags.AlphaBar | ImGuiColorEditFlags.NoInputs)) {
-
-                value = v4.ToColor();
-                changed = true;
-            }
-        } else if (type.IsEnum) {
-
-            var val = (Enum)(value ?? Activator.CreateInstance(type)!);
-            var names = Enums.GetNames(type, EnumMemberSelection.All).ToArray();
-            var index = Array.IndexOf(names, val.ToString());
-
-            if (Combo($"##{id}", ref index, names, names.Length)) {
-
-                value = Enums.Parse(type, names[index]);
-                changed = true;
-            }
-        }
+        if (type.IsEnum)
+            changed = DrawEnumField(id, ref value, type);
+        else if (_fieldRenderers.TryGetValue(type, out var renderer))
+            changed = renderer(id, ref value, pickerType);
 
         // History Logic inside Universal Control
         if (IsItemActivated() && propName != null) targets.ForEach(t => History.StartRecording(t, propName));
@@ -517,6 +408,134 @@ internal class ObjectBrowser : Viewport {
             Columns(2, $"##{title}_cols", false);
             SetColumnWidth(0, GetWindowWidth() * 0.3f); // Reduced label width
         }
+    }
+
+    private static Dictionary<Type, InspectorFieldRenderer> CreateFieldRenderers() => new() {
+        [typeof(string)] = DrawStringField,
+        [typeof(float)] = DrawFloatField,
+        [typeof(int)] = DrawIntField,
+        [typeof(bool)] = DrawBoolField,
+        [typeof(Vector2)] = DrawVector2Field,
+        [typeof(Vector3)] = DrawVector3Field,
+        [typeof(Color)] = DrawColorField,
+        [typeof(Bool3)] = DrawBool3Field
+    };
+
+    private static bool DrawStringField(string id, ref object? value, string? pickerType) {
+
+        var val = (string)(value ?? "");
+        var display = GetAssetDisplayValue(val, pickerType);
+
+        if (string.IsNullOrEmpty(display)) display = val;
+
+        if (!InputTextWithHint($"##{id}", "None", ref display, 512, string.IsNullOrEmpty(pickerType) ? ImGuiInputTextFlags.None : ImGuiInputTextFlags.ReadOnly) || !string.IsNullOrEmpty(pickerType))
+            return false;
+
+        value = display;
+        return true;
+    }
+
+    private static bool DrawFloatField(string id, ref object? value, string? _) {
+
+        var val = (float)(value ?? 0f);
+        if (!InputFloat($"##{id}", ref val)) return false;
+
+        value = val;
+        return true;
+    }
+
+    private static bool DrawIntField(string id, ref object? value, string? _) {
+
+        var val = (int)(value ?? 0);
+        if (id.Contains("is_")) {
+            var boolValue = val == 1;
+            if (!Checkbox($"##{id}", ref boolValue)) return false;
+
+            value = boolValue ? 1 : 0;
+            return true;
+        }
+
+        if (!InputInt($"##{id}", ref val)) return false;
+
+        value = val;
+        return true;
+    }
+
+    private static bool DrawBoolField(string id, ref object? value, string? _) {
+
+        var val = (bool)(value ?? false);
+        if (!Checkbox($"##{id}", ref val)) return false;
+
+        value = val;
+        return true;
+    }
+
+    private static bool DrawVector2Field(string id, ref object? value, string? _) {
+
+        var val = (Vector2)(value ?? Vector2.Zero);
+        if (!InputFloat2($"##{id}", ref val)) return false;
+
+        value = val;
+        return true;
+    }
+
+    private static bool DrawVector3Field(string id, ref object? value, string? _) {
+
+        var val = (Vector3)(value ?? Vector3.Zero);
+        if (!InputFloat3($"##{id}", ref val)) return false;
+
+        value = val;
+        return true;
+    }
+
+    private static bool DrawColorField(string id, ref object? value, string? _) {
+
+        var col = (Color)(value ?? Color.White);
+        var v4 = col.ToVector4();
+        if (!ColorEdit4($"##{id}", ref v4, ImGuiColorEditFlags.AlphaBar | ImGuiColorEditFlags.NoInputs)) return false;
+
+        value = v4.ToColor();
+        return true;
+    }
+
+    private static bool DrawBool3Field(string id, ref object? value, string? _) {
+
+        var val = (Bool3)(value ?? new Bool3(false, false, false));
+        var changed = false;
+
+        PushStyleVar(ImGuiStyleVar.ItemSpacing, new Vector2(4, 0));
+
+        if (Checkbox($"##{id}_x", ref val.X)) changed = true;
+        SameLine();
+        Text("X");
+        SameLine();
+
+        if (Checkbox($"##{id}_y", ref val.Y)) changed = true;
+        SameLine();
+        Text("Y");
+        SameLine();
+
+        if (Checkbox($"##{id}_z", ref val.Z)) changed = true;
+        SameLine();
+        Text("Z");
+
+        PopStyleVar();
+
+        if (!changed) return false;
+
+        value = val;
+        return true;
+    }
+
+    private static bool DrawEnumField(string id, ref object? value, Type type) {
+
+        var val = (Enum)(value ?? Activator.CreateInstance(type)!);
+        var names = Enums.GetNames(type, EnumMemberSelection.All).ToArray();
+        var index = Array.IndexOf(names, val.ToString());
+        if (!Combo($"##{id}", ref index, names, names.Length)) return false;
+
+        value = Enums.Parse(type, names[index]);
+        return true;
     }
 
     private static void EndSection(bool open) {
@@ -973,31 +992,17 @@ internal class ObjectBrowser : Viewport {
         var ext = Path.GetExtension(path).ToLowerInvariant();
 
         if (CollectionData.IsLevel(path)) {
-
-            var asset = AssetManager.GetOrImport<LevelAsset>(path);
-
-            if (asset != null) DrawLevelAssetInspector(asset);
-        } else if (CollectionData.IsMaterial(path)) {
-
-            var asset = AssetManager.GetOrImport<MaterialAsset>(path);
-
-            if (asset != null) DrawMaterialAssetInspector(asset);
-        } else if (ext is ".png" or ".jpg" or ".jpeg" or ".tga" or ".bmp") {
-
-            var asset = AssetManager.GetOrImport<TextureAsset>(path);
-
-            if (asset != null) DrawTextureAssetInspector(asset);
-        } else if (ext is ".fbx" or ".obj" or ".gltf" or ".iqm") {
-
-            var asset = AssetManager.GetOrImport<ModelAsset>(path) ?? AssetManager.Get<ModelAsset>(Path.GetFileNameWithoutExtension(path));
-
-            if (asset != null) DrawModelAssetInspector(asset);
-        } else if (ext == ".cs") {
-
-            var asset = AssetManager.GetOrImport<ScriptAsset>(path);
-
-            if (asset != null) DrawScriptAssetInspector(asset);
+            DrawImportedAsset<LevelAsset>(path, DrawLevelAssetInspector);
+            return;
         }
+
+        if (CollectionData.IsMaterial(path)) {
+            DrawImportedAsset<MaterialAsset>(path, DrawMaterialAssetInspector);
+            return;
+        }
+
+        if (_assetInspectorByExtension.TryGetValue(ext, out var inspector))
+            inspector(this, path);
     }
 
     private void DrawLevelAssetInspector(LevelAsset levelAsset) {
@@ -1383,24 +1388,18 @@ internal class ObjectBrowser : Viewport {
                 SetColumnWidth(0, GetWindowWidth() * 0.3f);
             }
 
-            foreach (var prop in first.GetType().GetProperties()) {
+            foreach (var inspectableProperty in GetInspectableProperties(first.GetType())) {
 
-                var labelAttr = prop.GetCustomAttribute<LabelAttribute>();
-
-                if (labelAttr == null) continue;
-
+                var prop = inspectableProperty.Property;
                 var id = $"##prop_{_propIndex++}";
                 var values = targets.Select(prop.GetValue).ToList();
                 var allSame = values.All(v => Equals(v, values[0]));
                 var val = allSame ? values[0] : null;
-
-                var fileAttr = prop.GetCustomAttribute<FilePathAttribute>();
-                var assetAttr = prop.GetCustomAttribute<FindAssetAttribute>();
-                var picker = assetAttr?.TypeName ?? fileAttr?.Category;
+                var picker = inspectableProperty.PickerType;
                 var (highlightOverride, resetValue) = GetPrefabOverrideState(first, prop);
                 var applyOverride = GetPrefabApplyAction(first, prop, val);
 
-                DrawShadowedLabel(labelAttr.Value, highlightOverride);
+                DrawShadowedLabel(inspectableProperty.Label, highlightOverride);
 
                 var (changed, deactivated) = DrawInspectorField(id, ref val, prop.PropertyType, targets, prop.Name, picker, showResetButton: highlightOverride, highlightOverride: highlightOverride, resetValue: resetValue, applyOverride: applyOverride);
 
@@ -1411,7 +1410,7 @@ internal class ObjectBrowser : Viewport {
                         prop.SetValue(t, val);
                         SyncAssetReferencePath(t, prop, picker, val as string);
                         ApplyPrefabOverrideMarker(t, prop, val, resetValue);
-                        if (t is Component comp && (fileAttr != null || assetAttr != null)) comp.UnloadAndQuit();
+                        if (t is Component comp && inspectableProperty.HasAssetBinding) comp.UnloadAndQuit();
                     }
 
                     if (Core.ActiveLevel != null) Core.ActiveLevel.IsDirty = true;
@@ -1502,6 +1501,35 @@ internal class ObjectBrowser : Viewport {
 
             if (fieldDeactivated) History.StopRecording();
         }
+    }
+
+    private static InspectableProperty[] GetInspectableProperties(Type type) {
+
+        if (_inspectablePropertyCache.TryGetValue(type, out var cached))
+            return cached;
+
+        var inspectableProperties = type
+            .GetProperties()
+            .SelectMany(property => {
+                var label = property.GetCustomAttribute<LabelAttribute>();
+                if (label == null) return Array.Empty<InspectableProperty>();
+
+                var filePath = property.GetCustomAttribute<FilePathAttribute>();
+                var findAsset = property.GetCustomAttribute<FindAssetAttribute>();
+
+                return [
+                    new InspectableProperty(
+                        property,
+                        label.Value,
+                        findAsset?.TypeName ?? filePath?.Category,
+                        filePath != null || findAsset != null
+                    )
+                ];
+            })
+            .ToArray();
+
+        _inspectablePropertyCache[type] = inspectableProperties;
+        return inspectableProperties;
     }
 
     private static (bool HighlightOverride, object? ResetValue) GetPrefabOverrideState(object target, PropertyInfo property) {
@@ -1598,17 +1626,9 @@ internal class ObjectBrowser : Viewport {
 
         if (string.IsNullOrWhiteSpace(selectedValue)) return "";
 
-        return pickerType switch {
-            "LevelAsset" => AssetManager.GetPath<LevelAsset>(selectedValue) is { } path ? AssetManager.GetStoredPath(path) : "",
-            "PrefabAsset" => AssetManager.GetPath<PrefabAsset>(selectedValue) is { } path ? AssetManager.GetStoredPath(path) : "",
-            "ShaderAsset" => AssetManager.GetPath<ShaderAsset>(selectedValue) is { } path ? AssetManager.GetStoredPath(path) : "",
-            "TextureAsset" => AssetManager.GetPath<TextureAsset>(selectedValue) is { } path ? AssetManager.GetStoredPath(path) : "",
-            "ModelAsset" => AssetManager.GetPath<ModelAsset>(selectedValue) is { } path ? AssetManager.GetStoredPath(path) : "",
-            "AnimationAsset" => AssetManager.GetPath<AnimationAsset>(selectedValue) is { } path ? AssetManager.GetStoredPath(path) : "",
-            "MaterialAsset" => AssetManager.GetPath<MaterialAsset>(selectedValue) is { } path ? AssetManager.GetStoredPath(path) : "",
-            "ScriptAsset" => AssetManager.GetPath<ScriptAsset>(selectedValue) is { } path ? AssetManager.GetStoredPath(path) : "",
-            _ => ""
-        };
+        return TryGetPickerTypeMetadata(pickerType, out var metadata)
+            ? metadata.ResolveStoredPath(selectedValue)
+            : "";
     }
 
     private static void ApplyPrefabOverrideMarker(object target, PropertyInfo property, object? value, object? sourceValue) {
@@ -1813,23 +1833,29 @@ internal class ObjectBrowser : Viewport {
         PopID();
     }
 
+    private void DrawImportedAsset<TAsset>(string path, Action<TAsset> draw) where TAsset : Asset {
+
+        var asset = AssetManager.GetOrImport<TAsset>(path);
+        if (asset != null)
+            draw(asset);
+    }
+
+    private void DrawModelAssetFromPath(string path) {
+
+        var asset = AssetManager.GetOrImport<ModelAsset>(path) ?? AssetManager.Get<ModelAsset>(Path.GetFileNameWithoutExtension(path));
+        if (asset != null)
+            DrawModelAssetInspector(asset);
+    }
+
     private static string GetAssetDisplayValue(string value, string? pickerType) {
 
         if (string.IsNullOrWhiteSpace(value)) return "";
         if (string.IsNullOrWhiteSpace(pickerType)) return Path.GetFileNameWithoutExtension(value);
         if (SupportsCollectionPicker(pickerType) && CollectionData.TryGetSelectionCollectionInfo(value, pickerType, out var display, out _)) return display;
 
-        return pickerType switch {
-            "ShaderAsset" => AssetManager.Get<ShaderAsset>(value) is { } asset ? Path.GetFileNameWithoutExtension(asset.File) : value,
-            "LevelAsset" => AssetManager.Get<LevelAsset>(value) is { } levelAsset ? CollectionData.GetLevelDisplayName(levelAsset.File) : value,
-            "PrefabAsset" => AssetManager.Get<PrefabAsset>(value) is { } prefabAsset ? CollectionData.GetLevelDisplayName(prefabAsset.File) : value,
-            "TextureAsset" => AssetManager.Get<TextureAsset>(value) is { } asset ? Path.GetFileNameWithoutExtension(asset.File) : value,
-            "ModelAsset" => AssetManager.Get<ModelAsset>(value) is { } asset ? Path.GetFileNameWithoutExtension(asset.File) : value,
-            "AnimationAsset" => AssetManager.Get<AnimationAsset>(value) is { } asset ? Path.GetFileNameWithoutExtension(asset.File) : value,
-            "MaterialAsset" => AssetManager.Get<MaterialAsset>(value) is { } asset ? Path.GetFileNameWithoutExtension(asset.File) : value,
-            "ScriptAsset" => AssetManager.Get<ScriptAsset>(value) is { } asset ? Path.GetFileNameWithoutExtension(asset.File) : value,
-            _ => Path.GetFileNameWithoutExtension(value)
-        };
+        return TryGetPickerTypeMetadata(pickerType, out var metadata)
+            ? metadata.GetDisplayValue(value)
+            : Path.GetFileNameWithoutExtension(value);
     }
 
     private static string GetAssetTooltip(string value, string? pickerType) {
@@ -1837,17 +1863,9 @@ internal class ObjectBrowser : Viewport {
         if (string.IsNullOrWhiteSpace(pickerType)) return value;
         if (SupportsCollectionPicker(pickerType) && CollectionData.TryGetSelectionCollectionInfo(value, pickerType, out _, out var tooltip)) return tooltip;
 
-        return pickerType switch {
-            "LevelAsset" => AssetManager.GetPath<LevelAsset>(value) ?? value,
-            "PrefabAsset" => AssetManager.GetPath<PrefabAsset>(value) ?? value,
-            "ShaderAsset" => AssetManager.GetPath<ShaderAsset>(value) ?? value,
-            "TextureAsset" => AssetManager.GetPath<TextureAsset>(value) ?? value,
-            "ModelAsset" => AssetManager.GetPath<ModelAsset>(value) ?? value,
-            "AnimationAsset" => AssetManager.GetPath<AnimationAsset>(value) ?? value,
-            "MaterialAsset" => AssetManager.GetPath<MaterialAsset>(value) ?? value,
-            "ScriptAsset" => AssetManager.GetPath<ScriptAsset>(value) ?? value,
-            _ => value
-        };
+        return TryGetPickerTypeMetadata(pickerType, out var metadata)
+            ? metadata.GetTooltip(value)
+            : value;
     }
 
     private static void DrawInfoRow(string label, string value) {
@@ -1912,7 +1930,7 @@ internal class ObjectBrowser : Viewport {
     }
 
     private static bool SupportsCollectionPicker(string? pickerType) =>
-        !string.IsNullOrWhiteSpace(pickerType) && CollectionData.GetKindForPickerType(pickerType) != null;
+        TryGetPickerTypeMetadata(pickerType, out var metadata) && metadata.Kind != null;
 
     private static PickerSearchEntry[] BuildPickerEntries(string pickerType) {
 
@@ -1964,7 +1982,9 @@ internal class ObjectBrowser : Viewport {
     }
 
     private static IEnumerable<(string Name, string Path, string GUID)> GetNamedAssetsForPicker(string pickerType) =>
-        AssetManager.GetNames(pickerType);
+        TryGetPickerTypeMetadata(pickerType, out var metadata)
+            ? metadata.GetNamedAssets()
+            : [];
 
     private static IEnumerable<string> EnumerateProjectDocuments(bool prefabs) {
 
@@ -1992,35 +2012,76 @@ internal class ObjectBrowser : Viewport {
     private static string ResolvePickerAssetValue(string path, string pickerType) =>
         AssetManager.GetGuidForPickerType(path, pickerType);
 
-    private static string GetPickerTypeForKind(CollectionAssetKind kind) => kind switch {
-        CollectionAssetKind.Level => "LevelAsset",
-        CollectionAssetKind.Material => "MaterialAsset",
-        CollectionAssetKind.Model => "ModelAsset",
-        CollectionAssetKind.Prefab => "PrefabAsset",
-        CollectionAssetKind.Script => "ScriptAsset",
-        CollectionAssetKind.Texture => "TextureAsset",
-        _ => ""
+    private static string GetPickerTypeForKind(CollectionAssetKind kind) =>
+        _pickerCategoryMetadata.TryGetValue(kind, out var metadata) ? metadata.PickerType : "";
+
+    private static Vector4 GetPickerCategoryColor(CollectionAssetKind kind) =>
+        _pickerCategoryMetadata.TryGetValue(kind, out var metadata) ? metadata.Color : Colors.GuiText.ToVector4();
+
+    private static string GetCategoryIcon(CollectionAssetKind kind) =>
+        _pickerCategoryMetadata.TryGetValue(kind, out var metadata) ? metadata.Icon : Icons.FaArchive;
+
+    private static Dictionary<string, Action<ObjectBrowser, string>> CreateAssetInspectorByExtension() =>
+        new(StringComparer.OrdinalIgnoreCase) {
+            [".png"] = static (browser, path) => browser.DrawImportedAsset<TextureAsset>(path, browser.DrawTextureAssetInspector),
+            [".jpg"] = static (browser, path) => browser.DrawImportedAsset<TextureAsset>(path, browser.DrawTextureAssetInspector),
+            [".jpeg"] = static (browser, path) => browser.DrawImportedAsset<TextureAsset>(path, browser.DrawTextureAssetInspector),
+            [".tga"] = static (browser, path) => browser.DrawImportedAsset<TextureAsset>(path, browser.DrawTextureAssetInspector),
+            [".bmp"] = static (browser, path) => browser.DrawImportedAsset<TextureAsset>(path, browser.DrawTextureAssetInspector),
+            [".fbx"] = static (browser, path) => browser.DrawModelAssetFromPath(path),
+            [".obj"] = static (browser, path) => browser.DrawModelAssetFromPath(path),
+            [".gltf"] = static (browser, path) => browser.DrawModelAssetFromPath(path),
+            [".iqm"] = static (browser, path) => browser.DrawModelAssetFromPath(path),
+            [".cs"] = static (browser, path) => browser.DrawImportedAsset<ScriptAsset>(path, browser.DrawScriptAssetInspector)
+        };
+
+    private static Dictionary<string, PickerTypeMetadata> CreatePickerTypeMetadata() {
+
+        var metadata = new Dictionary<string, PickerTypeMetadata>(StringComparer.Ordinal);
+
+        AddPickerType<ShaderAsset>(metadata, "ShaderAsset", null, asset => Path.GetFileNameWithoutExtension(asset.File));
+        AddPickerType<LevelAsset>(metadata, "LevelAsset", CollectionAssetKind.Level, asset => CollectionData.GetLevelDisplayName(asset.File));
+        AddPickerType<PrefabAsset>(metadata, "PrefabAsset", CollectionAssetKind.Prefab, asset => CollectionData.GetLevelDisplayName(asset.File));
+        AddPickerType<TextureAsset>(metadata, "TextureAsset", CollectionAssetKind.Texture, asset => Path.GetFileNameWithoutExtension(asset.File));
+        AddPickerType<ModelAsset>(metadata, "ModelAsset", CollectionAssetKind.Model, asset => Path.GetFileNameWithoutExtension(asset.File));
+        AddPickerType<AnimationAsset>(metadata, "AnimationAsset", null, asset => Path.GetFileNameWithoutExtension(asset.File));
+        AddPickerType<MaterialAsset>(metadata, "MaterialAsset", CollectionAssetKind.Material, asset => Path.GetFileNameWithoutExtension(asset.File));
+        AddPickerType<ScriptAsset>(metadata, "ScriptAsset", CollectionAssetKind.Script, asset => Path.GetFileNameWithoutExtension(asset.File));
+
+        return metadata;
+    }
+
+    private static Dictionary<CollectionAssetKind, PickerCategoryMetadata> CreatePickerCategoryMetadata() => new() {
+        [CollectionAssetKind.Level] = new("LevelAsset", Colors.GuiCollectionLevel.ToVector4(), Icons.FaMap),
+        [CollectionAssetKind.Material] = new("MaterialAsset", Colors.GuiCollectionMaterial.ToVector4(), Icons.FaFileImage),
+        [CollectionAssetKind.Model] = new("ModelAsset", Colors.GuiCollectionModel.ToVector4(), Icons.FaCube),
+        [CollectionAssetKind.Prefab] = new("PrefabAsset", Colors.GuiCollectionPrefab.ToVector4(), Icons.FaFile),
+        [CollectionAssetKind.Script] = new("ScriptAsset", Colors.GuiCollectionScript.ToVector4(), Icons.FaFileCode),
+        [CollectionAssetKind.Texture] = new("TextureAsset", Colors.GuiCollectionTexture.ToVector4(), Icons.FaFileImage)
     };
 
-    private static Vector4 GetPickerCategoryColor(CollectionAssetKind kind) => kind switch {
-        CollectionAssetKind.Level => Colors.GuiCollectionLevel.ToVector4(),
-        CollectionAssetKind.Material => Colors.GuiCollectionMaterial.ToVector4(),
-        CollectionAssetKind.Model => Colors.GuiCollectionModel.ToVector4(),
-        CollectionAssetKind.Prefab => Colors.GuiCollectionPrefab.ToVector4(),
-        CollectionAssetKind.Script => Colors.GuiCollectionScript.ToVector4(),
-        CollectionAssetKind.Texture => Colors.GuiCollectionTexture.ToVector4(),
-        _ => Colors.GuiText.ToVector4()
-    };
+    private static void AddPickerType<TAsset>(IDictionary<string, PickerTypeMetadata> metadata, string pickerType, CollectionAssetKind? kind, Func<TAsset, string> displaySelector) where TAsset : Asset {
 
-    private static string GetCategoryIcon(CollectionAssetKind kind) => kind switch {
-        CollectionAssetKind.Level => Icons.FaMap,
-        CollectionAssetKind.Material => Icons.FaFileImage,
-        CollectionAssetKind.Model => Icons.FaCube,
-        CollectionAssetKind.Prefab => Icons.FaFile,
-        CollectionAssetKind.Script => Icons.FaFileCode,
-        CollectionAssetKind.Texture => Icons.FaFileImage,
-        _ => Icons.FaArchive
-    };
+        metadata[pickerType] = new PickerTypeMetadata(
+            kind,
+            selectedValue => ResolveStoredPath<TAsset>(selectedValue),
+            selectedValue => AssetManager.Get<TAsset>(selectedValue) is { } asset ? displaySelector(asset) : selectedValue,
+            selectedValue => AssetManager.GetPath<TAsset>(selectedValue) ?? selectedValue,
+            () => AssetManager.GetNames(pickerType)
+        );
+    }
+
+    private static bool TryGetPickerTypeMetadata(string? pickerType, out PickerTypeMetadata metadata) {
+
+        if (!string.IsNullOrWhiteSpace(pickerType) && _pickerTypeMetadata.TryGetValue(pickerType, out metadata))
+            return true;
+
+        metadata = default!;
+        return false;
+    }
+
+    private static string ResolveStoredPath<TAsset>(string selectedValue) where TAsset : Asset =>
+        AssetManager.GetPath<TAsset>(selectedValue) is { } path ? AssetManager.GetStoredPath(path) : "";
 
     private static string GetPickerFileIcon(string path) {
 
@@ -2103,6 +2164,9 @@ internal class ObjectBrowser : Viewport {
         public Stack<PickerNavigationState> NavigationStack { get; } = [];
     }
 
+    private readonly record struct InspectableProperty(PropertyInfo Property, string Label, string? PickerType, bool HasAssetBinding);
+    private readonly record struct PickerTypeMetadata(CollectionAssetKind? Kind, Func<string, string> ResolveStoredPath, Func<string, string> GetDisplayValue, Func<string, string> GetTooltip, Func<IEnumerable<(string Name, string Path, string GUID)>> GetNamedAssets);
+    private readonly record struct PickerCategoryMetadata(string PickerType, Vector4 Color, string Icon);
     private readonly record struct PickerNavigationState(string Path, CollectionAssetKind? ActiveCategory, bool ShowChildCollections);
     private readonly record struct PickerSearchEntry(string Label, string Tooltip, string Value);
 }
