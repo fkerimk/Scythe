@@ -1,6 +1,5 @@
 using System.IO.Compression;
 using System.Numerics;
-using MemoryPack;
 using Raylib_cs;
 using static Raylib_cs.Raylib;
 
@@ -13,8 +12,7 @@ internal static partial class CompiledAssetCache {
 
     public readonly record struct TextureCacheInfo(int Width, int Height, PixelFormat Format, string Compression, int SourceWidth, int SourceHeight, int MaxSize, string ResizeFilter, string EncodedFormat);
 
-    [MemoryPackable]
-    private partial record struct TextureCacheHeader(
+    private readonly record struct TextureCacheHeader(
         int SourceWidth,
         int SourceHeight,
         int Width,
@@ -63,9 +61,7 @@ internal static partial class CompiledAssetCache {
                 settings.Compression ?? "Normal",
                 encodedFormat
             );
-            var headerBytes = MemoryPackSerializer.Serialize(header);
-            writer.Write(headerBytes.Length);
-            writer.Write(headerBytes);
+            WriteTextureHeader(writer, header);
             writer.Write(encodedBytes.Length);
             writer.Write(encodedBytes);
 
@@ -145,12 +141,36 @@ internal static partial class CompiledAssetCache {
     }
 
     private static TextureCacheHeader? ReadTextureHeader(BinaryReader reader) {
-        var headerSize = reader.ReadInt32();
-        var headerBytes = reader.ReadBytes(headerSize);
-        if (headerBytes.Length != headerSize) return null;
-        return MemoryPackSerializer.Deserialize<TextureCacheHeader>(headerBytes);
+        try {
+            return new TextureCacheHeader(
+                reader.ReadInt32(),
+                reader.ReadInt32(),
+                reader.ReadInt32(),
+                reader.ReadInt32(),
+                (PixelFormat)reader.ReadInt32(),
+                reader.ReadInt32(),
+                reader.ReadString(),
+                reader.ReadString(),
+                reader.ReadString()
+            );
+        } catch {
+            return null;
+        }
     }
 
+    private static void WriteTextureHeader(BinaryWriter writer, TextureCacheHeader header) {
+        writer.Write(header.SourceWidth);
+        writer.Write(header.SourceHeight);
+        writer.Write(header.Width);
+        writer.Write(header.Height);
+        writer.Write((int)header.Format);
+        writer.Write(header.MaxSize);
+        writer.Write(header.ResizeFilter);
+        writer.Write(header.Compression);
+        writer.Write(header.EncodedFormat);
+    }
+
+#if !SCYTHE_RUNTIME_BUILD
     public static string EnsureModelCache(string sourceFile, string outputFile) {
 
         if (File.Exists(outputFile) && new FileInfo(outputFile).LastWriteTimeUtc >= new FileInfo(sourceFile).LastWriteTimeUtc)
@@ -188,6 +208,7 @@ internal static partial class CompiledAssetCache {
 
         return outputFile;
     }
+#endif
 
     public static unsafe bool LoadModel(string cacheFile, out List<AssimpMesh> meshes, out List<BoneInfo> bones, out ModelNode root, out Matrix4x4 globalInverse, out List<AnimationClip> animations) {
 

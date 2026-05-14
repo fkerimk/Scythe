@@ -2,8 +2,8 @@ using System.Reflection;
 #if !SCYTHE_RUNTIME_BUILD
 using FastMember;
 using KellermanSoftware.CompareNetObjects;
-#endif
 using Force.DeepCloner;
+#endif
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
@@ -35,8 +35,15 @@ internal static class ObjectGraph {
         }
     }
 
-    public static T DeepClone<T>(T value) =>
-        value.DeepClone();
+    public static T DeepClone<T>(T value) {
+#if !SCYTHE_RUNTIME_BUILD
+        return value.DeepClone();
+#else
+        if (value == null) return value!;
+        var token = JToken.FromObject(value);
+        return token.ToObject<T>()!;
+#endif
+    }
 
     public static void CopyJsonState(object source, object target) {
         const BindingFlags flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
@@ -78,6 +85,11 @@ internal static class ObjectGraph {
         if (value == null) return null;
         if (value is string) return value;
         if (value.GetType().IsValueType) return value;
+#if !SCYTHE_RUNTIME_BUILD
         return value.DeepClone();
+#else
+        var token = JToken.FromObject(value);
+        return token.ToObject(value.GetType());
+#endif
     }
 }

@@ -38,6 +38,9 @@ internal static class TextureImportProcessor {
 
         Directory.CreateDirectory(Path.GetDirectoryName(importedFile)!);
 
+#if SCYTHE_RUNTIME_BUILD
+        return false;
+#else
         var args = new List<string> {
             "-y",
             "-hide_banner",
@@ -65,6 +68,7 @@ internal static class TextureImportProcessor {
         return TryImportWithMagick(sourceFile, importedFile, settings);
 #else
         return false;
+#endif
 #endif
     }
 

@@ -551,7 +551,9 @@ internal static class AssetManager {
 
         DeleteLegacyModelImports(guid);
         RegisterInternalWrite(importedPath);
+#if !SCYTHE_RUNTIME_BUILD
         importedPath = CompiledAssetCache.EnsureModelCache(sourceFile, importedPath);
+#endif
         return File.Exists(importedPath) ? importedPath : sourceFile;
     }
 

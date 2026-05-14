@@ -56,8 +56,12 @@ internal class AnimationAsset : Asset {
     private bool TryLoadImportedOrRebuild() {
 
         if (!string.Equals(Path.GetExtension(ResolvedFile), ".scymodel", StringComparison.OrdinalIgnoreCase)) {
+#if !SCYTHE_RUNTIME_BUILD
             Animations = AssimpLoader.Load(File).Animations;
             return true;
+#else
+            return false;
+#endif
         }
 
         if (TryLoadCompiledAnimations(ResolvedFile)) return true;
@@ -68,8 +72,12 @@ internal class AnimationAsset : Asset {
         if (string.Equals(Path.GetExtension(ResolvedFile), ".scymodel", StringComparison.OrdinalIgnoreCase) && TryLoadCompiledAnimations(ResolvedFile))
             return true;
 
+#if !SCYTHE_RUNTIME_BUILD
         Animations = AssimpLoader.Load(File).Animations;
         return true;
+#else
+        return false;
+#endif
     }
 
     private bool TryLoadCompiledAnimations(string cacheFile) {

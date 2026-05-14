@@ -106,8 +106,12 @@ internal class ModelAsset : Asset {
     private bool TryLoadImportedOrRebuild() {
 
         if (!string.Equals(Path.GetExtension(ResolvedFile), ".scymodel", StringComparison.OrdinalIgnoreCase)) {
+#if !SCYTHE_RUNTIME_BUILD
             LoadSourceModel(File);
             return true;
+#else
+            return false;
+#endif
         }
 
         if (TryLoadCompiledModel(ResolvedFile)) return true;
@@ -118,8 +122,12 @@ internal class ModelAsset : Asset {
         if (string.Equals(Path.GetExtension(ResolvedFile), ".scymodel", StringComparison.OrdinalIgnoreCase) && TryLoadCompiledModel(ResolvedFile))
             return true;
 
+#if !SCYTHE_RUNTIME_BUILD
         LoadSourceModel(File);
         return true;
+#else
+        return false;
+#endif
     }
 
     private bool TryLoadCompiledModel(string cacheFile) {
@@ -135,6 +143,7 @@ internal class ModelAsset : Asset {
         return true;
     }
 
+#if !SCYTHE_RUNTIME_BUILD
     private void LoadSourceModel(string path) {
 
         var data = AssimpLoader.Load(path);
@@ -144,6 +153,7 @@ internal class ModelAsset : Asset {
         GlobalInverse = data.GlobalInverse;
         Animations = data.Animations;
     }
+#endif
 
     public void SaveSettings() {
 

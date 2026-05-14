@@ -2,6 +2,9 @@ using System.Runtime.InteropServices;
 
 internal static class NativeResolver {
 
+#if SCYTHE_RUNTIME_BUILD
+    public static void Init() { }
+#else
     public static void Init() { NativeLibrary.SetDllImportResolver(typeof(Assimp.AssimpContext).Assembly, Resolver); }
 
     private static IntPtr Resolver(string libraryName, System.Reflection.Assembly assembly, DllImportSearchPath? searchPath) {
@@ -66,4 +69,5 @@ internal static class NativeResolver {
 
         return IntPtr.Zero;
     }
+#endif
 }
