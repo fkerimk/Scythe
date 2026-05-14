@@ -396,7 +396,6 @@ internal static unsafe class Editor {
         if (!Core.IsPlaying) {
             // Isolate editor state
             _editorLevelRef = Core.ActiveLevel;
-            var snapshot = Core.ActiveLevel.ToSnapshot();
 
             Core.IsPlaying = true;
             DisableCursor();
@@ -407,7 +406,7 @@ internal static unsafe class Editor {
             Physics.Init();
 
             // Replace the level reference in the active slot with a runtime clone
-            Core.OpenLevels[Core.ActiveLevelIndex] = new Level(_editorLevelRef.Name, _editorLevelRef.JsonPath, snapshot);
+            Core.OpenLevels[Core.ActiveLevelIndex] = CloneLevelForPlayMode(_editorLevelRef);
             Core.SetActiveLevel(Core.ActiveLevelIndex, clearHistory: false);
             Core.Load();
 
@@ -438,6 +437,26 @@ internal static unsafe class Editor {
         }
 
         Core.ActiveCamera = Core.IsPlaying ? Core.GameCamera : _editorCamera;
+    }
+
+    private static Level CloneLevelForPlayMode(Level source) {
+
+        var clone = new Level(source.Name, source.JsonPath, load: false, applyEditorCamera: false) {
+            GUID = source.GUID,
+            Skybox = source.Skybox,
+            SkyboxPath = source.SkyboxPath,
+            SkyboxTint = source.SkyboxTint,
+            BackgroundColor = source.BackgroundColor,
+            AmbientColor = source.AmbientColor,
+            SkyboxAmbientEnabled = source.SkyboxAmbientEnabled,
+            SkyboxAmbientIntensity = source.SkyboxAmbientIntensity,
+            IsDirty = source.IsDirty
+        };
+
+        foreach (var child in source.Root.Children.Values)
+            child.DeepClone(clone.Root, preserveName: true);
+
+        return clone;
     }
 
     private static void ReloadPhysics(Obj obj) {

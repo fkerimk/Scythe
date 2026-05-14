@@ -230,8 +230,9 @@ vec4 compute_pbr() {
 void main() {
 
     vec4 finalPbr = compute_pbr();
+    float effective_alpha_cutoff = max(alpha_cutoff, 1.0 / 255.0);
     
-    if (finalPbr.a < alpha_cutoff) discard;
+    if (finalPbr.a < effective_alpha_cutoff) discard;
     
     vec3 color = finalPbr.rgb;
 

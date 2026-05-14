@@ -66,8 +66,7 @@
               "B": 255,
               "A": 100
             },
-            "IsTransparent": true,
-            "AlphaCutoff": 0.25
+            "IsTransparent": true
           },
           "Script": {
             "GUID": "83c3d98dcd574a008094e9597591beda",
@@ -147,13 +146,13 @@
   },
   "EditorCamera": {
     "Position": {
-      "X": -10.545621,
-      "Y": 4.785627,
-      "Z": -0.602224
+      "X": 4.290274,
+      "Y": 1.9841337,
+      "Z": -2.0245771
     },
     "Rotation": {
-      "X": -0.31583676,
-      "Y": -4.786191
+      "X": -0.38483664,
+      "Y": -7.1591825
     }
   },
   "GUID": "6ff2407524f149a6a81f04f73e7ee5fc",

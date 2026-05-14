@@ -157,10 +157,13 @@ internal class Model(Obj obj) : Component(obj) {
 
     public void DrawShadow() {
 
-        if (CastShadows) Draw();
+        if (!CastShadows) return;
+
+        var depth = AssetManager.Get<ShaderAsset>("Collection/depth.vs");
+        Draw(shaderOverride: depth?.Shader);
     }
 
-    public void Draw(float? overrideAlphaCutoff = null) {
+    public void Draw(float? overrideAlphaCutoff = null, Shader? shaderOverride = null) {
 
         if (AssetRef is not { IsLoaded: true }) return;
 
@@ -178,7 +181,7 @@ internal class Model(Obj obj) : Component(obj) {
             var matAsset = mesh.MaterialIndex >= 0 && mesh.MaterialIndex < AssetRef.CachedMaterialAssets.Count ? AssetRef.CachedMaterialAssets[mesh.MaterialIndex] ?? MaterialAsset.Default : MaterialAsset.Default;
 
             // 2. Resolve Material Asset parameters (only for shared shader values)
-            var shader = material.Shader;
+            var shader = shaderOverride ?? material.Shader;
             var locs = UniformCache.Get(shader);
 
             if (matAsset != lastMatAsset || shader.Id != lastShaderId || matAsset.Version != lastMatVersion) {
@@ -221,7 +224,12 @@ internal class Model(Obj obj) : Component(obj) {
                 matModel.M33 *= s;
             }
 
-            DrawMesh(mesh.RlMesh, material, matModel);
+            if (shaderOverride.HasValue) {
+                var shadowMaterial = material;
+                shadowMaterial.Shader = shaderOverride.Value;
+                DrawMesh(mesh.RlMesh, shadowMaterial, matModel);
+            } else
+                DrawMesh(mesh.RlMesh, material, matModel);
         }
     }
 

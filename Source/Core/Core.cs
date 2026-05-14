@@ -576,14 +576,7 @@ internal static class Core {
             var lightVp = Raymath.MatrixMultiply(lightView, lightProj);
 
             // Draw objects for shadow depth
-            var depth = AssetManager.Get<ShaderAsset>("Collection/depth.vs");
-
-            if (depth != null) {
-
-                BeginShaderMode(depth.Shader);
-                RenderHierarchy(ActiveLevel.Root, false, true);
-                EndShaderMode();
-            }
+            RenderHierarchy(ActiveLevel.Root, false, true);
 
             EndMode3D();
             EndTextureMode();
