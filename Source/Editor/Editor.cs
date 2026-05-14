@@ -197,18 +197,10 @@ internal static unsafe class Editor {
 
             BeginDrawing();
 
-            // Run logic inside BeginDrawing for timing - before rlImGui to avoid input/state conflicts
+                // Run logic inside BeginDrawing for timing - before rlImGui to avoid input/state conflicts
             Core.ActiveCamera = Core.IsPlaying ? Core.GameCamera : _editorCamera;
             Core.Logic();
             Core.ShadowPass();
-
-            ClearBackground(Color.Black);
-            Begin();
-            Style.Push();
-            PushFont(Fonts.ImMontserratRegular);
-
-            DockSpaceOverViewport(GetMainViewport().ID);
-            GetIO().MouseDoubleClickTime = 0.2f;
 
             // Handle Editor UI Lock when playing with mouse locked
             if (IsCursorHidden()) {
@@ -218,6 +210,14 @@ internal static unsafe class Editor {
                 GetIO().ConfigFlags &= ~ImGuiConfigFlags.NoMouse;
                 GetIO().ConfigFlags &= ~ImGuiConfigFlags.NoKeyboard;
             }
+
+            ClearBackground(Color.Black);
+            Begin();
+            Style.Push();
+            PushFont(Fonts.ImMontserratRegular);
+
+            DockSpaceOverViewport(GetMainViewport().ID);
+            GetIO().MouseDoubleClickTime = 0.2f;
 
             // Reload Viewport Textures if Resized
             if (EditorRender.TexSize != EditorRender.TexTemp) {
@@ -314,7 +314,7 @@ internal static unsafe class Editor {
             MenuBar.Draw();
             EditorRender.Draw();
             RuntimeRender.Draw();
-            Core.RuntimeInputEnabled = !Core.IsPlaying || RuntimeRender.IsFocused;
+            Core.RuntimeInputEnabled = !Core.IsPlaying || RuntimeRender.IsFocused || IsCursorHidden();
             LevelBrowser.Draw();
             ObjectBrowser.Draw();
             Preview.Draw();
