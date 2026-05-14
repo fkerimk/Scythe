@@ -12,7 +12,7 @@ internal class Model(Obj obj) : Component(obj) {
     [Label("Asset"), JsonProperty("GUID"), RecordHistory, FindAsset("ModelAsset")]
     public string GUID { get; set; } = "";
 
-    [JsonProperty("Path")]
+    [JsonProperty("Path"), RecordHistory]
     public string Path { get; set; } = "";
 
     [Label("Color"), JsonProperty, RecordHistory]

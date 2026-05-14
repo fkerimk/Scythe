@@ -33,9 +33,9 @@ internal class Obj {
 
     public Obj? Parent;
     [JsonProperty] public readonly Dictionary<string, Obj> Children = [];
-    [JsonProperty, FindAsset("PrefabAsset")]
+    [JsonProperty, RecordHistory, FindAsset("PrefabAsset")]
     public string Prefab { get; set; } = "";
-    [JsonProperty]
+    [JsonProperty, RecordHistory]
     public string PrefabPath { get; set; } = "";
     [JsonProperty]
     public HashSet<string> PrefabOverrides { get; set; } = [];

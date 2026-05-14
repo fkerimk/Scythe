@@ -10,7 +10,7 @@ internal class Script(Obj obj) : Component(obj) {
     [Label("Asset"), JsonProperty("GUID"), RecordHistory, FindAsset("ScriptAsset")]
     public string GUID { get; set; } = "";
 
-    [JsonProperty("Path")]
+    [JsonProperty("Path"), RecordHistory]
     public string Path { get; set; } = "";
 
     [JsonProperty("Exposed"), RecordHistory]

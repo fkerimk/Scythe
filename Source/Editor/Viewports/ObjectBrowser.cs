@@ -1213,11 +1213,21 @@ internal class ObjectBrowser : Viewport {
                     var comp = (first as Component)!;
                     var targetObj = comp.Obj;
                     var name = comp.GetType().Name;
-                    History.StartRecording(targetObj, $"Remove {name}");
-                    comp.UnloadAndQuit();
-                    targetObj.Components.Remove(name);
-                    if (Core.ActiveLevel != null) Core.ActiveLevel.IsDirty = true;
-                    History.StopRecording();
+                    History.Execute(
+                        $"Remove {name}",
+                        redo: () => {
+                            if (!targetObj.Components.TryGetValue(name, out var current)) return;
+                            current.UnloadAndQuit();
+                            targetObj.Components.Remove(name);
+                            if (Core.ActiveLevel != null) Core.ActiveLevel.IsDirty = true;
+                        },
+                        undo: () => {
+                            if (targetObj.Components.ContainsKey(name)) return;
+                            targetObj.Components[name] = comp;
+                            if (comp.Load()) comp.IsLoaded = true;
+                            if (Core.ActiveLevel != null) Core.ActiveLevel.IsDirty = true;
+                        }
+                    );
 
                 },
                 defaultOpen,

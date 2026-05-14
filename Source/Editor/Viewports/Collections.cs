@@ -772,9 +772,11 @@ internal class Collections : Viewport {
             }
 
             try {
-                Directory.Move(sourcePath, newPath);
-                Editor.OnCollectionPathMoved(sourcePath, newPath);
-                Notifications.Show($"Collection renamed to '{Path.GetFileName(newPath)}'.");
+                History.Execute(
+                    $"Rename {Path.GetFileName(sourcePath)}",
+                    redo: () => RenameDirectory(sourcePath, newPath),
+                    undo: () => RenameDirectory(newPath, sourcePath)
+                );
             } catch (Exception e) {
                 Notifications.Show($"Rename failed: {e.Message}");
             }
@@ -790,35 +792,76 @@ internal class Collections : Viewport {
                 return;
             }
 
-            var movedMain = false;
-            var movedSidecar = false;
-
             try {
-                File.Move(sourcePath, newPath);
-                movedMain = true;
-
-                if (hasSidecar) {
-                    File.Move(sidecarPath, newSidecarPath);
-                    movedSidecar = true;
-                }
-
-                if (string.Equals(_selectedPath, sourcePath, StringComparison.OrdinalIgnoreCase)) Editor.SetSelectedAsset(newPath);
-                if (CollectionData.IsLevel(sourcePath) || CollectionData.IsPrefab(sourcePath)) Editor.OnDocumentPathMoved(sourcePath, newPath);
-                Notifications.Show($"File renamed to '{Path.GetFileName(newPath)}'.");
+                History.Execute(
+                    $"Rename {Path.GetFileName(sourcePath)}",
+                    redo: () => RenameFile(sourcePath, newPath, hasSidecar),
+                    undo: () => RenameFile(newPath, sourcePath, hasSidecar)
+                );
             } catch (Exception e) {
-                try {
-                    if (movedSidecar && File.Exists(newSidecarPath) && !File.Exists(sidecarPath)) File.Move(newSidecarPath, sidecarPath);
-                    if (movedMain && File.Exists(newPath) && !File.Exists(sourcePath)) File.Move(newPath, sourcePath);
-                } catch {
-                    // Best-effort rollback only.
-                }
-
                 Notifications.Show($"Rename failed: {e.Message}");
             }
         }
 
         _renamingPath = null;
         _requestRenameFocus = false;
+    }
+
+    private static void RenameDirectory(string sourcePath, string targetPath) {
+
+        Directory.Move(sourcePath, targetPath);
+        Editor.OnCollectionPathMoved(sourcePath, targetPath);
+        SyncSelectionAfterPathMove(sourcePath, targetPath, isDirectory: true);
+    }
+
+    private static void RenameFile(string sourcePath, string targetPath, bool hasSidecar) {
+
+        File.Move(sourcePath, targetPath);
+
+        if (hasSidecar) {
+            var sourceSidecarPath = GetSidecarMetaPathFor(sourcePath);
+            var targetSidecarPath = GetSidecarMetaPathFor(targetPath);
+
+            if (File.Exists(sourceSidecarPath))
+                File.Move(sourceSidecarPath, targetSidecarPath);
+        }
+
+        if (CollectionData.IsLevel(sourcePath) || CollectionData.IsPrefab(sourcePath))
+            Editor.OnDocumentPathMoved(sourcePath, targetPath);
+
+        SyncSelectionAfterPathMove(sourcePath, targetPath, isDirectory: false);
+    }
+
+    private static void SyncSelectionAfterPathMove(string sourcePath, string targetPath, bool isDirectory) {
+
+        var selectedPath = Editor.SelectedAssetPath;
+        if (string.IsNullOrWhiteSpace(selectedPath)) return;
+
+        if (isDirectory) {
+            var remappedPath = RemapNestedPath(selectedPath, sourcePath, targetPath);
+            if (remappedPath != null) Editor.SetSelectedAsset(remappedPath);
+            return;
+        }
+
+        if (string.Equals(selectedPath, sourcePath, StringComparison.OrdinalIgnoreCase))
+            Editor.SetSelectedAsset(targetPath);
+    }
+
+    private static string? RemapNestedPath(string path, string oldRoot, string newRoot) {
+
+        var fullPath = Path.GetFullPath(path);
+        var fullOldRoot = Path.GetFullPath(oldRoot).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+
+        if (string.Equals(fullPath, fullOldRoot, StringComparison.OrdinalIgnoreCase))
+            return Path.GetFullPath(newRoot);
+
+        var prefix = fullOldRoot + Path.DirectorySeparatorChar;
+
+        if (!fullPath.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            return null;
+
+        var suffix = fullPath[prefix.Length..];
+        return Path.Combine(Path.GetFullPath(newRoot), suffix);
     }
 
     private void DeleteTarget() {

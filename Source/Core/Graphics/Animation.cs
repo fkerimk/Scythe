@@ -10,7 +10,7 @@ internal class Animation(Obj obj) : Component(obj) {
     [Label("Asset"), JsonProperty("GUID"), RecordHistory, FindAsset("AnimationAsset")]
     public string GUID { get; set; } = "";
 
-    [JsonProperty("Path")]
+    [JsonProperty("Path"), RecordHistory]
     public string Path { get; set; } = "";
 
     [Label("Track"), JsonProperty, RecordHistory]
