@@ -133,11 +133,11 @@ internal class ObjectBrowser : Viewport {
         AlignTextToFramePadding();
         PushFont(Fonts.ImMontserratRegular);
         if (highlighted) PushStyleColor(ImGuiCol.Text, Colors.Primary.ToVector4());
-        var cp = GetCursorPos();
         var cleanLabel = Generators.SplitCamelCase(label);
-        Text(cleanLabel);
-        SetCursorPos(cp + new Vector2(0.3f, 0));
-        Text(cleanLabel);
+        var screenPos = GetCursorScreenPos();
+        var shadowColor = ColorConvertFloat4ToU32(new Vector4(0f, 0f, 0f, 0.2f));
+        GetWindowDrawList().AddText(screenPos + new Vector2(1f, 1f), shadowColor, cleanLabel);
+        TextUnformatted(cleanLabel);
         if (highlighted) PopStyleColor();
         PopFont();
         NextColumn();
