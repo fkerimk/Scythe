@@ -1,0 +1,262 @@
+{
+  "Root": {
+    "Name": "Root",
+    "Children": {
+      "Dwarf": {
+        "Children": {},
+        "Transform": {
+          "Euler": {
+            "X": 9.562092E-05,
+            "Y": 1.526625E-12,
+            "Z": 5.122473E-06
+          },
+          "Scale": {
+            "X": 1.0,
+            "Y": 1.0,
+            "Z": 1.0
+          },
+          "Rot": {
+            "X": 8.34465E-07,
+            "Y": -5.062617E-14,
+            "Z": -4.470282E-08,
+            "W": 0.99998194
+          }
+        },
+        "Prefab": "",
+        "PrefabPath": "",
+        "Components": {
+          "Model": {
+            "GUID": "cb053817c9994577ae188a1ce387e57a",
+            "Path": "Collections/Dwarf/WizardGnome/WizardGnome.fbx",
+            "Color": {
+              "R": 255,
+              "G": 255,
+              "B": 255,
+              "A": 255
+            },
+            "AlphaCutoff": 0.5
+          },
+          "Animation": {
+            "GUID": "5f7a4b3df2764935b97a9e9112ca69e2",
+            "Path": "Collections/Dwarf/WizardGnome/WizardGnome.fbx",
+            "IsPlaying": true,
+            "Looping": true
+          },
+          "Script": {
+            "GUID": "1e033197308f4d25b49447d90af63b5c",
+            "Path": "Collections/Dwarf/Player.cs",
+            "Exposed": {}
+          },
+          "Rigidbody": {
+            "Friction": 0.0,
+            "Bounciness": 0.0,
+            "FrictionCombine": 1,
+            "BounceCombine": 1,
+            "FreezeRot": {
+              "X": true,
+              "Y": true,
+              "Z": true
+            }
+          },
+          "SphereCollider": {
+            "Radius": 0.3,
+            "Center": {
+              "Y": 0.3
+            }
+          }
+        }
+      },
+      "Environment": {
+        "Children": {
+          "Map": {
+            "Children": {
+              "Block": {
+                "Children": {},
+                "Transform": {
+                  "Pos": {
+                    "Y": -6.0
+                  },
+                  "Scale": {
+                    "X": 0.03,
+                    "Y": 0.03,
+                    "Z": 0.03
+                  },
+                  "Rot": {
+                    "W": 1.0,
+                    "IsIdentity": true
+                  }
+                },
+                "Prefab": "",
+                "PrefabPath": "",
+                "Components": {
+                  "Model": {
+                    "GUID": "2ffe2e0fb2e241079f8f9a2f78aef85e",
+                    "Path": "Collections/Shared Assets/KenneyPlatformerKit/BlockGrassOverhangLargeTall.fbx",
+                    "Color": {
+                      "R": 255,
+                      "G": 255,
+                      "B": 255,
+                      "A": 255
+                    },
+                    "AlphaCutoff": 0.5
+                  },
+                  "BoxCollider": {
+                    "Size": {
+                      "X": 200.0,
+                      "Y": 200.0,
+                      "Z": 200.0
+                    },
+                    "Center": {
+                      "Y": 100.0
+                    }
+                  },
+                  "Rigidbody": {
+                    "IsStatic": true,
+                    "Gravity": false,
+                    "Bounciness": 0.0
+                  }
+                }
+              }
+            },
+            "Transform": {
+              "Scale": {
+                "X": 1.0,
+                "Y": 1.0,
+                "Z": 1.0
+              },
+              "Rot": {
+                "W": 1.0,
+                "IsIdentity": true
+              }
+            },
+            "Prefab": "",
+            "PrefabPath": "",
+            "Components": {}
+          }
+        },
+        "Transform": {
+          "Scale": {
+            "X": 1.0,
+            "Y": 1.0,
+            "Z": 1.0
+          },
+          "Rot": {
+            "W": 1.0,
+            "IsIdentity": true
+          }
+        },
+        "Prefab": "",
+        "PrefabPath": "",
+        "Components": {}
+      },
+      "Camera": {
+        "Children": {},
+        "Transform": {
+          "Pos": {
+            "Y": 3.0,
+            "Z": -3.0
+          },
+          "Euler": {
+            "X": 22.5
+          },
+          "Scale": {
+            "X": 1.0,
+            "Y": 1.0,
+            "Z": 1.0
+          },
+          "Rot": {
+            "X": 0.19509032,
+            "W": 0.98078525
+          }
+        },
+        "Prefab": "",
+        "PrefabPath": "",
+        "Components": {
+          "Camera": {
+            "Fov": 60.0,
+            "NearClip": 0.01,
+            "FarClip": 1000.0
+          },
+          "Script": {
+            "GUID": "20ced3943a5b464eb4998a5076bd53ef",
+            "Path": "Collections/Shared Assets/OrbitalFollowCamera.cs",
+            "Exposed": {}
+          }
+        }
+      },
+      "Directional Light": {
+        "Children": {},
+        "Transform": {
+          "Pos": {
+            "Y": 3.4
+          },
+          "Euler": {
+            "X": -56.309933,
+            "Y": 89.95154
+          },
+          "Scale": {
+            "X": 1.0,
+            "Y": 1.0,
+            "Z": 1.0
+          },
+          "Rot": {
+            "X": 0.270598,
+            "Y": -0.65328145,
+            "Z": 0.27059805,
+            "W": 0.6532813
+          }
+        },
+        "Prefab": "",
+        "PrefabPath": "",
+        "Components": {
+          "Light": {
+            "Type": 0,
+            "ScytheColor": {
+              "R": 255,
+              "G": 255,
+              "B": 255,
+              "A": 255
+            },
+            "Intensity": 10.0,
+            "Range": 10.0,
+            "ShadowStrength": 1.0
+          }
+        }
+      }
+    }
+  },
+  "EditorCamera": {
+    "Position": {
+      "X": -2.5978832,
+      "Y": 2.2251418,
+      "Z": -0.4156704
+    },
+    "Rotation": {
+      "X": -0.5318403,
+      "Y": 32.474045
+    }
+  },
+  "GUID": "162de7ccbedf4cfe88fb4611bd60319c",
+  "Skybox": "8cd2244ffb8f4998bc2bf49541897cd2",
+  "SkyboxPath": "Collection/Skyboxes/Sky 4.png",
+  "SkyboxTint": {
+    "R": 216,
+    "G": 216,
+    "B": 216,
+    "A": 255
+  },
+  "BackgroundColor": {
+    "R": 25,
+    "G": 25,
+    "B": 25,
+    "A": 255
+  },
+  "AmbientColor": {
+    "R": 255,
+    "G": 255,
+    "B": 255,
+    "A": 255
+  },
+  "SkyboxAmbientEnabled": true,
+  "SkyboxAmbientIntensity": 1.0
+}

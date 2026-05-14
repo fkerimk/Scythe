@@ -1,0 +1,61 @@
+{
+  "GUID": "7a139f23cec541148e2b7e47d754401c",
+  "Shader": "130640b64e604a7182ed64ef6f055bac",
+  "ShaderPath": "../../../Collection/pbr.vs",
+  "Textures": {
+    "albedo_map": "e2425d6537b64e29a5a916bd135589d7",
+    "normal_map": "",
+    "metallic_map": ""
+  },
+  "TexturePaths": {
+    "albedo_map": "Collections/Dwarf/WizardGnome/WizardGnome.png",
+    "normal_map": "",
+    "metallic_map": ""
+  },
+  "Floats": {
+    "metallic_value": 0.0,
+    "roughness_value": 0.5,
+    "aoValue": 1.0,
+    "emissive_intensity": 1.0,
+    "normalValue": 1.0,
+    "use_tex_albedo": 1.0,
+    "use_tex_normal": 1.0,
+    "use_tex_mra": 1.0,
+    "use_tex_emissive": 1.0
+  },
+  "Ints": {
+    "is_directx_normal": 0,
+    "use_tex_albedo": 0,
+    "use_tex_normal": 0
+  },
+  "Colors": {
+    "albedo_color": {
+      "R": 255,
+      "G": 255,
+      "B": 255,
+      "A": 255
+    },
+    "emissive_color": {
+      "R": 0,
+      "G": 0,
+      "B": 0,
+      "A": 255
+    },
+    "ambient_color": {
+      "R": 255,
+      "G": 255,
+      "B": 255,
+      "A": 255
+    }
+  },
+  "Vectors": {
+    "tiling": {
+      "X": 1.0,
+      "Y": 1.0
+    },
+    "offset": {
+      "X": 0.0,
+      "Y": 0.0
+    }
+  }
+}

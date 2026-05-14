@@ -1,0 +1,458 @@
+{
+  "Root": {
+    "Name": "Root",
+    "Children": {
+      "Directional Light": {
+        "Children": {},
+        "Transform": {
+          "Pos": {
+            "Y": 10.400001
+          },
+          "Euler": {
+            "X": -2.0454085,
+            "Y": 89.92086,
+            "Z": 2.0454085
+          },
+          "Scale": {
+            "X": 1.0,
+            "Y": 1.0,
+            "Z": 1.0
+          },
+          "Rot": {
+            "X": 0.27059793,
+            "Y": -0.6532812,
+            "Z": 0.27059793,
+            "W": 0.65328115
+          }
+        },
+        "Prefab": "",
+        "PrefabPath": "",
+        "Components": {
+          "Light": {
+            "Type": 0,
+            "ScytheColor": {
+              "R": 223,
+              "G": 206,
+              "B": 255
+            },
+            "Intensity": 5.0,
+            "Range": 50.0,
+            "ShadowStrength": 1.0
+          }
+        }
+      },
+      "Camera": {
+        "Children": {},
+        "Transform": {
+          "Pos": {
+            "X": 7.8,
+            "Y": 3.1999998,
+            "Z": 1.8000001
+          },
+          "Euler": {
+            "X": -164.54074,
+            "Y": 77.33564,
+            "Z": 176.01686
+          },
+          "Scale": {
+            "X": 1.0,
+            "Y": 1.0,
+            "Z": 1.0
+          },
+          "Rot": {
+            "X": 0.11087227,
+            "Y": -0.77030045,
+            "Z": 0.12646726,
+            "W": 0.61510265
+          }
+        },
+        "Prefab": "",
+        "PrefabPath": "",
+        "Components": {
+          "Camera": {
+            "Fov": 60.0,
+            "NearClip": 0.01,
+            "FarClip": 1000.0
+          }
+        }
+      },
+      "Ground": {
+        "Children": {},
+        "Transform": {
+          "Pos": {
+            "Y": -1.6
+          },
+          "Scale": {
+            "X": 25.0,
+            "Y": 0.1,
+            "Z": 25.0
+          },
+          "Rot": {
+            "W": 1.0,
+            "IsIdentity": true
+          }
+        },
+        "Prefab": "",
+        "PrefabPath": "",
+        "Components": {
+          "Model": {
+            "GUID": "2cd053e9959f4b91ba52c0cb4d7826a6",
+            "Path": "Collection/Cube.fbx",
+            "Color": {
+              "R": 255,
+              "G": 255,
+              "B": 255,
+              "A": 255
+            },
+            "AlphaCutoff": 0.5
+          },
+          "BoxCollider": {
+            "Size": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          "Rigidbody": {
+            "IsStatic": true,
+            "Bounciness": 0.0
+          }
+        }
+      },
+      "ToyBlock_Y": {
+        "Children": {},
+        "Transform": {
+          "Pos": {
+            "Y": 3.8
+          },
+          "Euler": {
+            "X": -89.99999
+          },
+          "Scale": {
+            "X": 1.0,
+            "Y": 1.0,
+            "Z": 1.0
+          },
+          "Rot": {
+            "X": -0.70710677,
+            "W": 0.70710677
+          }
+        },
+        "Prefab": "",
+        "PrefabPath": "",
+        "Components": {
+          "Model": {
+            "GUID": "b2128ea0112a4c8ea3984c170b342c82",
+            "Path": "Collections/Blocks/ToyBlocks/ToyBlock_Y.fbx",
+            "Color": {
+              "R": 255,
+              "G": 255,
+              "B": 255,
+              "A": 255
+            },
+            "AlphaCutoff": 0.5
+          },
+          "BoxCollider": {
+            "Size": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          "Rigidbody": {
+            "Bounciness": 0.0
+          },
+          "Script": {
+            "GUID": "d469251dbd744051b9b04758d8b8d630",
+            "Path": "Collections/Blocks/Explode.cs",
+            "Exposed": {}
+          }
+        }
+      },
+      "ToyBlock_T": {
+        "Children": {},
+        "Transform": {
+          "Pos": {
+            "Y": 2.6
+          },
+          "Euler": {
+            "X": -89.99999
+          },
+          "Scale": {
+            "X": 1.0,
+            "Y": 1.0,
+            "Z": 1.0
+          },
+          "Rot": {
+            "X": -0.70710677,
+            "W": 0.70710677
+          }
+        },
+        "Prefab": "",
+        "PrefabPath": "",
+        "Components": {
+          "Model": {
+            "GUID": "2ad088d533944ae68c91ea6bf440656c",
+            "Path": "Collections/Blocks/ToyBlocks/ToyBlock_T.fbx",
+            "Color": {
+              "R": 255,
+              "G": 255,
+              "B": 255,
+              "A": 255
+            },
+            "AlphaCutoff": 0.5
+          },
+          "BoxCollider": {
+            "Size": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          "Rigidbody": {
+            "Bounciness": 0.0
+          },
+          "Script": {
+            "GUID": "d469251dbd744051b9b04758d8b8d630",
+            "Path": "Collections/Blocks/Explode.cs",
+            "Exposed": {}
+          }
+        }
+      },
+      "ToyBlock_C": {
+        "Children": {},
+        "Transform": {
+          "Pos": {
+            "Y": 5.0
+          },
+          "Euler": {
+            "X": -89.99999
+          },
+          "Scale": {
+            "X": 1.0,
+            "Y": 1.0,
+            "Z": 1.0
+          },
+          "Rot": {
+            "X": -0.70710677,
+            "W": 0.70710677
+          }
+        },
+        "Prefab": "",
+        "PrefabPath": "",
+        "Components": {
+          "Model": {
+            "GUID": "cd77469f41c94433a30b1e68256f4dc4",
+            "Path": "Collections/Blocks/ToyBlocks/ToyBlock_C.fbx",
+            "Color": {
+              "R": 255,
+              "G": 255,
+              "B": 255,
+              "A": 255
+            },
+            "AlphaCutoff": 0.5
+          },
+          "BoxCollider": {
+            "Size": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          "Rigidbody": {
+            "Bounciness": 0.0
+          },
+          "Script": {
+            "GUID": "d469251dbd744051b9b04758d8b8d630",
+            "Path": "Collections/Blocks/Explode.cs",
+            "Exposed": {}
+          }
+        }
+      },
+      "ToyBlock_H": {
+        "Children": {},
+        "Transform": {
+          "Pos": {
+            "Y": 1.4
+          },
+          "Euler": {
+            "X": -89.99999
+          },
+          "Scale": {
+            "X": 1.0,
+            "Y": 1.0,
+            "Z": 1.0
+          },
+          "Rot": {
+            "X": -0.70710677,
+            "W": 0.70710677
+          }
+        },
+        "Prefab": "",
+        "PrefabPath": "",
+        "Components": {
+          "Model": {
+            "GUID": "b5a0b6065b0a4002ae4bc21c2a4cfecb",
+            "Path": "Collections/Blocks/ToyBlocks/ToyBlock_H.fbx",
+            "Color": {
+              "R": 255,
+              "G": 255,
+              "B": 255,
+              "A": 255
+            },
+            "AlphaCutoff": 0.5
+          },
+          "BoxCollider": {
+            "Size": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          "Rigidbody": {
+            "Bounciness": 0.0
+          },
+          "Script": {
+            "GUID": "d469251dbd744051b9b04758d8b8d630",
+            "Path": "Collections/Blocks/Explode.cs",
+            "Exposed": {}
+          }
+        }
+      },
+      "ToyBlock_E": {
+        "Children": {},
+        "Transform": {
+          "Pos": {
+            "Y": 0.2
+          },
+          "Euler": {
+            "X": -89.99999
+          },
+          "Scale": {
+            "X": 1.0,
+            "Y": 1.0,
+            "Z": 1.0
+          },
+          "Rot": {
+            "X": -0.70710677,
+            "W": 0.70710677
+          }
+        },
+        "Prefab": "",
+        "PrefabPath": "",
+        "Components": {
+          "Model": {
+            "GUID": "038d74a9923b4bb684b88a56bce0c829",
+            "Path": "Collections/Blocks/ToyBlocks/ToyBlock_E.fbx",
+            "Color": {
+              "R": 255,
+              "G": 255,
+              "B": 255,
+              "A": 255
+            },
+            "AlphaCutoff": 0.5
+          },
+          "BoxCollider": {
+            "Size": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          "Rigidbody": {
+            "Bounciness": 0.0
+          },
+          "Script": {
+            "GUID": "d469251dbd744051b9b04758d8b8d630",
+            "Path": "Collections/Blocks/Explode.cs",
+            "Exposed": {}
+          }
+        }
+      },
+      "ToyBlock_S": {
+        "Children": {},
+        "Transform": {
+          "Pos": {
+            "Y": 6.2
+          },
+          "Euler": {
+            "X": -89.99999
+          },
+          "Scale": {
+            "X": 1.0,
+            "Y": 1.0,
+            "Z": 1.0
+          },
+          "Rot": {
+            "X": -0.70710677,
+            "W": 0.70710677
+          }
+        },
+        "Prefab": "",
+        "PrefabPath": "",
+        "Components": {
+          "Model": {
+            "GUID": "4402bb7c40ff4b2c8a73217dce7840d0",
+            "Path": "Collections/Blocks/ToyBlocks/ToyBlock_S.fbx",
+            "Color": {
+              "R": 255,
+              "G": 255,
+              "B": 255,
+              "A": 255
+            },
+            "AlphaCutoff": 0.5
+          },
+          "BoxCollider": {
+            "Size": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            }
+          },
+          "Rigidbody": {
+            "Bounciness": 0.0
+          },
+          "Script": {
+            "GUID": "d469251dbd744051b9b04758d8b8d630",
+            "Path": "Collections/Blocks/Explode.cs",
+            "Exposed": {}
+          }
+        }
+      }
+    }
+  },
+  "EditorCamera": {
+    "Position": {
+      "X": -0.29771107,
+      "Y": 11.385211,
+      "Z": 13.653341
+    },
+    "Rotation": {
+      "X": -0.41783708,
+      "Y": -3.0641847
+    }
+  },
+  "GUID": "573f8a086abd43ecbea13ed3c2b15fa7",
+  "Skybox": "790d996108a945a6b9caa935a7c9e7a3",
+  "SkyboxPath": "Collection/Skyboxes/Sky 20.png",
+  "SkyboxTint": {
+    "R": 255,
+    "G": 255,
+    "B": 255,
+    "A": 255
+  },
+  "BackgroundColor": {
+    "R": 25,
+    "G": 25,
+    "B": 25,
+    "A": 255
+  },
+  "AmbientColor": {
+    "R": 255,
+    "G": 255,
+    "B": 255,
+    "A": 255
+  },
+  "SkyboxAmbientEnabled": true,
+  "SkyboxAmbientIntensity": 1.0
+}

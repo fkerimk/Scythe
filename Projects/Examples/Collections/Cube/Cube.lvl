@@ -1,0 +1,182 @@
+{
+  "Root": {
+    "Name": "Root",
+    "Children": {
+      "Directional Light": {
+        "Children": {},
+        "Transform": {
+          "Pos": {
+            "Y": -4.4
+          },
+          "Euler": {
+            "X": 2.414836E-06,
+            "Y": 44.99999,
+            "Z": -67.5
+          },
+          "Scale": {
+            "X": 1.0,
+            "Y": 1.0,
+            "Z": 1.0
+          },
+          "Rot": {
+            "X": 0.2126075,
+            "Y": -0.31818956,
+            "Z": 0.51328,
+            "W": 0.76817775
+          }
+        },
+        "Prefab": "",
+        "PrefabPath": "",
+        "Components": {
+          "Light": {
+            "Type": 0,
+            "ScytheColor": {
+              "R": 255,
+              "G": 255,
+              "B": 255
+            },
+            "Intensity": 5.0,
+            "Range": 10.0,
+            "ShadowStrength": 1.0
+          }
+        }
+      },
+      "Cube": {
+        "Children": {},
+        "Transform": {
+          "Scale": {
+            "X": 1.0,
+            "Y": 1.0,
+            "Z": 1.0
+          },
+          "Rot": {
+            "W": 1.0,
+            "IsIdentity": true
+          }
+        },
+        "Prefab": "",
+        "PrefabPath": "",
+        "Components": {
+          "Model": {
+            "GUID": "2cd053e9959f4b91ba52c0cb4d7826a6",
+            "Path": "Collection/Cube.fbx",
+            "Color": {
+              "R": 255,
+              "G": 255,
+              "B": 255,
+              "A": 100
+            },
+            "IsTransparent": true,
+            "AlphaCutoff": 0.25
+          },
+          "Script": {
+            "GUID": "83c3d98dcd574a008094e9597591beda",
+            "Path": "Collections/Cube/Rotation.cs",
+            "Exposed": {}
+          }
+        }
+      },
+      "Camera": {
+        "Children": {},
+        "Transform": {
+          "Pos": {
+            "X": 3.6000001,
+            "Y": 2.6,
+            "Z": 3.6000001
+          },
+          "Euler": {
+            "X": -157.49998,
+            "Y": 44.999992,
+            "Z": -180.0
+          },
+          "Scale": {
+            "X": 1.0,
+            "Y": 1.0,
+            "Z": 1.0
+          },
+          "Rot": {
+            "X": 0.074657835,
+            "Y": -0.9061274,
+            "Z": 0.18023995,
+            "W": 0.37533027
+          }
+        },
+        "Prefab": "",
+        "PrefabPath": "",
+        "Components": {
+          "Camera": {
+            "Fov": 60.0,
+            "NearClip": 0.01,
+            "FarClip": 1000.0
+          }
+        }
+      },
+      "Ground": {
+        "Children": {},
+        "Transform": {
+          "Pos": {
+            "Y": -0.6
+          },
+          "Scale": {
+            "X": 4.0,
+            "Y": 0.19999999,
+            "Z": 4.0
+          },
+          "Rot": {
+            "W": 1.0,
+            "IsIdentity": true
+          }
+        },
+        "Prefab": "",
+        "PrefabPath": "",
+        "Components": {
+          "Model": {
+            "GUID": "2cd053e9959f4b91ba52c0cb4d7826a6",
+            "Path": "Collection/Cube.fbx",
+            "Color": {
+              "R": 255,
+              "G": 255,
+              "B": 255,
+              "A": 255
+            },
+            "AlphaCutoff": 0.5
+          }
+        }
+      }
+    }
+  },
+  "EditorCamera": {
+    "Position": {
+      "X": -10.545621,
+      "Y": 4.785627,
+      "Z": -0.602224
+    },
+    "Rotation": {
+      "X": -0.31583676,
+      "Y": -4.786191
+    }
+  },
+  "GUID": "6ff2407524f149a6a81f04f73e7ee5fc",
+  "Skybox": "eb828a6f126140b4a7d8c8d515f11574",
+  "SkyboxPath": "Collection/Skyboxes/Sky 2.png",
+  "SkyboxTint": {
+    "R": 255,
+    "G": 255,
+    "B": 255,
+    "A": 255
+  },
+  "BackgroundColor": {
+    "R": 25,
+    "G": 25,
+    "B": 25,
+    "A": 255
+  },
+  "AmbientColor": {
+    "R": 255,
+    "G": 255,
+    "B": 255,
+    "A": 255
+  },
+  "SkyboxAmbientEnabled": true,
+  "SkyboxAmbientIntensity": 1.0
+}
