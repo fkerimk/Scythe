@@ -1355,6 +1355,8 @@ internal class ObjectBrowser : Viewport {
 
     private static (bool HighlightOverride, object? ResetValue) GetPrefabOverrideState(object target, PropertyInfo property) {
 
+        if (!IsPrefabBoundTarget(target)) return (false, null);
+
         if (target is Obj obj && PrefabUtility.TryGetObjectPropertyOverride(obj, property, out var objValue))
             return (true, objValue);
 
@@ -1397,6 +1399,8 @@ internal class ObjectBrowser : Viewport {
 
     private static void ApplyPrefabOverrideMarker(object target, PropertyInfo property, object? value, object? sourceValue) {
 
+        if (!IsPrefabBoundTarget(target)) return;
+
         var isOverridden = !ObjectGraph.AreEqual(value, sourceValue);
 
         if (target is Obj obj)
@@ -1409,6 +1413,8 @@ internal class ObjectBrowser : Viewport {
 
     private static Action? GetPrefabApplyAction(object target, PropertyInfo property, object? value) {
 
+        if (!IsPrefabBoundTarget(target)) return null;
+
         return target switch {
             Obj obj when obj.HasPrefabOverride(property.Name) => () => PrefabUtility.ApplyObjectPropertyToPrefab(obj, property, property.GetValue(obj)),
             Transform transform when transform.HasPrefabOverride(PrefabUtility.GetTransformOverrideKey(property.Name)) => () => PrefabUtility.ApplyTransformPropertyToPrefab(transform, property, property.GetValue(transform)),
@@ -1416,6 +1422,13 @@ internal class ObjectBrowser : Viewport {
             _ => null
         };
     }
+
+    private static bool IsPrefabBoundTarget(object target) => target switch {
+        Obj obj => obj.FindPrefabRoot() != null,
+        Transform transform => transform.Obj.FindPrefabRoot() != null,
+        Component component => component.Obj.FindPrefabRoot() != null,
+        _ => false
+    };
 
     private void DrawTextureAssetInspector(TextureAsset texture) {
 
