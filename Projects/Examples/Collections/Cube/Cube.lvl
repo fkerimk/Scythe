@@ -74,7 +74,7 @@
           },
           {
             "GUID": "83c3d98dcd574a008094e9597591beda",
-            "Path": "Collections/Cube/Rotation.cs",
+            "Path": "Cube/Rotation.cs",
             "Exposed": {},
             "$ComponentType": "Script"
           }
@@ -155,13 +155,13 @@
   },
   "EditorCamera": {
     "Position": {
-      "X": 2.9703166,
-      "Y": 3.2553747,
-      "Z": 2.5505836
+      "X": 0.3278731,
+      "Y": 1.8360276,
+      "Z": 0.069107525
     },
     "Rotation": {
-      "X": -0.54983675,
-      "Y": -8.66518
+      "X": -0.21683222,
+      "Y": -0.76319635
     }
   },
   "GUID": "6ff2407524f149a6a81f04f73e7ee5fc",

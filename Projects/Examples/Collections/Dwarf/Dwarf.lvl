@@ -45,7 +45,7 @@
           },
           {
             "GUID": "1e033197308f4d25b49447d90af63b5c",
-            "Path": "Collections/Dwarf/Dwarf.cs",
+            "Path": "Dwarf/Dwarf.cs",
             "Exposed": {},
             "$ComponentType": "Script"
           },
@@ -190,7 +190,7 @@
           },
           {
             "GUID": "20ced3943a5b464eb4998a5076bd53ef",
-            "Path": "Collections/Shared Assets/OrbitalFollowCamera.cs",
+            "Path": "Shared Assets/OrbitalFollowCamera.cs",
             "Exposed": {},
             "$ComponentType": "Script"
           }
@@ -242,13 +242,13 @@
   },
   "EditorCamera": {
     "Position": {
-      "X": -0.7697294,
-      "Y": 3.8364751,
-      "Z": -5.1987667
+      "X": 0.3278731,
+      "Y": 1.8360276,
+      "Z": 0.069107525
     },
     "Rotation": {
-      "X": -0.65184045,
-      "Y": 31.748053
+      "X": -0.21683222,
+      "Y": -0.76319635
     }
   },
   "GUID": "162de7ccbedf4cfe88fb4611bd60319c",

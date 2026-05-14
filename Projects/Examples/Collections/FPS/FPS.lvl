@@ -90,13 +90,13 @@
           },
           {
             "GUID": "39cae3f358b94660800ebb475efdcdf7",
-            "Path": "Collections/FPS/PlayerMovement.cs",
+            "Path": "FPS/PlayerMovement.cs",
             "Exposed": {},
             "$ComponentType": "Script"
           },
           {
             "GUID": "c4b5e23733264efa97d6a46dce4bec1a",
-            "Path": "Collections/FPS/PlayerRotation.cs",
+            "Path": "FPS/PlayerRotation.cs",
             "Exposed": {},
             "$ComponentType": "Script"
           }
@@ -140,7 +140,7 @@
                 "Components": [
                   {
                     "GUID": "1f51eb1bdf1c40e38ae44fa0983493b3",
-                    "Path": "Collections/Shared Assets/FirstPersonCamera.cs",
+                    "Path": "Shared Assets/FirstPersonCamera.cs",
                     "Exposed": {},
                     "$ComponentType": "Script"
                   }
@@ -164,7 +164,7 @@
                     "Components": [
                       {
                         "GUID": "4d4bed84c69c4274977227983260088d",
-                        "Path": "Collections/FPS/HeadBob.cs",
+                        "Path": "FPS/HeadBob.cs",
                         "Exposed": {},
                         "$ComponentType": "Script"
                       }
@@ -235,7 +235,7 @@
                               },
                               {
                                 "GUID": "9fc9156584494ea6b076491d1511d09e",
-                                "Path": "Collections/FPS/PistolAnimation.cs",
+                                "Path": "FPS/PistolAnimation.cs",
                                 "Exposed": {},
                                 "$ComponentType": "Script"
                               }
@@ -343,13 +343,13 @@
   },
   "EditorCamera": {
     "Position": {
-      "X": -5.7198296,
-      "Y": 5.128818,
-      "Z": -5.170151
+      "X": 0.3278731,
+      "Y": 1.8360276,
+      "Z": 0.069107525
     },
     "Rotation": {
-      "X": -0.4268316,
-      "Y": 0.83280236
+      "X": -0.21683222,
+      "Y": -0.76319635
     }
   },
   "GUID": "1a1ba6d01f0e4ddabcfa301ed352494d",

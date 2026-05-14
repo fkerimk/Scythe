@@ -18,7 +18,7 @@
     "normalValue": 1.0
   },
   "Ints": {
-    "is_directx_normal": 0
+    "is_directx_normal": 1
   },
   "Colors": {
     "albedo_color": {

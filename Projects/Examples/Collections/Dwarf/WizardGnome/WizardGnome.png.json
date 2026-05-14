@@ -1,11 +1,11 @@
 {
   "GUID": "e2425d6537b64e29a5a916bd135589d7",
   "TextureImport": {
-    "MaxSize": 0,
+    "MaxSize": 128,
     "ResizeFilter": "Bilinear",
-    "Format": "Png",
+    "Format": "WebP",
     "Compression": "Balanced",
-    "Quality": 90,
+    "Quality": 100,
     "TextureFilter": "Bilinear"
   },
   "ScriptConfig": {}

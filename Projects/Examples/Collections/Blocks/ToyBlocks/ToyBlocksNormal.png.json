@@ -1,7 +1,7 @@
 {
   "GUID": "d31bcdf2cbb7464aa0c6891db7a1779c",
   "TextureImport": {
-    "MaxSize": 0,
+    "MaxSize": 1024,
     "ResizeFilter": "Bilinear",
     "Format": "Jpeg",
     "Compression": "Balanced",
