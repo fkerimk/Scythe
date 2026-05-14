@@ -24,6 +24,12 @@ internal class RuntimeRender : Viewport {
             Image(tex, contentAvail, new Vector2(0, 1), new Vector2(1, 0));
             TexSize = contentAvail;
 
+            // Mouse capture back to game
+            if (Core.IsPlaying && Editor.EditorUnlockedCursor && IsItemHovered() && IsMouseClicked(ImGuiMouseButton.Left)) {
+                Editor.EditorUnlockedCursor = false;
+                DisableCursor();
+            }
+
             // Draw overlay ui
             var padding = new Vector2(10, 10);
             SetCursorScreenPos(ScreenPos + padding);

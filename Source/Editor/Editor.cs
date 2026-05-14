@@ -31,6 +31,7 @@ internal static unsafe class Editor {
     private static Level? _editorLevelRef;
     public static string? SelectedAssetPath { get; private set; }
     public static bool ProjectSettingsSelected { get; private set; }
+    public static bool EditorUnlockedCursor;
 
     public static void OpenScript(string path) => throw new NotImplementedException(Ansi.ErrorMessage("Script editor"));
 
@@ -403,6 +404,7 @@ internal static unsafe class Editor {
 
             Core.IsPlaying = true;
             Core.RuntimeInputEnabled = true;
+            EditorUnlockedCursor = false;
             RuntimeRender.IsOpen = true;
             RuntimeRender.ShouldFocus = true;
 
@@ -422,6 +424,7 @@ internal static unsafe class Editor {
             // Stop play mode
             Core.IsPlaying = false;
             Core.RuntimeInputEnabled = true;
+            EditorUnlockedCursor = false;
             EnableCursor();
             ShowCursor();
 

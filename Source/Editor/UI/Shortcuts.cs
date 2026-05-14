@@ -1,4 +1,4 @@
-﻿using Raylib_cs;
+using Raylib_cs;
 using static Raylib_cs.Raylib;
 
 internal static class Shortcuts {
@@ -14,6 +14,7 @@ internal static class Shortcuts {
         }
 
         if (Core.IsPlaying && IsCursorHidden() && IsKeyPressed(KeyboardKey.Escape)) {
+            Editor.EditorUnlockedCursor = true;
             EnableCursor();
             ShowCursor();
             return;
