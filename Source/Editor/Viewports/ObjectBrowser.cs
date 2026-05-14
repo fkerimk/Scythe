@@ -1264,6 +1264,7 @@ internal class ObjectBrowser : Viewport {
                     foreach (var t in targets) {
 
                         prop.SetValue(t, val);
+                        SyncAssetReferencePath(t, prop, picker, val as string);
                         ApplyPrefabOverrideMarker(t, prop, val, resetValue);
                         if (t is Component comp && (fileAttr != null || assetAttr != null)) comp.UnloadAndQuit();
                     }
@@ -1364,6 +1365,34 @@ internal class ObjectBrowser : Viewport {
             return (true, componentValue);
 
         return (false, null);
+    }
+
+    private static void SyncAssetReferencePath(object target, PropertyInfo property, string? pickerType, string? selectedValue) {
+
+        if (string.IsNullOrWhiteSpace(pickerType)) return;
+        if (!string.Equals(property.Name, "GUID", StringComparison.Ordinal)) return;
+
+        var pathProperty = target.GetType().GetProperty("Path", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+        if (pathProperty == null || pathProperty.PropertyType != typeof(string) || !pathProperty.CanWrite) return;
+
+        pathProperty.SetValue(target, ResolveAssetReferencePath(selectedValue, pickerType));
+    }
+
+    private static string ResolveAssetReferencePath(string? selectedValue, string pickerType) {
+
+        if (string.IsNullOrWhiteSpace(selectedValue)) return "";
+
+        return pickerType switch {
+            "LevelAsset" => AssetManager.GetPath<LevelAsset>(selectedValue) is { } path ? AssetManager.GetStoredPath(path) : "",
+            "PrefabAsset" => AssetManager.GetPath<PrefabAsset>(selectedValue) is { } path ? AssetManager.GetStoredPath(path) : "",
+            "ShaderAsset" => AssetManager.GetPath<ShaderAsset>(selectedValue) is { } path ? AssetManager.GetStoredPath(path) : "",
+            "TextureAsset" => AssetManager.GetPath<TextureAsset>(selectedValue) is { } path ? AssetManager.GetStoredPath(path) : "",
+            "ModelAsset" => AssetManager.GetPath<ModelAsset>(selectedValue) is { } path ? AssetManager.GetStoredPath(path) : "",
+            "AnimationAsset" => AssetManager.GetPath<AnimationAsset>(selectedValue) is { } path ? AssetManager.GetStoredPath(path) : "",
+            "MaterialAsset" => AssetManager.GetPath<MaterialAsset>(selectedValue) is { } path ? AssetManager.GetStoredPath(path) : "",
+            "ScriptAsset" => AssetManager.GetPath<ScriptAsset>(selectedValue) is { } path ? AssetManager.GetStoredPath(path) : "",
+            _ => ""
+        };
     }
 
     private static void ApplyPrefabOverrideMarker(object target, PropertyInfo property, object? value, object? sourceValue) {
