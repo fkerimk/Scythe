@@ -1,9 +1,11 @@
 {
   "Root": {
     "Name": "Root",
-    "Children": {
-      "Directional Light": {
-        "Children": {},
+    "Children": [
+      {
+        "Name": "Directional Light",
+        "Prefab": null,
+        "PrefabPath": null,
         "Transform": {
           "Pos": {
             "Y": 10.400001
@@ -25,10 +27,8 @@
             "W": 0.65328115
           }
         },
-        "Prefab": "",
-        "PrefabPath": "",
-        "Components": {
-          "Light": {
+        "Components": [
+          {
             "Type": 0,
             "ScytheColor": {
               "R": 223,
@@ -37,12 +37,16 @@
             },
             "Intensity": 5.0,
             "Range": 50.0,
-            "ShadowStrength": 1.0
+            "ShadowStrength": 1.0,
+            "$ComponentType": "Light"
           }
-        }
+        ],
+        "Children": []
       },
-      "Camera": {
-        "Children": {},
+      {
+        "Name": "Camera",
+        "Prefab": null,
+        "PrefabPath": null,
         "Transform": {
           "Pos": {
             "X": 7.8,
@@ -66,18 +70,20 @@
             "W": 0.61510265
           }
         },
-        "Prefab": "",
-        "PrefabPath": "",
-        "Components": {
-          "Camera": {
+        "Components": [
+          {
             "Fov": 60.0,
             "NearClip": 0.01,
-            "FarClip": 1000.0
+            "FarClip": 1000.0,
+            "$ComponentType": "Camera"
           }
-        }
+        ],
+        "Children": []
       },
-      "Ground": {
-        "Children": {},
+      {
+        "Name": "Ground",
+        "Prefab": null,
+        "PrefabPath": null,
         "Transform": {
           "Pos": {
             "Y": -1.6
@@ -92,10 +98,8 @@
             "IsIdentity": true
           }
         },
-        "Prefab": "",
-        "PrefabPath": "",
-        "Components": {
-          "Model": {
+        "Components": [
+          {
             "GUID": "2cd053e9959f4b91ba52c0cb4d7826a6",
             "Path": "Collection/Cube.fbx",
             "Color": {
@@ -104,22 +108,27 @@
               "B": 255,
               "A": 255
             },
-            "AlphaCutoff": 0.5
+            "AlphaCutoff": 0.5,
+            "$ComponentType": "Model"
           },
-          "BoxCollider": {
+          {
             "Size": {
               "X": 1.0,
               "Y": 1.0,
               "Z": 1.0
-            }
+            },
+            "$ComponentType": "BoxCollider"
           },
-          "Rigidbody": {
+          {
             "IsStatic": true,
-            "Bounciness": 0.0
+            "Bounciness": 0.0,
+            "$ComponentType": "Rigidbody"
           }
-        }
+        ],
+        "Children": []
       },
-      "ToyBlock_S": {
+      {
+        "Name": "ToyBlock_S",
         "Prefab": "285d3b17963a4060b7d2bc9ede3259fc",
         "PrefabPath": "Collections/Blocks/ToyBlock.pre",
         "Transform": {
@@ -140,7 +149,8 @@
           }
         }
       },
-      "ToyBlock_C": {
+      {
+        "Name": "ToyBlock_C",
         "Prefab": "285d3b17963a4060b7d2bc9ede3259fc",
         "PrefabPath": "Collections/Blocks/ToyBlock.pre",
         "Transform": {
@@ -160,16 +170,18 @@
             "W": 0.70710677
           }
         },
-        "Components": {
-          "Model": {
+        "Components": [
+          {
             "GUID": "cd77469f41c94433a30b1e68256f4dc4",
             "PrefabOverrides": [
               "GUID"
-            ]
+            ],
+            "$ComponentType": "Model"
           }
-        }
+        ]
       },
-      "ToyBlock_Y": {
+      {
+        "Name": "ToyBlock_Y",
         "Prefab": "285d3b17963a4060b7d2bc9ede3259fc",
         "PrefabPath": "Collections/Blocks/ToyBlock.pre",
         "Transform": {
@@ -189,16 +201,18 @@
             "W": 0.70710677
           }
         },
-        "Components": {
-          "Model": {
+        "Components": [
+          {
             "GUID": "b2128ea0112a4c8ea3984c170b342c82",
             "PrefabOverrides": [
               "GUID"
-            ]
+            ],
+            "$ComponentType": "Model"
           }
-        }
+        ]
       },
-      "ToyBlock_T": {
+      {
+        "Name": "ToyBlock_T",
         "Prefab": "285d3b17963a4060b7d2bc9ede3259fc",
         "PrefabPath": "Collections/Blocks/ToyBlock.pre",
         "Transform": {
@@ -218,16 +232,18 @@
             "W": 0.70710677
           }
         },
-        "Components": {
-          "Model": {
+        "Components": [
+          {
             "GUID": "2ad088d533944ae68c91ea6bf440656c",
             "PrefabOverrides": [
               "GUID"
-            ]
+            ],
+            "$ComponentType": "Model"
           }
-        }
+        ]
       },
-      "ToyBlock_H": {
+      {
+        "Name": "ToyBlock_H",
         "Prefab": "285d3b17963a4060b7d2bc9ede3259fc",
         "PrefabPath": "Collections/Blocks/ToyBlock.pre",
         "Transform": {
@@ -247,16 +263,18 @@
             "W": 0.70710677
           }
         },
-        "Components": {
-          "Model": {
+        "Components": [
+          {
             "GUID": "b5a0b6065b0a4002ae4bc21c2a4cfecb",
             "PrefabOverrides": [
               "GUID"
-            ]
+            ],
+            "$ComponentType": "Model"
           }
-        }
+        ]
       },
-      "ToyBlock_E": {
+      {
+        "Name": "ToyBlock_E",
         "Prefab": "285d3b17963a4060b7d2bc9ede3259fc",
         "PrefabPath": "Collections/Blocks/ToyBlock.pre",
         "Transform": {
@@ -276,16 +294,17 @@
             "W": 0.70710677
           }
         },
-        "Components": {
-          "Model": {
+        "Components": [
+          {
             "GUID": "038d74a9923b4bb684b88a56bce0c829",
             "PrefabOverrides": [
               "GUID"
-            ]
+            ],
+            "$ComponentType": "Model"
           }
-        }
+        ]
       }
-    }
+    ]
   },
   "EditorCamera": {
     "Position": {

@@ -464,14 +464,14 @@ internal class Preview : Viewport {
 
     private static void LoadPreviewLevelComponents(Obj obj) {
 
-        foreach (var component in obj.Components.Values) {
+        foreach (var component in obj.ComponentEntries.Values) {
 
             if (component is not Model) continue;
             if (!component.Load()) continue;
             component.IsLoaded = true;
         }
 
-        foreach (var child in obj.Children.Values)
+        foreach (var child in obj.ChildEntries.Values)
             LoadPreviewLevelComponents(child);
     }
 
@@ -480,7 +480,7 @@ internal class Preview : Viewport {
         obj.Transform.UpdateTransform();
         obj.VisualWorldMatrix = obj.WorldMatrix;
 
-        foreach (var child in obj.Children.Values)
+        foreach (var child in obj.ChildEntries.Values)
             SyncPreviewLevelTransforms(child);
     }
 
@@ -538,7 +538,7 @@ internal class Preview : Viewport {
 
         obj.VisualWorldMatrix = obj.WorldMatrix;
 
-        foreach (var component in obj.Components.Values) {
+        foreach (var component in obj.ComponentEntries.Values) {
 
             if (component is not Model { IsLoaded: true } model) continue;
 
@@ -548,7 +548,7 @@ internal class Preview : Viewport {
             model.Draw();
         }
 
-        foreach (var child in obj.Children.Values)
+        foreach (var child in obj.ChildEntries.Values)
             RenderPreviewLevelHierarchy(child, camera, target, distance);
     }
 
@@ -581,7 +581,7 @@ internal class Preview : Viewport {
             hasObjects = true;
         }
 
-        foreach (var component in obj.Components.Values) {
+        foreach (var component in obj.ComponentEntries.Values) {
 
             if (component is not Model { IsLoaded: true } model || model.AssetRef is not { IsLoaded: true })
                 continue;
@@ -590,7 +590,7 @@ internal class Preview : Viewport {
             hasBounds = true;
         }
 
-        foreach (var child in obj.Children.Values)
+        foreach (var child in obj.ChildEntries.Values)
             CollectLevelBounds(child, ref min, ref max, ref hasBounds, ref hasObjects);
     }
 

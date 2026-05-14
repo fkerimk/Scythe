@@ -260,16 +260,16 @@ internal static class Core {
 
     private static Camera3D? RootCamera(Obj obj) {
 
-        if (obj.Children.TryGetValue("Camera", out var cameraObj) && cameraObj.Components.TryGetValue("Camera", out var camComp)) return (camComp as Camera)?.Cam;
+        if (obj.ChildEntries.TryGetValue("Camera", out var cameraObj) && cameraObj.ComponentEntries.TryGetValue("Camera", out var camComp)) return (camComp as Camera)?.Cam;
 
         return FindFirstCamera(obj);
     }
 
     private static Camera3D? FindFirstCamera(Obj obj) {
 
-        if (obj.Components.Values.FirstOrDefault(c => c is Camera) is Camera found) return found.Cam;
+        if (obj.ComponentEntries.Values.FirstOrDefault(c => c is Camera) is Camera found) return found.Cam;
 
-        return obj.Children.Values.Select(FindFirstCamera).OfType<Camera3D>().FirstOrDefault();
+        return obj.ChildEntries.Values.Select(FindFirstCamera).OfType<Camera3D>().FirstOrDefault();
     }
 
     public static void CloseLevel(int index) {
@@ -410,12 +410,12 @@ internal static class Core {
 
         void LoadObj(Obj obj) {
 
-            foreach (var component in obj.Components.Values) {
+            foreach (var component in obj.ComponentEntries.Values) {
 
                 if (!component.IsLoaded && component.Load()) component.IsLoaded = true;
             }
 
-            foreach (var child in obj.Children.Values.ToArray()) LoadObj(child);
+            foreach (var child in obj.ChildEntries.Values.ToArray()) LoadObj(child);
         }
     }
 
@@ -457,26 +457,26 @@ internal static class Core {
 
     private static void StartScripts(Obj obj) {
 
-        foreach (var component in obj.Components.Values) {
+        foreach (var component in obj.ComponentEntries.Values) {
             if (component is Script script && script.IsLoaded) script.EnsureStarted();
         }
 
-        foreach (var child in obj.Children.Values.ToArray()) StartScripts(child);
+        foreach (var child in obj.ChildEntries.Values.ToArray()) StartScripts(child);
     }
 
     private static void RunLogic(Obj obj) {
 
         // Priority: Rigidbodies must sync physics to transform before scripts run
-        if (obj.Components.TryGetValue("Rigidbody", out var rb) && rb.IsLoaded) rb.Logic();
+        if (obj.ComponentEntries.TryGetValue("Rigidbody", out var rb) && rb.IsLoaded) rb.Logic();
 
-        foreach (var component in obj.Components.Values) {
+        foreach (var component in obj.ComponentEntries.Values) {
 
             if (component is Rigidbody) continue;
 
             if (component.IsLoaded) component.Logic();
         }
 
-        foreach (var child in obj.Children.Values.ToArray()) RunLogic(child);
+        foreach (var child in obj.ChildEntries.Values.ToArray()) RunLogic(child);
     }
 
     private static void SyncHierarchy(Obj obj) {
@@ -509,7 +509,7 @@ internal static class Core {
         }
 
         // 3. Collection & Preparation
-        foreach (var component in obj.Components.Values) {
+        foreach (var component in obj.ComponentEntries.Values) {
 
             if (!component.IsLoaded) continue;
 
@@ -528,7 +528,7 @@ internal static class Core {
             }
         }
 
-        foreach (var child in obj.Children.Values.ToArray()) SyncHierarchy(child);
+        foreach (var child in obj.ChildEntries.Values.ToArray()) SyncHierarchy(child);
     }
 
     public static void ShadowPass(Camera3D? overrideCamera = null) {
@@ -642,7 +642,7 @@ internal static class Core {
         // Ensure components drawing. Transform is updated in Logic
         if (isShadowPass) {
 
-            foreach (var component in obj.Components.Values) {
+            foreach (var component in obj.ComponentEntries.Values) {
 
                 if (component is Model { CastShadows: true, IsLoaded: true } m) m.DrawShadow();
             }
@@ -654,7 +654,7 @@ internal static class Core {
             else
                 obj.Transform.Render3D();
 
-            foreach (var component in obj.Components.Values) {
+            foreach (var component in obj.ComponentEntries.Values) {
 
                 if (!component.IsLoaded) continue;
 
@@ -665,7 +665,7 @@ internal static class Core {
             }
         }
 
-        foreach (var child in obj.Children.Values.ToArray()) RenderHierarchy(child, is2D, isShadowPass);
+        foreach (var child in obj.ChildEntries.Values.ToArray()) RenderHierarchy(child, is2D, isShadowPass);
     }
 
     private static RenderTexture2D _mainRt;
@@ -753,14 +753,14 @@ internal static class Core {
 
             obj.Transform.Quit();
 
-            foreach (var component in obj.Components.Values) {
+            foreach (var component in obj.ComponentEntries.Values) {
 
                 if (component.IsLoaded) component.Unload();
 
                 component.Quit();
             }
 
-            foreach (var child in obj.Children.Values.ToArray()) QuitObj(child);
+            foreach (var child in obj.ChildEntries.Values.ToArray()) QuitObj(child);
         }
     }
 }

@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Numerics;
 using Raylib_cs;
 using Newtonsoft.Json;
@@ -14,17 +15,7 @@ internal class Obj {
     public string Name {
         get;
         set {
-
             if (field == value) return;
-
-            if (Parent != null) {
-
-                if (Parent.Children.ContainsKey(value)) return;
-
-                if (!string.IsNullOrEmpty(field)) Parent.Children.Remove(field);
-
-                Parent.Children.Add(value, this);
-            }
 
             field = value;
             PrefabUtility.UpdateObjectOverrideState(this, nameof(Name), value);
@@ -32,7 +23,8 @@ internal class Obj {
     } = null!;
 
     public Obj? Parent;
-    [JsonProperty] public readonly Dictionary<string, Obj> Children = [];
+    public readonly ObjCollection ChildEntries = new();
+    public Dictionary<string, Obj> Children => ChildEntries.ToFirstMatchDictionary();
     [JsonProperty, RecordHistory, FindAsset("PrefabAsset")]
     public string Prefab { get; set; } = "";
     [JsonProperty, RecordHistory]
@@ -40,12 +32,10 @@ internal class Obj {
     [JsonProperty]
     public HashSet<string> PrefabOverrides { get; set; } = [];
 
-    // Components
     [JsonProperty] public Transform Transform = null!;
+    public ComponentCollection ComponentEntries { get; set; } = null!;
+    public Dictionary<string, Component> Components => ComponentEntries.ToFirstMatchDictionary();
 
-    [JsonProperty] public Dictionary<string, Component> Components { get; set; } = null!;
-
-    // Transform
     public Matrix4x4 Matrix = Matrix4x4.Identity;
     public Matrix4x4 RotMatrix = Matrix4x4.Identity;
 
@@ -62,7 +52,6 @@ internal class Obj {
             var fwd = Fwd;
             fwd.Y = 0;
             fwd = Vector3.Normalize(fwd);
-
             return fwd;
         }
     }
@@ -72,7 +61,6 @@ internal class Obj {
             var right = Right;
             right.Y = 0;
             right = Vector3.Normalize(right);
-
             return right;
         }
     }
@@ -80,6 +68,23 @@ internal class Obj {
     public Vector3 Pos {
         get => Transform.Pos;
         set => Transform.Pos = value;
+    }
+
+    public Quaternion Rot {
+        get => Transform.Rot;
+        set => Transform.Rot = value;
+    }
+
+    public bool IsSelected;
+
+    public Obj(string? name, Obj? parent) {
+
+        if (name == null) return;
+
+        Parent = parent;
+        Name = name;
+        Transform = new Transform(this);
+        ComponentEntries = new ComponentCollection();
     }
 
     public bool HasPrefabOverride(string propertyName) => PrefabOverrides.Contains(propertyName);
@@ -109,32 +114,13 @@ internal class Obj {
         return false;
     }
 
-    public Quaternion Rot {
-        get => Transform.Rot;
-        set => Transform.Rot = value;
-    }
-
-    public bool IsSelected;
-
-    public Obj(string? name, Obj? parent) {
-
-        if (name == null) return;
-
-        Parent = parent;
-        Name = name;
-
-        // Components
-        Transform = new Transform(this);
-        Components = new Dictionary<string, Component>();
-    }
-
     public void Delete() {
 
         if (Parent == null) return;
 
         OnDelete?.Invoke(this);
         Dispose();
-        Parent.Children.Remove(Name);
+        Parent.ChildEntries.Remove(this);
     }
 
     public void Dispose() {
@@ -143,9 +129,11 @@ internal class Obj {
 
         Transform.UnloadAndQuit();
 
-        foreach (var component in Components.Values) component.UnloadAndQuit();
+        foreach (var component in ComponentEntries.Values)
+            component.UnloadAndQuit();
 
-        foreach (var child in Children.Values) child.Dispose();
+        foreach (var child in ChildEntries.Values)
+            child.Dispose();
     }
 
     public void RecordedDelete() {
@@ -164,7 +152,7 @@ internal class Obj {
 
         if (obj == null || obj == this || Parent == null || IsAncestorOf(this, obj)) return;
 
-        MoveToIndex(obj, obj.Children.Count, keepWorld);
+        MoveToIndex(obj, obj.ChildEntries.Count, keepWorld);
     }
 
     public void MoveBefore(Obj? sibling, bool keepWorld = false) {
@@ -199,15 +187,11 @@ internal class Obj {
 
         if (Parent == null) return -1;
 
-        var index = 0;
-
-        foreach (var child in Parent.Children.Values) {
-            if (child == this) return index;
-            index++;
-        }
-
-        return -1;
+        return Parent.ChildEntries.IndexOf(this);
     }
+
+    public int GetSiblingNameIndex() =>
+        Parent?.ChildEntries.GetOccurrenceIndex(this) ?? 0;
 
     private void MoveToIndex(Obj? obj, int insertIndex, bool keepWorld = false) {
 
@@ -219,29 +203,21 @@ internal class Obj {
 
         if (keepWorld) DecomposeWorldMatrix(out wp, out wr, out ws);
 
-        Parent.Children.Remove(Name);
+        Parent.ChildEntries.Remove(this);
 
-        var orderedChildren = obj.Children.Values.Where(child => child != this).ToList();
-        var finalName = orderedChildren.Any(child => string.Equals(child.Name, Name, StringComparison.Ordinal))
-            ? Generators.AvailableName(Name, orderedChildren.Select(child => child.Name))
-            : Name;
+        var orderedChildren = obj.ChildEntries.Values.Where(child => child != this).ToList();
         insertIndex = Math.Clamp(insertIndex, 0, orderedChildren.Count);
         orderedChildren.Insert(insertIndex, this);
 
-        obj.Children.Clear();
+        obj.ChildEntries.Clear();
         Parent = obj;
-
-        if (!string.Equals(finalName, Name, StringComparison.Ordinal))
-            Name = finalName;
 
         foreach (var child in orderedChildren) {
             child.Parent = obj;
-            if (!obj.Children.ContainsKey(child.Name))
-                obj.Children.Add(child.Name, child);
+            obj.ChildEntries.Add(child);
         }
 
         if (keepWorld) {
-
             Transform.WorldPos = wp;
             Transform.WorldRot = wr;
             Transform.WorldScale = ws;
@@ -252,7 +228,7 @@ internal class Obj {
 
         if (obj == null || obj == this || Parent == null || IsAncestorOf(this, obj)) return;
 
-        RecordedMoveToIndex(obj, obj.Children.Count);
+        RecordedMoveToIndex(obj, obj.ChildEntries.Count);
     }
 
     private void RecordedMoveToIndex(Obj? obj, int insertIndex) {
@@ -307,13 +283,11 @@ internal class Obj {
         var current = this;
 
         while (current is { Parent: not null }) {
-
             path.Add(current.Name);
             current = current.Parent;
         }
 
         path.Reverse();
-
         return path.ToArray();
     }
 
@@ -326,6 +300,14 @@ internal class Obj {
 
         return current;
     }
+
+    public Obj? GetChildAt(int index) => ChildEntries.GetAt(index);
+
+    public T? GetComponent<T>() where T : Component =>
+        ComponentEntries.Values.OfType<T>().FirstOrDefault();
+
+    public List<T> GetComponents<T>() where T : Component =>
+        ComponentEntries.Values.OfType<T>().ToList();
 
     public static bool IsAncestorOf(Obj ancestor, Obj? target) {
 
@@ -351,7 +333,7 @@ internal class Obj {
 
         foreach (var name in names) {
 
-            if (current.Children.TryGetValue(name, out var next))
+            if (current.ChildEntries.TryGetValue(name, out var next))
                 current = next;
             else
                 return null;
@@ -363,18 +345,208 @@ internal class Obj {
     public Component? FindComponent(params string[] names) {
 
         var obj = Find(names[..^1]);
-
-        return obj?.Components.GetValueOrDefault(names[^1]);
+        return obj?.ComponentEntries.GetValueOrDefault(names[^1]);
     }
 
     public Component MakeComponent(string name) {
 
-        if (Components.ContainsKey(name)) throw new TypeLoadException();
-
         var component = Activator.CreateInstance(Type.GetType(name) ?? throw new KeyNotFoundException(), this) as Component ?? throw new InvalidOperationException();
-        Components[name] = component;
-
+        ComponentEntries.Add(component);
         return component;
+    }
+}
+
+internal sealed class ObjCollection : IEnumerable<KeyValuePair<string, Obj>> {
+    private readonly List<Obj> _items = [];
+
+    public int Count => _items.Count;
+    public IEnumerable<string> Keys => _items.Select(item => item.Name);
+    public IReadOnlyList<Obj> Values => _items;
+
+    public Obj this[string name] {
+        get => GetValueOrDefault(name) ?? throw new KeyNotFoundException(name);
+        set {
+            var index = _items.FindIndex(item => string.Equals(item.Name, name, StringComparison.Ordinal));
+            if (index >= 0)
+                _items[index] = value;
+            else
+                _items.Add(value);
+        }
+    }
+
+    public void Add(Obj obj) => _items.Add(obj);
+
+    public void Add(string _, Obj obj) => _items.Add(obj);
+
+    public void Clear() => _items.Clear();
+
+    public bool ContainsKey(string name) =>
+        _items.Any(item => string.Equals(item.Name, name, StringComparison.Ordinal));
+
+    public Obj? GetAt(int index) =>
+        index >= 0 && index < _items.Count ? _items[index] : null;
+
+    public Obj? GetValueOrDefault(string name) {
+        TryGetValue(name, out var value);
+        return value;
+    }
+
+    public int GetOccurrenceIndex(Obj obj) {
+
+        var index = 0;
+
+        foreach (var item in _items) {
+            if (ReferenceEquals(item, obj)) return index;
+            if (string.Equals(item.Name, obj.Name, StringComparison.Ordinal))
+                index++;
+        }
+
+        return -1;
+    }
+
+    public int IndexOf(Obj obj) => _items.IndexOf(obj);
+
+    public bool Remove(Obj obj) => _items.Remove(obj);
+
+    public bool Remove(string name) {
+
+        var index = _items.FindIndex(item => string.Equals(item.Name, name, StringComparison.Ordinal));
+
+        if (index < 0) return false;
+
+        _items.RemoveAt(index);
+        return true;
+    }
+
+    public bool TryGetValue(string name, out Obj value) =>
+        TryGetValue(name, 0, out value);
+
+    public bool TryGetValue(string name, int occurrenceIndex, out Obj value) {
+
+        var index = 0;
+
+        foreach (var item in _items) {
+            if (!string.Equals(item.Name, name, StringComparison.Ordinal)) continue;
+            if (index++ != occurrenceIndex) continue;
+            value = item;
+            return true;
+        }
+
+        value = null!;
+        return false;
+    }
+
+    public IEnumerator<KeyValuePair<string, Obj>> GetEnumerator() {
+        foreach (var item in _items)
+            yield return new KeyValuePair<string, Obj>(item.Name, item);
+    }
+
+    IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+
+    public Dictionary<string, Obj> ToFirstMatchDictionary() {
+
+        var result = new Dictionary<string, Obj>(StringComparer.Ordinal);
+
+        foreach (var item in _items)
+            result.TryAdd(item.Name, item);
+
+        return result;
+    }
+}
+
+internal sealed class ComponentCollection : IEnumerable<KeyValuePair<string, Component>> {
+    private readonly List<Component> _items = [];
+
+    public int Count => _items.Count;
+    public IEnumerable<string> Keys => _items.Select(GetKey);
+    public IReadOnlyList<Component> Values => _items;
+
+    public Component this[string name] {
+        get => GetValueOrDefault(name) ?? throw new KeyNotFoundException(name);
+        set {
+            var index = _items.FindIndex(item => string.Equals(GetKey(item), name, StringComparison.Ordinal));
+            if (index >= 0)
+                _items[index] = value;
+            else
+                _items.Add(value);
+        }
+    }
+
+    public void Add(Component component) => _items.Add(component);
+
+    public void Add(string _, Component component) => _items.Add(component);
+
+    public void Clear() => _items.Clear();
+
+    public bool ContainsKey(string name) =>
+        _items.Any(item => string.Equals(GetKey(item), name, StringComparison.Ordinal));
+
+    public Component? GetValueOrDefault(string name) {
+        TryGetValue(name, out var value);
+        return value;
+    }
+
+    public int GetOccurrenceIndex(Component component) {
+
+        var key = GetKey(component);
+        var index = 0;
+
+        foreach (var item in _items) {
+            if (ReferenceEquals(item, component)) return index;
+            if (string.Equals(GetKey(item), key, StringComparison.Ordinal))
+                index++;
+        }
+
+        return -1;
+    }
+
+    public bool Remove(Component component) => _items.Remove(component);
+
+    public bool Remove(string name) {
+
+        var index = _items.FindIndex(item => string.Equals(GetKey(item), name, StringComparison.Ordinal));
+
+        if (index < 0) return false;
+
+        _items.RemoveAt(index);
+        return true;
+    }
+
+    public bool TryGetValue(string name, out Component value) =>
+        TryGetValue(name, 0, out value);
+
+    public bool TryGetValue(string name, int occurrenceIndex, out Component value) {
+
+        var index = 0;
+
+        foreach (var item in _items) {
+            if (!string.Equals(GetKey(item), name, StringComparison.Ordinal)) continue;
+            if (index++ != occurrenceIndex) continue;
+            value = item;
+            return true;
+        }
+
+        value = null!;
+        return false;
+    }
+
+    private static string GetKey(Component component) => component.GetType().Name;
+
+    public IEnumerator<KeyValuePair<string, Component>> GetEnumerator() {
+        foreach (var item in _items)
+            yield return new KeyValuePair<string, Component>(GetKey(item), item);
+    }
+
+    IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+
+    public Dictionary<string, Component> ToFirstMatchDictionary() {
+
+        var result = new Dictionary<string, Component>(StringComparer.Ordinal);
+
+        foreach (var item in _items)
+            result.TryAdd(GetKey(item), item);
+
+        return result;
     }
 }
 
@@ -387,26 +559,18 @@ internal static partial class Extensions {
             parent ??= source.Parent;
 
             var name = source.Name;
-
-            if (parent != null && !preserveName) name = Generators.AvailableName(name, parent.Children.Keys);
-
             var clone = new Obj(name, parent);
+            if (parent != null)
+                parent.ChildEntries.Add(clone);
             clone.Prefab = source.Prefab;
             clone.PrefabPath = source.PrefabPath;
             clone.PrefabOverrides = [.. source.PrefabOverrides];
-            if (!string.Equals(clone.Name, source.Name, StringComparison.Ordinal) && clone.FindPrefabRoot() == clone)
-                clone.SetPrefabOverride(nameof(Obj.Name), true);
 
-            // Copy serialized transform state only; runtime-only fields stay reset.
             ObjectGraph.CopyJsonState(source.Transform, clone.Transform);
             clone.Transform.PrefabOverrides = [.. source.Transform.PrefabOverrides];
-            // ObjectGraph.CopyJsonState writes via FastMember (bypasses property setters),
-            // so UpdateTransform() was never called. Compute obj.Matrix now from the
-            // copied Pos/Rot/Scale so RefreshWorldMatrices propagates correctly.
             clone.Transform.UpdateTransform();
 
-            // Copy Components
-            foreach (var (key, sourceComponent) in source.Components) {
+            foreach (var (_, sourceComponent) in source.ComponentEntries) {
 
                 var compType = sourceComponent.GetType();
 
@@ -415,11 +579,11 @@ internal static partial class Extensions {
                 ObjectGraph.CopyJsonState(sourceComponent, cloneComp);
                 cloneComp.PrefabOverrides = [.. sourceComponent.PrefabOverrides];
 
-                clone.Components[key] = cloneComp;
+                clone.ComponentEntries.Add(cloneComp);
             }
 
-            // Clone children recursively
-            foreach (var child in source.Children.Values.ToList()) child.CloneInternal(clone, preserveName: true);
+            foreach (var child in source.ChildEntries.Values.ToList())
+                child.CloneInternal(clone, preserveName: true);
 
             return clone;
         }
@@ -444,7 +608,7 @@ internal static partial class Extensions {
             source.Prefab = "";
             source.PrefabPath = "";
 
-            foreach (var child in source.Children.Values)
+            foreach (var child in source.ChildEntries.Values)
                 child.ClearPrefabLinksRecursive();
         }
 

@@ -163,7 +163,7 @@ internal class Transform(Obj obj) : Component(obj) {
 
     private float GetCartoonStretchSizeFactor() {
 
-        foreach (var component in Obj.Components.Values) {
+        foreach (var component in Obj.ComponentEntries.Values) {
 
             if (component is not Model { IsLoaded: true } model) continue;
 
@@ -203,7 +203,7 @@ internal class Transform(Obj obj) : Component(obj) {
             obj.WorldRotMatrix = obj.RotMatrix;
         }
 
-        foreach (var child in obj.Children) RefreshWorldMatrices(child.Value);
+        foreach (var child in obj.ChildEntries) RefreshWorldMatrices(child.Value);
     }
 
     public bool IsHovered { get; private set; }

@@ -23,7 +23,7 @@ internal static class PrefabUtility {
         }
     }
 
-    public static Obj? GetPrefabRootObject(Level prefabLevel) => prefabLevel.Root.Children.Values.FirstOrDefault();
+    public static Obj? GetPrefabRootObject(Level prefabLevel) => prefabLevel.Root.ChildEntries.Values.FirstOrDefault();
 
     public static void ClearSourceCache() => SourceCache.Clear();
 
@@ -108,7 +108,7 @@ internal static class PrefabUtility {
 
     public static void ApplyPrefabInstances(Level level) {
 
-        foreach (var child in level.Root.Children.Values.ToList())
+        foreach (var child in level.Root.ChildEntries.Values.ToList())
             ApplyPrefabInstancesRecursive(child);
     }
 
@@ -208,7 +208,7 @@ internal static class PrefabUtility {
 
         MarkAsAddedChild(obj);
 
-        foreach (var child in obj.Children.Values)
+        foreach (var child in obj.ChildEntries.Values)
             MarkAddedChildSubtree(child);
     }
 
@@ -241,16 +241,19 @@ internal static class PrefabUtility {
             return true;
         }
 
-        var relativeNames = new Stack<string>();
+        var relativePath = new Stack<(string Name, int Occurrence)>();
         var current = obj;
 
         while (current != null && !ReferenceEquals(current, prefabRoot)) {
-            relativeNames.Push(current.Name);
+            relativePath.Push((current.Name, current.GetSiblingNameIndex()));
             current = current.Parent;
         }
 
-        while (relativeNames.Count > 0) {
-            currentSource = currentSource.Children.GetValueOrDefault(relativeNames.Pop());
+        while (relativePath.Count > 0) {
+            var segment = relativePath.Pop();
+            if (!currentSource.ChildEntries.TryGetValue(segment.Name, segment.Occurrence, out var next))
+                return false;
+            currentSource = next;
             if (currentSource == null) return false;
         }
 
@@ -307,7 +310,7 @@ internal static class PrefabUtility {
         sourceValue = null;
         if (!component.HasPrefabOverride(property.Name)) return false;
         if (!TryGetSourceObject(component.Obj, out var sourceObj) || sourceObj == null) return false;
-        if (!sourceObj.Components.TryGetValue(component.GetType().Name, out var sourceComponent)) return false;
+        if (!sourceObj.ComponentEntries.TryGetValue(component.GetType().Name, component.Obj.ComponentEntries.GetOccurrenceIndex(component), out var sourceComponent)) return false;
 
         var sourceProp = sourceComponent.GetType().GetProperty(property.Name, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
         if (sourceProp == null) return false;
@@ -348,7 +351,7 @@ internal static class PrefabUtility {
 
         if (!component.HasPrefabOverride(property.Name)) return false;
         if (!TryGetSourceObject(component.Obj, out var sourceObj) || sourceObj == null) return false;
-        if (!sourceObj.Components.TryGetValue(component.GetType().Name, out var sourceComponent)) return false;
+        if (!sourceObj.ComponentEntries.TryGetValue(component.GetType().Name, component.Obj.ComponentEntries.GetOccurrenceIndex(component), out var sourceComponent)) return false;
 
         var sourceProperty = sourceComponent.GetType().GetProperty(property.Name, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
         if (sourceProperty == null || !sourceProperty.CanWrite) return false;
@@ -384,7 +387,7 @@ internal static class PrefabUtility {
         if (TryGetSourceObject(obj, out var sourceObj) && sourceObj != null && ReferenceEquals(obj.FindPrefabRoot(), obj))
             SyncPrefabRoot(obj, sourceObj);
 
-        foreach (var child in obj.Children.Values.ToList())
+        foreach (var child in obj.ChildEntries.Values.ToList())
             ApplyPrefabInstancesRecursive(child);
     }
 
@@ -412,30 +415,46 @@ internal static class PrefabUtility {
         } else if (!target.Transform.HasPrefabOverride(nameof(Transform.Scale)))
             target.Transform.Scale = source.Transform.Scale;
 
-        foreach (var (componentName, sourceComponent) in source.Components) {
+        var targetComponentTypeIndices = new Dictionary<string, int>(StringComparer.Ordinal);
 
-            if (!target.Components.TryGetValue(componentName, out var targetComponent)) {
+        foreach (var (componentName, sourceComponent) in source.ComponentEntries) {
+            var componentIndex = targetComponentTypeIndices.GetValueOrDefault(componentName, 0);
+            targetComponentTypeIndices[componentName] = componentIndex + 1;
+
+            if (!target.ComponentEntries.TryGetValue(componentName, componentIndex, out var targetComponent)) {
                 targetComponent = CloneComponent(sourceComponent, target);
-                target.Components[componentName] = targetComponent;
+                target.ComponentEntries.Add(targetComponent);
             }
 
             SyncComponentProperties(targetComponent, sourceComponent);
         }
 
-        foreach (var targetChild in target.Children.Values.Where(child => !source.Children.ContainsKey(child.Name)).ToList()) {
+        var sourceChildNameCounts = source.ChildEntries.Values
+            .GroupBy(child => child.Name, StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => group.Count(), StringComparer.Ordinal);
+        var targetChildTypeIndices = new Dictionary<string, int>(StringComparer.Ordinal);
+
+        foreach (var targetChild in target.ChildEntries.Values.ToList()) {
+            var childIndex = targetChildTypeIndices.GetValueOrDefault(targetChild.Name, 0);
+            targetChildTypeIndices[targetChild.Name] = childIndex + 1;
+
+            if (sourceChildNameCounts.TryGetValue(targetChild.Name, out var sourceCount) && childIndex < sourceCount)
+                continue;
+
             if (IsAddedChild(targetChild))
                 continue;
 
             targetChild.Dispose();
-            target.Children.Remove(targetChild.Name);
+            target.ChildEntries.Remove(targetChild);
         }
 
-        foreach (var (childName, sourceChild) in source.Children) {
+        var targetChildNameIndices = new Dictionary<string, int>(StringComparer.Ordinal);
 
-            if (target.Children.TryGetValue(childName, out var conflictingChild) && IsAddedChild(conflictingChild))
-                conflictingChild.Name = Generators.AvailableName(childName, target.Children.Keys);
+        foreach (var (childName, sourceChild) in source.ChildEntries) {
+            var childIndex = targetChildNameIndices.GetValueOrDefault(childName, 0);
+            targetChildNameIndices[childName] = childIndex + 1;
 
-            if (!target.Children.TryGetValue(childName, out var targetChild)) {
+            if (!target.ChildEntries.TryGetValue(childName, childIndex, out var targetChild)) {
                 targetChild = sourceChild.DeepClone(target, preserveName: true);
                 targetChild.ClearPrefabLinksRecursive();
                 ClearOverrideMarkersRecursive(targetChild);
@@ -480,10 +499,10 @@ internal static class PrefabUtility {
         obj.PrefabOverrides.Clear();
         obj.Transform.PrefabOverrides.Clear();
 
-        foreach (var component in obj.Components.Values)
+        foreach (var component in obj.ComponentEntries.Values)
             component.PrefabOverrides.Clear();
 
-        foreach (var child in obj.Children.Values)
+        foreach (var child in obj.ChildEntries.Values)
             ClearOverrideMarkersRecursive(child);
     }
 
@@ -497,7 +516,7 @@ internal static class PrefabUtility {
         if (objectOverrideCount > 0 || obj.Transform.PrefabOverrides.Count > 0)
             return true;
 
-        foreach (var component in obj.Components.Values)
+        foreach (var component in obj.ComponentEntries.Values)
             if (component.PrefabOverrides.Count > 0)
                 return true;
 
@@ -542,7 +561,7 @@ internal static class PrefabUtility {
                 return true;
         }
 
-        foreach (var child in obj.Children.Values)
+        foreach (var child in obj.ChildEntries.Values)
             if (ContainsPrefabReference(child, prefabFile))
                 return true;
 
@@ -567,7 +586,7 @@ internal static class PrefabUtility {
                 transforms[obj] = (obj.Transform.Pos, obj.Transform.Rot);
         }
 
-        foreach (var child in obj.Children.Values)
+        foreach (var child in obj.ChildEntries.Values)
             CapturePrefabRootTransformsRecursive(child, prefabFile, transforms);
     }
 

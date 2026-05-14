@@ -198,14 +198,14 @@ internal static class ScriptCompiler {
 
     private static void ReloadScripts(Obj obj) {
 
-        foreach (var component in obj.Components.Values) {
+        foreach (var component in obj.ComponentEntries.Values) {
             if (component is Script script) {
                 script.PrepareForHotReload();
                 script.UnloadAndQuit();
             }
         }
 
-        foreach (var child in obj.Children.Values.ToArray()) ReloadScripts(child);
+        foreach (var child in obj.ChildEntries.Values.ToArray()) ReloadScripts(child);
     }
 
     public static bool ConsumePendingPlayModeRefresh() {

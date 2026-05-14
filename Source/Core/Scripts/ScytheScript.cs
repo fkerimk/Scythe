@@ -30,13 +30,24 @@ internal abstract class ScytheScript {
 
     /// <summary>Find a component on this Obj by type.</summary>
     public T? GetComponent<T>() where T : Component {
-        foreach (var c in Obj.Components.Values)
+        foreach (var c in Obj.ComponentEntries.Values)
             if (c is T found) return found;
         return null;
     }
 
+    public List<T> GetComponents<T>() where T : Component {
+        var result = new List<T>();
+
+        foreach (var c in Obj.ComponentEntries.Values)
+            if (c is T found) result.Add(found);
+
+        return result;
+    }
+
     /// <summary>Find a component in a descendant chain by object path segments.</summary>
     public Component? FindComponent(params string[] names) => Obj.FindComponent(names);
+
+    public Obj? GetChildAt(int index) => Obj.GetChildAt(index);
 
     /// <summary>Re-parent this Obj.</summary>
     public void SetParent(Obj? parent, bool keepWorld = false) => Obj.SetParent(parent, keepWorld);

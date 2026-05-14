@@ -453,24 +453,24 @@ internal static unsafe class Editor {
             IsDirty = source.IsDirty
         };
 
-        foreach (var child in source.Root.Children.Values)
+        foreach (var child in source.Root.ChildEntries.Values)
             child.DeepClone(clone.Root, preserveName: true);
 
         return clone;
     }
 
     private static void ReloadPhysics(Obj obj) {
-        if (obj.Components.TryGetValue("Rigidbody", out var rb)) {
+        if (obj.ComponentEntries.TryGetValue("Rigidbody", out var rb)) {
             rb.IsLoaded = false;
             rb.Load();
             rb.IsLoaded = true;
         }
 
-        foreach (var child in obj.Children.Values) ReloadPhysics(child);
+        foreach (var child in obj.ChildEntries.Values) ReloadPhysics(child);
     }
 
     private static void RenderOutline(Obj obj) {
-        foreach (var component in obj.Components.Values) {
+        foreach (var component in obj.ComponentEntries.Values) {
             if (component is not Model { IsLoaded: true } model) continue;
 
             // Override shaders
@@ -496,6 +496,6 @@ internal static unsafe class Editor {
                 model.Draw();
         }
 
-        foreach (var child in obj.Children.Values) RenderOutline(child);
+        foreach (var child in obj.ChildEntries.Values) RenderOutline(child);
     }
 }

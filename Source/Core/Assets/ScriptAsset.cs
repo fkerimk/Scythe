@@ -90,11 +90,11 @@ internal class ScriptAsset : Asset {
 
     private void ApplyConfigToScripts(Obj obj) {
 
-        foreach (var component in obj.Components.Values)
+        foreach (var component in obj.ComponentEntries.Values)
             if (component is Script script && script.UsesAsset(this))
                 script.ReapplyStoredFieldValues(this);
 
-        foreach (var child in obj.Children.Values) ApplyConfigToScripts(child);
+        foreach (var child in obj.ChildEntries.Values) ApplyConfigToScripts(child);
     }
 
     private AssetSidecarData ReadSidecarData() {

@@ -15,6 +15,7 @@ internal class Level {
 #if !SCYTHE_RUNTIME_BUILD
     private static readonly JsonDiffPatch JsonDiffer = new();
 #endif
+    private const string ComponentTypeToken = "$ComponentType";
 
     // Custom converter to handle path relativization
     public class RelativePathConverter : JsonConverter {
@@ -171,10 +172,8 @@ internal class Level {
                     if (parsedAmbientColor.HasValue) AmbientColor = parsedAmbientColor.Value;
                 }
 
-                if (rawData["Root"]?["Children"] is JObject children) {
-
-                    foreach (var property in children.Properties()) BuildHierarchy(new KeyValuePair<string, JToken>(property.Name, property.Value), Root);
-                }
+                foreach (var (childName, childToken) in EnumerateChildTokens(rawData["Root"]?["Children"]))
+                    BuildHierarchy(childToken, Root, childName);
 
                 PrefabUtility.ApplyPrefabInstancesPreservingRootPlacement(this);
 
@@ -212,22 +211,11 @@ internal class Level {
         return root.ToString(Formatting.Indented);
     }
 
-    private static JObject BuildRootSnapshot(Obj root, JsonSerializer serializer) {
-
-        var children = new JObject();
-
-        foreach (var child in root.Children.Values) {
-
-            var childToken = BuildObjectSnapshot(child, serializer);
-            if (childToken != null)
-                children[child.Name] = childToken;
-        }
-
-        return new JObject {
+    private static JObject BuildRootSnapshot(Obj root, JsonSerializer serializer) =>
+        new() {
             ["Name"] = root.Name,
-            ["Children"] = children
+            ["Children"] = BuildChildrenSnapshot(root.ChildEntries.Values, serializer)
         };
-    }
 
     private static JObject? BuildObjectSnapshot(Obj obj, JsonSerializer serializer) {
 
@@ -248,6 +236,7 @@ internal class Level {
         }
 
         var token = new JObject();
+        token["Name"] = obj.Name;
 
         if (isPrefabRoot) {
             token["Prefab"] = obj.Prefab;
@@ -269,62 +258,31 @@ internal class Level {
             if (transform != null) token["Transform"] = transform;
         }
 
-        var components = new JObject();
-
-        foreach (var (componentName, component) in obj.Components) {
-
-            if (!sourceObj.Components.TryGetValue(componentName, out var sourceComponent)) {
-                components[componentName] = JObject.FromObject(component, serializer);
-                continue;
-            }
-
-            var componentToken = BuildSparseComponentSnapshot(component, sourceComponent, component.PrefabOverrides, serializer);
-            if (componentToken != null) components[componentName] = componentToken;
-        }
-
+        var components = BuildSparseComponentsSnapshot(obj, sourceObj, serializer);
         if (components.Count > 0) token["Components"] = components;
 
-        var children = new JObject();
-
-        foreach (var child in obj.Children.Values) {
-
-            var childToken = BuildObjectSnapshot(child, serializer);
-            if (childToken != null) children[child.Name] = childToken;
-        }
-
+        var children = BuildChildrenSnapshot(obj.ChildEntries.Values.Select(child => BuildObjectSnapshot(child, serializer)).OfType<JObject>());
         if (children.Count > 0) token["Children"] = children;
 
         return token.Count == 0 ? null : token;
     }
 
-    private static JObject CreateFullObjectSnapshot(Obj obj, JsonSerializer serializer) {
-
-        var token = JObject.FromObject(obj, serializer);
-        StripPrefabMetadata(token);
-        return token;
-    }
+    private static JObject CreateFullObjectSnapshot(Obj obj, JsonSerializer serializer) =>
+        new JObject {
+            ["Name"] = obj.Name,
+            ["Prefab"] = string.IsNullOrWhiteSpace(obj.Prefab) ? null : obj.Prefab,
+            ["PrefabPath"] = string.IsNullOrWhiteSpace(obj.PrefabPath) ? null : obj.PrefabPath,
+            [nameof(Obj.PrefabOverrides)] = obj.PrefabOverrides.Count > 0 ? JArray.FromObject(obj.PrefabOverrides.OrderBy(value => value)) : null,
+            ["Transform"] = CreateFullComponentSnapshot(obj.Transform, serializer),
+            ["Components"] = BuildFullComponentsSnapshot(obj.ComponentEntries.Values, serializer),
+            ["Children"] = BuildChildrenSnapshot(obj.ChildEntries.Values.Select(child => CreateFullObjectSnapshot(child, serializer)))
+        }.WithoutNullProperties();
 
     private static JObject CreateFullComponentSnapshot(object component, JsonSerializer serializer) {
 
         var token = JObject.FromObject(component, serializer);
         token.Remove(nameof(Component.PrefabOverrides));
         return token;
-    }
-
-    private static void StripPrefabMetadata(JObject token) {
-
-        token.Remove(nameof(Obj.PrefabOverrides));
-
-        if (token["Transform"] is JObject transformToken)
-            transformToken.Remove(nameof(Component.PrefabOverrides));
-
-        if (token["Components"] is JObject componentsToken)
-            foreach (var componentToken in componentsToken.Properties().Select(property => property.Value).OfType<JObject>())
-                componentToken.Remove(nameof(Component.PrefabOverrides));
-
-        if (token["Children"] is JObject childrenToken)
-            foreach (var childToken in childrenToken.Properties().Select(property => property.Value).OfType<JObject>())
-                StripPrefabMetadata(childToken);
     }
 
     private static JObject? BuildSparseComponentSnapshot(object target, object source, IEnumerable<string> overrides, JsonSerializer serializer) {
@@ -370,11 +328,10 @@ internal class Level {
 #endif
     }
 
-    private static void BuildHierarchy(KeyValuePair<string, JToken> dataPair, Obj parent) {
+    private static void BuildHierarchy(JObject data, Obj parent, string? legacyName = null) {
 
-        if (dataPair.Value is not JObject data) return;
-
-        var name = dataPair.Key;
+        var name = data["Name"]?.Value<string>() ?? legacyName;
+        if (string.IsNullOrWhiteSpace(name)) return;
         var obj = MakeObject(name, parent);
 
         // Load transform
@@ -392,28 +349,31 @@ internal class Level {
         }
 
         // Load components
-        var components = new Dictionary<string, Component>();
+        var components = new ComponentCollection();
 
-        if (data["Components"] is JObject jsonComponents) {
+        foreach (var (typeName, componentToken) in EnumerateComponentTokens(data["Components"])) {
 
-            foreach (var property in jsonComponents.Properties()) {
+            if (Activator.CreateInstance(Type.GetType(typeName) ?? throw new KeyNotFoundException($"{typeName} cant be found"), obj) is not Component component) continue;
 
-                if (Activator.CreateInstance(Type.GetType(property.Name) ?? throw new KeyNotFoundException($"{property.Name} cant be found"), obj) is not Component component) continue;
+            var componentData = (JObject)componentToken.DeepClone();
+            componentData.Remove(ComponentTypeToken);
 
-                JsonConvert.PopulateObject(data["Components"]![property.Name]!.ToString(), component);
+            if (componentData["Type"] is JValue { Type: JTokenType.String } typeMetadata && string.Equals(typeMetadata.Value<string>(), typeName, StringComparison.Ordinal))
+                componentData.Remove("Type");
 
-                if (data["Components"]![property.Name]!["PrefabOverrides"] is JArray componentOverrides) {
+            JsonConvert.PopulateObject(componentData.ToString(), component);
+
+            if (componentToken["PrefabOverrides"] is JArray componentOverrides) {
                     component.PrefabOverrides.Clear();
 
                     foreach (var value in componentOverrides.Values<string>().Where(value => !string.IsNullOrWhiteSpace(value)))
                         component.PrefabOverrides.Add(value!);
                 }
 
-                components[property.Name] = component;
-            }
+            components.Add(component);
         }
 
-        obj.Components = components;
+        obj.ComponentEntries = components;
 
         obj.Prefab = data["Prefab"]?.Value<string>() ?? "";
         obj.PrefabPath = data["PrefabPath"]?.Value<string>() ?? "";
@@ -425,15 +385,16 @@ internal class Level {
                 obj.PrefabOverrides.Add(value!);
         }
 
-        if (data["Children"] is not JObject children) return;
-
-        foreach (var property in children.Properties()) BuildHierarchy(new KeyValuePair<string, JToken>(property.Name, property.Value), obj);
+        foreach (var (childName, childToken) in EnumerateChildTokens(data["Children"]))
+            BuildHierarchy(childToken, obj, childName);
     }
 
     public static Obj MakeObject(string name, Obj? parent) {
 
-        var obj = new Obj(parent == null ? name : Generators.AvailableName(name, parent.Children.Keys), parent);
-        obj.SetParent(parent);
+        var obj = new Obj(name, parent);
+
+        if (parent != null)
+            parent.ChildEntries.Add(obj);
 
         if (parent?.FindPrefabRoot() != null && Core.ActiveLevel?.IsPrefabDocument != true)
             PrefabUtility.MarkAddedChildSubtree(obj);
@@ -458,4 +419,111 @@ internal class Level {
 
     public Obj? Find(string[] names) => Root.Find(names);
     public Component? FindComponent(string[] names) => Root.FindComponent(names);
+
+    private static JArray BuildChildrenSnapshot(IEnumerable<Obj> children, JsonSerializer serializer) =>
+        BuildChildrenSnapshot(children.Select(child => BuildObjectSnapshot(child, serializer)).OfType<JObject>());
+
+    private static JArray BuildChildrenSnapshot(IEnumerable<JObject> children) {
+
+        var array = new JArray();
+
+        foreach (var child in children)
+            array.Add(child);
+
+        return array;
+    }
+
+    private static JArray BuildFullComponentsSnapshot(IEnumerable<Component> components, JsonSerializer serializer) {
+
+        var array = new JArray();
+
+        foreach (var component in components) {
+            var token = CreateFullComponentSnapshot(component, serializer);
+            token[ComponentTypeToken] = component.GetType().Name;
+            array.Add(token);
+        }
+
+        return array;
+    }
+
+    private static JArray BuildSparseComponentsSnapshot(Obj obj, Obj sourceObj, JsonSerializer serializer) {
+
+        var array = new JArray();
+        var sourceComponentsByType = sourceObj.ComponentEntries.Values
+            .GroupBy(component => component.GetType().Name, StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => group.ToList(), StringComparer.Ordinal);
+        var sourceIndices = new Dictionary<string, int>(StringComparer.Ordinal);
+
+        foreach (var component in obj.ComponentEntries.Values) {
+            var typeName = component.GetType().Name;
+            var index = sourceIndices.GetValueOrDefault(typeName, 0);
+            sourceIndices[typeName] = index + 1;
+
+            if (!sourceComponentsByType.TryGetValue(typeName, out var sourceGroup) || index >= sourceGroup.Count) {
+                var fullToken = CreateFullComponentSnapshot(component, serializer);
+                fullToken[ComponentTypeToken] = typeName;
+                array.Add(fullToken);
+                continue;
+            }
+
+            var componentToken = BuildSparseComponentSnapshot(component, sourceGroup[index], component.PrefabOverrides, serializer);
+            if (componentToken == null) continue;
+            componentToken[ComponentTypeToken] = typeName;
+            array.Add(componentToken);
+        }
+
+        return array;
+    }
+
+    private static IEnumerable<(string Name, JObject Token)> EnumerateChildTokens(JToken? childrenToken) {
+
+        switch (childrenToken) {
+            case JArray childrenArray:
+                foreach (var child in childrenArray.OfType<JObject>()) {
+                    var name = child["Name"]?.Value<string>();
+                    if (!string.IsNullOrWhiteSpace(name))
+                        yield return (name!, child);
+                }
+
+                break;
+
+            case JObject childrenObject:
+                foreach (var property in childrenObject.Properties())
+                    if (property.Value is JObject childObject)
+                        yield return (property.Name, childObject);
+
+                break;
+        }
+    }
+
+    private static IEnumerable<(string TypeName, JObject Token)> EnumerateComponentTokens(JToken? componentsToken) {
+
+        switch (componentsToken) {
+            case JArray componentsArray:
+                foreach (var component in componentsArray.OfType<JObject>()) {
+                    var typeName = component[ComponentTypeToken]?.Value<string>() ?? component["Type"]?.Value<string>();
+                    if (!string.IsNullOrWhiteSpace(typeName))
+                        yield return (typeName!, component);
+                }
+
+                break;
+
+            case JObject componentsObject:
+                foreach (var property in componentsObject.Properties())
+                    if (property.Value is JObject componentObject)
+                        yield return (property.Name, componentObject);
+
+                break;
+        }
+    }
+}
+
+internal static class JObjectExtensions {
+    public static JObject WithoutNullProperties(this JObject token) {
+
+        foreach (var property in token.Properties().Where(property => property.Value.Type == JTokenType.Null).ToList())
+            property.Remove();
+
+        return token;
+    }
 }

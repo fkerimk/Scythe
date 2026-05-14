@@ -1,9 +1,11 @@
 {
   "Root": {
     "Name": "Root",
-    "Children": {
-      "Ground": {
-        "Children": {},
+    "Children": [
+      {
+        "Name": "Ground",
+        "Prefab": null,
+        "PrefabPath": null,
         "Transform": {
           "Pos": {
             "Y": -0.05
@@ -18,10 +20,8 @@
             "IsIdentity": true
           }
         },
-        "Prefab": "",
-        "PrefabPath": "",
-        "Components": {
-          "Model": {
+        "Components": [
+          {
             "GUID": "2cd053e9959f4b91ba52c0cb4d7826a6",
             "Path": "Collection/Cube.fbx",
             "Color": {
@@ -30,34 +30,169 @@
               "B": 255,
               "A": 255
             },
-            "AlphaCutoff": 0.5
+            "AlphaCutoff": 0.5,
+            "$ComponentType": "Model"
           },
-          "BoxCollider": {
+          {
             "Size": {
               "X": 1.0,
               "Y": 1.0,
               "Z": 1.0
-            }
+            },
+            "$ComponentType": "BoxCollider"
           },
-          "Rigidbody": {
+          {
             "IsStatic": true,
             "Gravity": false,
-            "Bounciness": 0.0
+            "Bounciness": 0.0,
+            "$ComponentType": "Rigidbody"
           }
-        }
+        ],
+        "Children": []
       },
-      "Player": {
-        "Children": {
-          "Camera Parent": {
-            "Children": {
-              "Rotation": {
-                "Children": {
-                  "Bobbing": {
-                    "Children": {
-                      "Camera": {
-                        "Children": {
-                          "Pistol": {
-                            "Children": {},
+      {
+        "Name": "Player",
+        "Prefab": null,
+        "PrefabPath": null,
+        "Transform": {
+          "Pos": {
+            "Y": 0.2
+          },
+          "Scale": {
+            "X": 1.0,
+            "Y": 1.0,
+            "Z": 1.0
+          },
+          "Rot": {
+            "W": 1.0,
+            "IsIdentity": true
+          }
+        },
+        "Components": [
+          {
+            "Height": 2.0,
+            "Radius": 0.25,
+            "Center": {
+              "Y": 1.0
+            },
+            "$ComponentType": "CapsuleCollider"
+          },
+          {
+            "Friction": 0.0,
+            "Bounciness": 0.0,
+            "FrictionCombine": 1,
+            "BounceCombine": 1,
+            "FreezeRot": {
+              "X": true,
+              "Y": true,
+              "Z": true
+            },
+            "$ComponentType": "Rigidbody"
+          },
+          {
+            "GUID": "39cae3f358b94660800ebb475efdcdf7",
+            "Path": "Collections/FPS/PlayerMovement.cs",
+            "Exposed": {},
+            "$ComponentType": "Script"
+          }
+        ],
+        "Children": [
+          {
+            "Name": "Camera Parent",
+            "Prefab": null,
+            "PrefabPath": null,
+            "Transform": {
+              "Pos": {
+                "Y": 1.75
+              },
+              "Scale": {
+                "X": 1.0,
+                "Y": 1.0,
+                "Z": 1.0
+              },
+              "Rot": {
+                "W": 1.0,
+                "IsIdentity": true
+              }
+            },
+            "Components": [],
+            "Children": [
+              {
+                "Name": "Rotation",
+                "Prefab": null,
+                "PrefabPath": null,
+                "Transform": {
+                  "Scale": {
+                    "X": 1.0,
+                    "Y": 1.0,
+                    "Z": 1.0
+                  },
+                  "Rot": {
+                    "W": 1.0,
+                    "IsIdentity": true
+                  }
+                },
+                "Components": [
+                  {
+                    "GUID": "1f51eb1bdf1c40e38ae44fa0983493b3",
+                    "Path": "Collections/Shared Assets/FirstPersonCamera.cs",
+                    "Exposed": {},
+                    "$ComponentType": "Script"
+                  }
+                ],
+                "Children": [
+                  {
+                    "Name": "Bobbing",
+                    "Prefab": null,
+                    "PrefabPath": null,
+                    "Transform": {
+                      "Scale": {
+                        "X": 1.0,
+                        "Y": 1.0,
+                        "Z": 1.0
+                      },
+                      "Rot": {
+                        "W": 1.0,
+                        "IsIdentity": true
+                      }
+                    },
+                    "Components": [
+                      {
+                        "GUID": "4d4bed84c69c4274977227983260088d",
+                        "Path": "Collections/FPS/HeadBob.cs",
+                        "Exposed": {},
+                        "$ComponentType": "Script"
+                      }
+                    ],
+                    "Children": [
+                      {
+                        "Name": "Camera",
+                        "Prefab": null,
+                        "PrefabPath": null,
+                        "Transform": {
+                          "Scale": {
+                            "X": 1.0,
+                            "Y": 1.0,
+                            "Z": 1.0
+                          },
+                          "Rot": {
+                            "W": 1.0,
+                            "IsIdentity": true
+                          }
+                        },
+                        "Components": [
+                          {
+                            "Fov": 90.0,
+                            "NearClip": 0.01,
+                            "FarClip": 1000.0,
+                            "$ComponentType": "Camera"
+                          }
+                        ],
+                        "Children": [
+                          {
+                            "Name": "Pistol",
+                            "Prefab": null,
+                            "PrefabPath": null,
                             "Transform": {
                               "Pos": {
                                 "Y": -0.2,
@@ -73,10 +208,8 @@
                                 "IsIdentity": true
                               }
                             },
-                            "Prefab": "",
-                            "PrefabPath": "",
-                            "Components": {
-                              "Model": {
+                            "Components": [
+                              {
                                 "GUID": "9847c8670e4a413582f5efda90f899c5",
                                 "Path": "Collections/FPS/Pistol/Pistol.fbx",
                                 "Color": {
@@ -86,151 +219,39 @@
                                   "A": 255
                                 },
                                 "AlphaCutoff": 0.5,
-                                "CastShadows": false
+                                "CastShadows": false,
+                                "$ComponentType": "Model"
                               },
-                              "Animation": {
+                              {
                                 "GUID": "116334fff49941a58c2aea2a58205e3d",
                                 "Path": "Collections/FPS/Pistol/Pistol.fbx",
                                 "IsPlaying": true,
-                                "Looping": true
+                                "Looping": true,
+                                "$ComponentType": "Animation"
                               },
-                              "Script": {
+                              {
                                 "GUID": "9fc9156584494ea6b076491d1511d09e",
                                 "Path": "Collections/FPS/PistolAnimation.cs",
-                                "Exposed": {}
+                                "Exposed": {},
+                                "$ComponentType": "Script"
                               }
-                            }
+                            ],
+                            "Children": []
                           }
-                        },
-                        "Transform": {
-                          "Scale": {
-                            "X": 1.0,
-                            "Y": 1.0,
-                            "Z": 1.0
-                          },
-                          "Rot": {
-                            "W": 1.0,
-                            "IsIdentity": true
-                          }
-                        },
-                        "Prefab": "",
-                        "PrefabPath": "",
-                        "Components": {
-                          "Camera": {
-                            "Fov": 90.0,
-                            "NearClip": 0.01,
-                            "FarClip": 1000.0
-                          }
-                        }
+                        ]
                       }
-                    },
-                    "Transform": {
-                      "Scale": {
-                        "X": 1.0,
-                        "Y": 1.0,
-                        "Z": 1.0
-                      },
-                      "Rot": {
-                        "W": 1.0,
-                        "IsIdentity": true
-                      }
-                    },
-                    "Prefab": "",
-                    "PrefabPath": "",
-                    "Components": {
-                      "Script": {
-                        "GUID": "4d4bed84c69c4274977227983260088d",
-                        "Path": "Collections/FPS/HeadBob.cs",
-                        "Exposed": {}
-                      }
-                    }
+                    ]
                   }
-                },
-                "Transform": {
-                  "Scale": {
-                    "X": 1.0,
-                    "Y": 1.0,
-                    "Z": 1.0
-                  },
-                  "Rot": {
-                    "W": 1.0,
-                    "IsIdentity": true
-                  }
-                },
-                "Prefab": "",
-                "PrefabPath": "",
-                "Components": {
-                  "Script": {
-                    "GUID": "1f51eb1bdf1c40e38ae44fa0983493b3",
-                    "Path": "Collections/Shared Assets/FirstPersonCamera.cs",
-                    "Exposed": {}
-                  }
-                }
+                ]
               }
-            },
-            "Transform": {
-              "Pos": {
-                "Y": 1.75
-              },
-              "Scale": {
-                "X": 1.0,
-                "Y": 1.0,
-                "Z": 1.0
-              },
-              "Rot": {
-                "W": 1.0,
-                "IsIdentity": true
-              }
-            },
-            "Prefab": "",
-            "PrefabPath": "",
-            "Components": {}
+            ]
           }
-        },
-        "Transform": {
-          "Pos": {
-            "Y": 0.2
-          },
-          "Scale": {
-            "X": 1.0,
-            "Y": 1.0,
-            "Z": 1.0
-          },
-          "Rot": {
-            "W": 1.0,
-            "IsIdentity": true
-          }
-        },
-        "Prefab": "",
-        "PrefabPath": "",
-        "Components": {
-          "CapsuleCollider": {
-            "Height": 2.0,
-            "Radius": 0.25,
-            "Center": {
-              "Y": 1.0
-            }
-          },
-          "Rigidbody": {
-            "Friction": 0.0,
-            "Bounciness": 0.0,
-            "FrictionCombine": 1,
-            "BounceCombine": 1,
-            "FreezeRot": {
-              "X": true,
-              "Y": true,
-              "Z": true
-            }
-          },
-          "Script": {
-            "GUID": "39cae3f358b94660800ebb475efdcdf7",
-            "Path": "Collections/FPS/PlayerMovement.cs",
-            "Exposed": {}
-          }
-        }
+        ]
       },
-      "Cube": {
-        "Children": {},
+      {
+        "Name": "Cube",
+        "Prefab": null,
+        "PrefabPath": null,
         "Transform": {
           "Pos": {
             "X": 1.6,
@@ -247,10 +268,8 @@
             "IsIdentity": true
           }
         },
-        "Prefab": "",
-        "PrefabPath": "",
-        "Components": {
-          "Model": {
+        "Components": [
+          {
             "GUID": "2cd053e9959f4b91ba52c0cb4d7826a6",
             "Path": "Collection/Cube.fbx",
             "Color": {
@@ -259,24 +278,30 @@
               "B": 255,
               "A": 255
             },
-            "AlphaCutoff": 0.5
+            "AlphaCutoff": 0.5,
+            "$ComponentType": "Model"
           },
-          "BoxCollider": {
+          {
             "Size": {
               "X": 1.0,
               "Y": 1.0,
               "Z": 1.0
-            }
+            },
+            "$ComponentType": "BoxCollider"
           },
-          "Rigidbody": {
+          {
             "IsStatic": true,
             "Gravity": false,
-            "Bounciness": 0.0
+            "Bounciness": 0.0,
+            "$ComponentType": "Rigidbody"
           }
-        }
+        ],
+        "Children": []
       },
-      "Directional Light": {
-        "Children": {},
+      {
+        "Name": "Directional Light",
+        "Prefab": null,
+        "PrefabPath": null,
         "Transform": {
           "Euler": {
             "X": -7.125016,
@@ -294,10 +319,8 @@
             "W": 0.6532813
           }
         },
-        "Prefab": "",
-        "PrefabPath": "",
-        "Components": {
-          "Light": {
+        "Components": [
+          {
             "Type": 0,
             "ScytheColor": {
               "R": 255,
@@ -307,11 +330,13 @@
             },
             "Intensity": 2.0,
             "Range": 10.0,
-            "ShadowStrength": 1.0
+            "ShadowStrength": 1.0,
+            "$ComponentType": "Light"
           }
-        }
+        ],
+        "Children": []
       }
-    }
+    ]
   },
   "EditorCamera": {
     "Position": {

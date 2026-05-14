@@ -1,9 +1,11 @@
 {
   "Root": {
     "Name": "Root",
-    "Children": {
-      "Directional Light": {
-        "Children": {},
+    "Children": [
+      {
+        "Name": "Directional Light",
+        "Prefab": null,
+        "PrefabPath": null,
         "Transform": {
           "Pos": {
             "Y": -4.4
@@ -25,10 +27,8 @@
             "W": 0.76817775
           }
         },
-        "Prefab": "",
-        "PrefabPath": "",
-        "Components": {
-          "Light": {
+        "Components": [
+          {
             "Type": 0,
             "ScytheColor": {
               "R": 255,
@@ -37,12 +37,16 @@
             },
             "Intensity": 5.0,
             "Range": 10.0,
-            "ShadowStrength": 1.0
+            "ShadowStrength": 1.0,
+            "$ComponentType": "Light"
           }
-        }
+        ],
+        "Children": []
       },
-      "Cube": {
-        "Children": {},
+      {
+        "Name": "Cube",
+        "Prefab": null,
+        "PrefabPath": null,
         "Transform": {
           "Scale": {
             "X": 1.0,
@@ -54,10 +58,8 @@
             "IsIdentity": true
           }
         },
-        "Prefab": "",
-        "PrefabPath": "",
-        "Components": {
-          "Model": {
+        "Components": [
+          {
             "GUID": "2cd053e9959f4b91ba52c0cb4d7826a6",
             "Path": "Collection/Cube.fbx",
             "Color": {
@@ -66,17 +68,23 @@
               "B": 255,
               "A": 100
             },
-            "IsTransparent": true
+            "IsTransparent": true,
+            "CastShadows": false,
+            "$ComponentType": "Model"
           },
-          "Script": {
+          {
             "GUID": "83c3d98dcd574a008094e9597591beda",
             "Path": "Collections/Cube/Rotation.cs",
-            "Exposed": {}
+            "Exposed": {},
+            "$ComponentType": "Script"
           }
-        }
+        ],
+        "Children": []
       },
-      "Camera": {
-        "Children": {},
+      {
+        "Name": "Camera",
+        "Prefab": null,
+        "PrefabPath": null,
         "Transform": {
           "Pos": {
             "X": 3.6000001,
@@ -100,18 +108,20 @@
             "W": 0.37533027
           }
         },
-        "Prefab": "",
-        "PrefabPath": "",
-        "Components": {
-          "Camera": {
+        "Components": [
+          {
             "Fov": 60.0,
             "NearClip": 0.01,
-            "FarClip": 1000.0
+            "FarClip": 1000.0,
+            "$ComponentType": "Camera"
           }
-        }
+        ],
+        "Children": []
       },
-      "Ground": {
-        "Children": {},
+      {
+        "Name": "Ground",
+        "Prefab": null,
+        "PrefabPath": null,
         "Transform": {
           "Pos": {
             "Y": -0.6
@@ -126,10 +136,8 @@
             "IsIdentity": true
           }
         },
-        "Prefab": "",
-        "PrefabPath": "",
-        "Components": {
-          "Model": {
+        "Components": [
+          {
             "GUID": "2cd053e9959f4b91ba52c0cb4d7826a6",
             "Path": "Collection/Cube.fbx",
             "Color": {
@@ -138,11 +146,13 @@
               "B": 255,
               "A": 255
             },
-            "AlphaCutoff": 0.5
+            "AlphaCutoff": 0.5,
+            "$ComponentType": "Model"
           }
-        }
+        ],
+        "Children": []
       }
-    }
+    ]
   },
   "EditorCamera": {
     "Position": {

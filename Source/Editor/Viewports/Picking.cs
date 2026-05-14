@@ -132,7 +132,7 @@ internal static class Picking {
 
         void CheckObj(Obj obj) {
 
-            foreach (var component in obj.Components.Values) {
+            foreach (var component in obj.ComponentEntries.Values) {
 
                 if (component is not Model { IsLoaded: true } model) continue;
                 if (model.AssetRef == null || !model.AssetRef.IsLoaded) continue;
@@ -166,7 +166,7 @@ internal static class Picking {
                 }
             }
 
-            foreach (var child in obj.Children.Values) CheckObj(child);
+            foreach (var child in obj.ChildEntries.Values) CheckObj(child);
         }
     }
 }

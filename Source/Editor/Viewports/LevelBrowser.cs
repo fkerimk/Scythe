@@ -122,8 +122,8 @@ internal class LevelBrowser : Viewport {
         var level = Core.ActiveLevel;
         if (level == null) throw new InvalidOperationException();
 
-        if (level.IsPrefabDocument && level.Root.Children.Count == 1)
-            return level.Root.Children.Values.First();
+        if (level.IsPrefabDocument && level.Root.ChildEntries.Count == 1)
+            return level.Root.ChildEntries.Values.First();
 
         return level.Root;
     }
@@ -137,7 +137,7 @@ internal class LevelBrowser : Viewport {
         var drawList = GetWindowDrawList();
         var objId = obj.GetHashCode();
         var rowId = $"##obj_row_{objId}";
-        var hasChildren = obj.Children.Count > 0;
+        var hasChildren = obj.ChildEntries.Count > 0;
         var openId = GetID($"open##{objId}");
         var isOpen = GetStateStorage().GetInt(openId, 1) != 0;
         var isSelected = SelectedObjects.Contains(obj);
@@ -301,7 +301,7 @@ internal class LevelBrowser : Viewport {
         // Draw child nodes
         if (progress <= 0f) return true;
 
-        var children = obj.Children.Values.ToList();
+        var children = obj.ChildEntries.Values.ToList();
         var cachedChildHeight = _childHeights.GetValueOrDefault(objId, rowHeight);
         var animatedHeight = MathF.Max(1f, cachedChildHeight * visualProgress);
 
@@ -593,16 +593,16 @@ internal class LevelBrowser : Viewport {
             var originalPos = obj.Transform.Pos;
             var originalScale = obj.Transform.Scale;
             var originalRot = obj.Transform.Rot;
-            var siblings = parent.Children.Values.ToList();
+            var siblings = parent.ChildEntries.Values.ToList();
             var siblingIndex = siblings.IndexOf(obj);
             var nextSibling = siblingIndex >= 0 && siblingIndex + 1 < siblings.Count ? siblings[siblingIndex + 1] : null;
 
             obj.Parent = null;
-            parent.Children.Remove(originalName);
+            parent.ChildEntries.Remove(obj);
 
             if (!PrefabUtility.TryInstantiateInto(asset.GUID, parent, out var instance) || instance == null) {
                 obj.Parent = parent;
-                parent.Children[originalName] = obj;
+                parent.ChildEntries.Add(obj);
                 Notifications.Show("Prefab instance creation failed.");
                 return false;
             }
@@ -651,14 +651,6 @@ internal class LevelBrowser : Viewport {
         if (_renamingObj == null) return;
 
         if (string.IsNullOrWhiteSpace(_renameBuf) || _renameBuf == _renamingObj.Name) {
-
-            CancelRename();
-
-            return;
-        }
-
-        // Name duplicate check
-        if (_renamingObj.Parent != null && _renamingObj.Parent.Children.ContainsKey(_renameBuf)) {
 
             CancelRename();
 

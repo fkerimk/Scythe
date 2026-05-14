@@ -935,7 +935,7 @@ internal static class AssetManager {
 
     private static void SyncDependentComponentReferences(Obj obj, Level level, Asset asset) {
 
-        foreach (var component in obj.Components.Values) {
+        foreach (var component in obj.ComponentEntries.Values) {
 
             var props = component.GetType().GetProperties().Where(prop => Attribute.IsDefined(prop, typeof(FindAssetAttribute)));
 
@@ -970,12 +970,12 @@ internal static class AssetManager {
             }
         }
 
-        foreach (var child in obj.Children.Values) SyncDependentComponentReferences(child, level, asset);
+        foreach (var child in obj.ChildEntries.Values) SyncDependentComponentReferences(child, level, asset);
     }
 
     private static void ReloadDependentComponents(Obj obj, Asset asset) {
 
-        foreach (var component in obj.Components.Values) {
+        foreach (var component in obj.ComponentEntries.Values) {
 
             var props = component.GetType().GetProperties().Where(prop => Attribute.IsDefined(prop, typeof(FindAssetAttribute)));
 
@@ -994,7 +994,7 @@ internal static class AssetManager {
             }
         }
 
-        foreach (var child in obj.Children.Values) ReloadDependentComponents(child, asset);
+        foreach (var child in obj.ChildEntries.Values) ReloadDependentComponents(child, asset);
     }
 
     private static void RefreshDependentAssets(Asset asset) {

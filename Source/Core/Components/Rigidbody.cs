@@ -93,7 +93,7 @@ internal class Rigidbody(Obj obj) : Component(obj) {
 
         Obj.DecomposeWorldMatrix(out var pos, out var rot, out var scale);
 
-        if (Obj.Components.TryGetValue("BoxCollider", out var box)) {
+        if (Obj.ComponentEntries.TryGetValue("BoxCollider", out var box)) {
 
             var boxCollider = (BoxCollider)box;
 
@@ -111,7 +111,7 @@ internal class Rigidbody(Obj obj) : Component(obj) {
             }
         }
 
-        if (Obj.Components.TryGetValue("SphereCollider", out var sphere)) {
+        if (Obj.ComponentEntries.TryGetValue("SphereCollider", out var sphere)) {
 
             var sphereCollider = (SphereCollider)sphere;
 
@@ -129,7 +129,7 @@ internal class Rigidbody(Obj obj) : Component(obj) {
             }
         }
 
-        if (Obj.Components.TryGetValue("CapsuleCollider", out var capsule)) {
+        if (Obj.ComponentEntries.TryGetValue("CapsuleCollider", out var capsule)) {
 
             var capsuleCollider = (CapsuleCollider)capsule;
 

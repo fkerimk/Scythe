@@ -72,12 +72,21 @@ internal class ObjectBrowser : Viewport {
 
         var firstObj = targets[0];
 
-        var commonCompNames = firstObj.Components.Keys.Where(k => targets.All(t => t.Components.ContainsKey(k))).OrderBy(k => k, new NaturalStringComparer());
+        var componentTypes = firstObj.ComponentEntries.Values
+            .Select(component => component.GetType().Name)
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(name => name, new NaturalStringComparer());
 
-        foreach (var compName in commonCompNames) {
+        foreach (var compName in componentTypes) {
+            var maxSharedCount = targets.Min(t => t.ComponentEntries.Values.Count(component => component.GetType().Name == compName));
 
-            var compInstances = targets.Select(object (t) => t.Components[compName]).ToList();
-            DrawProperties(compInstances, true, compName, false);
+            for (var index = 0; index < maxSharedCount; index++) {
+                var compInstances = targets
+                    .Select(t => t.ComponentEntries.Values.Where(component => component.GetType().Name == compName).ElementAt(index))
+                    .Cast<object>()
+                    .ToList();
+                DrawProperties(compInstances, true, compName, false);
+            }
         }
 
         DrawAddComponentButton(targets);
@@ -110,19 +119,17 @@ internal class ObjectBrowser : Viewport {
 
             var targetObj = targets[0];
 
-            if (targetObj.Components.ContainsKey(type.Name)) continue;
-
             if (Activator.CreateInstance(type, targetObj) is not Component component) continue;
 
             var compName = type.Name;
 
             History.StartRecording(targetObj, $"Add Component {compName}");
-            targetObj.Components[compName] = component;
+            targetObj.ComponentEntries.Add(component);
             if (component.Load()) component.IsLoaded = true;
             if (Core.ActiveLevel != null) Core.ActiveLevel.IsDirty = true;
 
             History.StopRecording();
-            if (component is Animation anim && targetObj.Components.TryGetValue("Model", out var m)) anim.GUID = (m as Model)!.GUID;
+            if (component is Animation anim && targetObj.ComponentEntries.TryGetValue("Model", out var m)) anim.GUID = (m as Model)!.GUID;
         }
 
         EndPopup();
@@ -1216,14 +1223,15 @@ internal class ObjectBrowser : Viewport {
                     History.Execute(
                         $"Remove {name}",
                         redo: () => {
-                            if (!targetObj.Components.TryGetValue(name, out var current)) return;
+                            var current = targetObj.ComponentEntries.Values.FirstOrDefault(c => ReferenceEquals(c, comp));
+                            if (current == null) return;
                             current.UnloadAndQuit();
-                            targetObj.Components.Remove(name);
+                            targetObj.ComponentEntries.Remove(current);
                             if (Core.ActiveLevel != null) Core.ActiveLevel.IsDirty = true;
                         },
                         undo: () => {
-                            if (targetObj.Components.ContainsKey(name)) return;
-                            targetObj.Components[name] = comp;
+                            if (targetObj.ComponentEntries.Values.Any(c => ReferenceEquals(c, comp))) return;
+                            targetObj.ComponentEntries.Add(comp);
                             if (comp.Load()) comp.IsLoaded = true;
                             if (Core.ActiveLevel != null) Core.ActiveLevel.IsDirty = true;
                         }

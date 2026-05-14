@@ -1,9 +1,11 @@
 {
   "Root": {
     "Name": "Root",
-    "Children": {
-      "Dwarf": {
-        "Children": {},
+    "Children": [
+      {
+        "Name": "Dwarf",
+        "Prefab": null,
+        "PrefabPath": null,
         "Transform": {
           "Euler": {
             "X": 9.562092E-05,
@@ -22,10 +24,8 @@
             "W": 0.99998194
           }
         },
-        "Prefab": "",
-        "PrefabPath": "",
-        "Components": {
-          "Model": {
+        "Components": [
+          {
             "GUID": "cb053817c9994577ae188a1ce387e57a",
             "Path": "Collections/Dwarf/WizardGnome/WizardGnome.fbx",
             "Color": {
@@ -34,20 +34,23 @@
               "B": 255,
               "A": 255
             },
-            "AlphaCutoff": 0.5
+            "AlphaCutoff": 0.5,
+            "$ComponentType": "Model"
           },
-          "Animation": {
+          {
             "GUID": "5f7a4b3df2764935b97a9e9112ca69e2",
             "Path": "Collections/Dwarf/WizardGnome/WizardGnome.fbx",
             "IsPlaying": true,
-            "Looping": true
+            "Looping": true,
+            "$ComponentType": "Animation"
           },
-          "Script": {
+          {
             "GUID": "1e033197308f4d25b49447d90af63b5c",
             "Path": "Collections/Dwarf/Dwarf.cs",
-            "Exposed": {}
+            "Exposed": {},
+            "$ComponentType": "Script"
           },
-          "Rigidbody": {
+          {
             "Friction": 0.0,
             "Bounciness": 0.0,
             "FrictionCombine": 1,
@@ -56,22 +59,57 @@
               "X": true,
               "Y": true,
               "Z": true
-            }
+            },
+            "$ComponentType": "Rigidbody"
           },
-          "SphereCollider": {
+          {
             "Radius": 0.3,
             "Center": {
               "Y": 0.3
-            }
+            },
+            "$ComponentType": "SphereCollider"
           }
-        }
+        ],
+        "Children": []
       },
-      "Environment": {
-        "Children": {
-          "Map": {
-            "Children": {
-              "Block": {
-                "Children": {},
+      {
+        "Name": "Environment",
+        "Prefab": null,
+        "PrefabPath": null,
+        "Transform": {
+          "Scale": {
+            "X": 1.0,
+            "Y": 1.0,
+            "Z": 1.0
+          },
+          "Rot": {
+            "W": 1.0,
+            "IsIdentity": true
+          }
+        },
+        "Components": [],
+        "Children": [
+          {
+            "Name": "Map",
+            "Prefab": null,
+            "PrefabPath": null,
+            "Transform": {
+              "Scale": {
+                "X": 1.0,
+                "Y": 1.0,
+                "Z": 1.0
+              },
+              "Rot": {
+                "W": 1.0,
+                "IsIdentity": true
+              }
+            },
+            "Components": [],
+            "Children": [
+              {
+                "Name": "Block",
+                "Prefab": null,
+                "PrefabPath": null,
                 "Transform": {
                   "Pos": {
                     "Y": -6.0
@@ -86,10 +124,8 @@
                     "IsIdentity": true
                   }
                 },
-                "Prefab": "",
-                "PrefabPath": "",
-                "Components": {
-                  "Model": {
+                "Components": [
+                  {
                     "GUID": "2ffe2e0fb2e241079f8f9a2f78aef85e",
                     "Path": "Collections/Shared Assets/KenneyPlatformerKit/BlockGrassOverhangLargeTall.fbx",
                     "Color": {
@@ -98,9 +134,10 @@
                       "B": 255,
                       "A": 255
                     },
-                    "AlphaCutoff": 0.5
+                    "AlphaCutoff": 0.5,
+                    "$ComponentType": "Model"
                   },
-                  "BoxCollider": {
+                  {
                     "Size": {
                       "X": 200.0,
                       "Y": 200.0,
@@ -108,49 +145,26 @@
                     },
                     "Center": {
                       "Y": 100.0
-                    }
+                    },
+                    "$ComponentType": "BoxCollider"
                   },
-                  "Rigidbody": {
+                  {
                     "IsStatic": true,
                     "Gravity": false,
-                    "Bounciness": 0.0
+                    "Bounciness": 0.0,
+                    "$ComponentType": "Rigidbody"
                   }
-                }
+                ],
+                "Children": []
               }
-            },
-            "Transform": {
-              "Scale": {
-                "X": 1.0,
-                "Y": 1.0,
-                "Z": 1.0
-              },
-              "Rot": {
-                "W": 1.0,
-                "IsIdentity": true
-              }
-            },
-            "Prefab": "",
-            "PrefabPath": "",
-            "Components": {}
+            ]
           }
-        },
-        "Transform": {
-          "Scale": {
-            "X": 1.0,
-            "Y": 1.0,
-            "Z": 1.0
-          },
-          "Rot": {
-            "W": 1.0,
-            "IsIdentity": true
-          }
-        },
-        "Prefab": "",
-        "PrefabPath": "",
-        "Components": {}
+        ]
       },
-      "Camera": {
-        "Children": {},
+      {
+        "Name": "Camera",
+        "Prefab": null,
+        "PrefabPath": null,
         "Transform": {
           "Pos": {
             "Y": 3.0,
@@ -169,23 +183,26 @@
             "W": 0.98078525
           }
         },
-        "Prefab": "",
-        "PrefabPath": "",
-        "Components": {
-          "Camera": {
+        "Components": [
+          {
             "Fov": 60.0,
             "NearClip": 0.01,
-            "FarClip": 1000.0
+            "FarClip": 1000.0,
+            "$ComponentType": "Camera"
           },
-          "Script": {
+          {
             "GUID": "20ced3943a5b464eb4998a5076bd53ef",
             "Path": "Collections/Shared Assets/OrbitalFollowCamera.cs",
-            "Exposed": {}
+            "Exposed": {},
+            "$ComponentType": "Script"
           }
-        }
+        ],
+        "Children": []
       },
-      "Directional Light": {
-        "Children": {},
+      {
+        "Name": "Directional Light",
+        "Prefab": null,
+        "PrefabPath": null,
         "Transform": {
           "Pos": {
             "Y": 3.4
@@ -206,10 +223,8 @@
             "W": 0.6532813
           }
         },
-        "Prefab": "",
-        "PrefabPath": "",
-        "Components": {
-          "Light": {
+        "Components": [
+          {
             "Type": 0,
             "ScytheColor": {
               "R": 255,
@@ -219,21 +234,23 @@
             },
             "Intensity": 10.0,
             "Range": 10.0,
-            "ShadowStrength": 1.0
+            "ShadowStrength": 1.0,
+            "$ComponentType": "Light"
           }
-        }
+        ],
+        "Children": []
       }
-    }
+    ]
   },
   "EditorCamera": {
     "Position": {
-      "X": -2.5978832,
-      "Y": 2.2251418,
-      "Z": -0.4156704
+      "X": -0.7697294,
+      "Y": 3.8364751,
+      "Z": -5.1987667
     },
     "Rotation": {
-      "X": -0.5318403,
-      "Y": 32.474045
+      "X": -0.65184045,
+      "Y": 31.748053
     }
   },
   "GUID": "162de7ccbedf4cfe88fb4611bd60319c",
