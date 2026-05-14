@@ -452,7 +452,6 @@ internal static class Core {
 
         foreach (var level in OpenLevels) {
             StartScripts(level.Root);
-            ReloadPhysicsBodies(level.Root);
         }
     }
 
@@ -463,14 +462,6 @@ internal static class Core {
         }
 
         foreach (var child in obj.Children.Values.ToArray()) StartScripts(child);
-    }
-
-    private static void ReloadPhysicsBodies(Obj obj) {
-
-        if (obj.Components.TryGetValue("Rigidbody", out var rb) && rb is Rigidbody rigidbody && rigidbody.IsLoaded)
-            rigidbody.RebuildBody();
-
-        foreach (var child in obj.Children.Values.ToArray()) ReloadPhysicsBodies(child);
     }
 
     private static void RunLogic(Obj obj) {

@@ -88,6 +88,7 @@ internal class Rigidbody(Obj obj) : Component(obj) {
         if (!CommandLine.Runtime && !Core.IsPlaying) return true;
 
         Body = Physics.World.CreateRigidBody();
+        Physics.TrackBody(Body);
         Body.Tag = this;
 
         Obj.DecomposeWorldMatrix(out var pos, out var rot, out var scale);
@@ -212,18 +213,28 @@ internal class Rigidbody(Obj obj) : Component(obj) {
 
     public override void Unload() {
 
-        if (Body != null) Physics.World.Remove(Body);
+        Physics.TryRemoveBody(Body);
         Body = null;
         Physics.Unregister(this);
     }
 
+    public void OnPhysicsWorldReset() => Body = null;
+
     public void RebuildBody() {
 
         var wasLoaded = IsLoaded;
+        var velocity = Body == null ? Vector3.Zero : Conversion.FromJitter(Body.Velocity);
+        var angularVelocity = Body == null ? Vector3.Zero : Conversion.FromJitter(Body.AngularVelocity);
 
         if (wasLoaded) UnloadAndQuit();
 
         if (!Load()) return;
+
+        if (Body != null && !IsStatic) {
+            Body.Velocity = Conversion.ToJitter(velocity);
+            Body.AngularVelocity = Conversion.ToJitter(angularVelocity);
+            Body.SetActivationState(true);
+        }
 
         IsLoaded = true;
     }
