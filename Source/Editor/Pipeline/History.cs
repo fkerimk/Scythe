@@ -316,6 +316,8 @@ internal static class History {
 
     private static void ApplyPostRestoreEffects(object target) {
 
+        PrefabUtility.RefreshOverrideState(target);
+
         if (target is Component component)
             component.UnloadAndQuit();
         else if (target is ProjectConfig projectConfig)

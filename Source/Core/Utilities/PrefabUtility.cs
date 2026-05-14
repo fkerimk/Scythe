@@ -209,6 +209,25 @@ internal static class PrefabUtility {
         return AssetManager.ResolveReference<PrefabAsset>(ref guid, ref path) == null;
     }
 
+    public static void RefreshOverrideState(object target) {
+
+        ClearSourceCache();
+
+        switch (target) {
+            case Obj obj:
+                RefreshObjectOverrideStateRecursive(obj);
+                break;
+            case Transform transform:
+                RefreshTransformOverrideState(transform);
+                break;
+            case Component component:
+                RefreshComponentOverrideState(component);
+                if (component is Script script)
+                    script.ReapplyStoredFieldValues();
+                break;
+        }
+    }
+
     public static void MarkAsAddedChild(Obj obj) {
 
         if (!obj.PrefabOverrides.Contains(AddedChildMarker))
@@ -622,6 +641,69 @@ internal static class PrefabUtility {
 
     private static bool HasDirectPrefabLink(Obj obj) =>
         !string.IsNullOrWhiteSpace(obj.Prefab) || !string.IsNullOrWhiteSpace(obj.PrefabPath);
+
+    private static void RefreshObjectOverrideStateRecursive(Obj obj) {
+
+        RefreshObjectOverrideState(obj);
+        RefreshTransformOverrideState(obj.Transform);
+
+        foreach (var component in obj.ComponentEntries.Values)
+            RefreshComponentOverrideState(component);
+
+        foreach (var child in obj.ChildEntries.Values)
+            RefreshObjectOverrideStateRecursive(child);
+    }
+
+    private static void RefreshObjectOverrideState(Obj obj) {
+
+        if (obj.FindPrefabRoot() == null) {
+            obj.PrefabOverrides.Clear();
+            return;
+        }
+
+        UpdateObjectOverrideState(obj, nameof(Obj.Name), obj.Name);
+    }
+
+    private static void RefreshTransformOverrideState(Transform transform) {
+
+        if (transform.Obj.FindPrefabRoot() == null) {
+            transform.PrefabOverrides.Clear();
+            return;
+        }
+
+        UpdateTransformOverrideState(transform, nameof(Transform.Pos), transform.Pos);
+        UpdateTransformOverrideState(transform, nameof(Transform.Rot), transform.Rot);
+        UpdateTransformOverrideState(transform, nameof(Transform.Scale), transform.Scale);
+    }
+
+    private static void RefreshComponentOverrideState(Component component) {
+
+        if (component.Obj.FindPrefabRoot() == null) {
+            component.PrefabOverrides.Clear();
+            return;
+        }
+
+        if (IsAddedComponent(component)) {
+            component.PrefabOverrides.Clear();
+            MarkAsAddedComponent(component);
+            return;
+        }
+
+        const BindingFlags flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+
+        foreach (var property in component.GetType().GetProperties(flags)) {
+            if (!property.CanRead || property.GetIndexParameters().Length > 0) continue;
+            if (property.Name is nameof(Component.Obj) or nameof(Component.PrefabOverrides) or nameof(Component.IsLoaded) or nameof(Component.IsSelected)) continue;
+            if (!IsInspectablePrefabProperty(property)) continue;
+
+            UpdateComponentOverrideState(component, property.Name, property.GetValue(component));
+        }
+    }
+
+    private static bool IsInspectablePrefabProperty(PropertyInfo property) =>
+        Attribute.IsDefined(property, typeof(LabelAttribute))
+        || Attribute.IsDefined(property, typeof(JsonPropertyAttribute))
+        || Attribute.IsDefined(property, typeof(RecordHistoryAttribute));
 
     public static bool HasExplicitOverrides(Obj obj) {
 

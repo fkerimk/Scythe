@@ -609,14 +609,16 @@ internal class LevelBrowser : Viewport {
                 parent.ChildEntries.Remove(obj);
             }
 
-            if (instance?.Parent != null) {
-                instance.Parent.ChildEntries.Remove(instance);
-                instance.Dispose();
-                instance = null;
-            }
+            if (instance == null) {
+                if (!PrefabUtility.TryInstantiateInto(asset.GUID, parent, out instance) || instance == null)
+                    return;
+            } else if (instance.Parent != parent) {
+                if (instance.Parent != null)
+                    instance.Parent.ChildEntries.Remove(instance);
 
-            if (!PrefabUtility.TryInstantiateInto(asset.GUID, parent, out instance) || instance == null)
-                return;
+                instance.Parent = parent;
+                parent.ChildEntries.Add(instance);
+            }
 
             instance.Name = originalName;
             instance.Transform.Pos = originalPos;
@@ -637,10 +639,8 @@ internal class LevelBrowser : Viewport {
             undo: () => {
                 if (instance?.Parent != null) {
                     instance.Parent.ChildEntries.Remove(instance);
-                    instance.Dispose();
+                    instance.Parent = null;
                 }
-
-                instance = null;
 
                 if (obj.Parent != parent) {
                     obj.Parent = parent;
