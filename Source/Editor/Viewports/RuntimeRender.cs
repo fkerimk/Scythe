@@ -61,22 +61,6 @@ internal class RuntimeRender : Viewport {
 
             EndGroup();
 
-            // Handle Focus & Mouse Locking
-            if (IsItemHovered() || IsWindowHovered()) {
-
-                if (IsMouseClicked(ImGuiMouseButton.Left) || IsMouseClicked(ImGuiMouseButton.Right)) {
-
-                    if (Core.IsPlaying && !IsCursorHidden()) {
-
-                        DisableCursor();
-
-                        // Center mouse in viewport on click
-                        var imgCenter = ScreenPos + contentAvail / 2f;
-                        SetMousePosition((int)imgCenter.X, (int)imgCenter.Y);
-                    }
-                }
-            }
-
             const float fontSize = 26f;
 
             var fpsText = GetFPS().ToString();

@@ -401,7 +401,6 @@ internal static unsafe class Editor {
             _editorLevelRef = Core.ActiveLevel;
 
             Core.IsPlaying = true;
-            DisableCursor();
             RuntimeRender.IsOpen = true;
             RuntimeRender.ShouldFocus = true;
 
@@ -413,7 +412,8 @@ internal static unsafe class Editor {
             Core.SetActiveLevel(Core.ActiveLevelIndex, clearHistory: false);
             Core.Load();
 
-            if (mouseCenter.HasValue) SetMousePosition((int)mouseCenter.Value.X, (int)mouseCenter.Value.Y);
+            if (mouseCenter.HasValue && IsCursorHidden())
+                SetMousePosition((int)mouseCenter.Value.X, (int)mouseCenter.Value.Y);
 
             Notifications.Show("Play Mode Started");
         } else {
