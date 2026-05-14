@@ -7,8 +7,6 @@ using static ImGuiNET.ImGui;
 namespace Viewports;
 
 internal class Collections : Viewport {
-    private static readonly string HistoryTrashRoot = Path.Combine(Path.GetTempPath(), "ScytheHistory");
-
     private readonly string _collectionsRoot;
     private const string ChildCollectionsLabel = "Collections";
     private const string ProjectLabel = "Project";
@@ -773,11 +771,16 @@ internal class Collections : Viewport {
             }
 
             try {
-                History.Execute(
-                    $"Rename {Path.GetFileName(sourcePath)}",
-                    redo: () => RenameDirectory(sourcePath, newPath),
-                    undo: () => RenameDirectory(newPath, sourcePath)
+                using var transaction = History.Begin($"Rename {Path.GetFileName(sourcePath)}");
+                transaction.CapturePath(sourcePath);
+                transaction.CapturePath(newPath);
+                transaction.After(
+                    redo: () => OnDirectoryPathMoved(sourcePath, newPath),
+                    undo: () => OnDirectoryPathMoved(newPath, sourcePath)
                 );
+                MoveDirectoryFileSystem(sourcePath, newPath);
+                OnDirectoryPathMoved(sourcePath, newPath);
+                if (transaction.Commit()) Notifications.Show(transaction.Description);
             } catch (Exception e) {
                 Notifications.Show($"Rename failed: {e.Message}");
             }
@@ -794,11 +797,21 @@ internal class Collections : Viewport {
             }
 
             try {
-                History.Execute(
-                    $"Rename {Path.GetFileName(sourcePath)}",
-                    redo: () => RenameFile(sourcePath, newPath, hasSidecar),
-                    undo: () => RenameFile(newPath, sourcePath, hasSidecar)
+                using var transaction = History.Begin($"Rename {Path.GetFileName(sourcePath)}");
+                transaction.CapturePath(sourcePath);
+                transaction.CapturePath(newPath);
+                if (hasSidecar) {
+                    transaction.CapturePath(sidecarPath);
+                    transaction.CapturePath(newSidecarPath);
+                }
+
+                transaction.After(
+                    redo: () => OnFilePathMoved(sourcePath, newPath),
+                    undo: () => OnFilePathMoved(newPath, sourcePath)
                 );
+                MoveFileSystem(sourcePath, newPath, hasSidecar);
+                OnFilePathMoved(sourcePath, newPath);
+                if (transaction.Commit()) Notifications.Show(transaction.Description);
             } catch (Exception e) {
                 Notifications.Show($"Rename failed: {e.Message}");
             }
@@ -808,14 +821,18 @@ internal class Collections : Viewport {
         _requestRenameFocus = false;
     }
 
-    private static void RenameDirectory(string sourcePath, string targetPath) {
+    private static void MoveDirectoryFileSystem(string sourcePath, string targetPath) {
 
         Directory.Move(sourcePath, targetPath);
+    }
+
+    private static void OnDirectoryPathMoved(string sourcePath, string targetPath) {
+
         Editor.OnCollectionPathMoved(sourcePath, targetPath);
         SyncSelectionAfterPathMove(sourcePath, targetPath, isDirectory: true);
     }
 
-    private static void RenameFile(string sourcePath, string targetPath, bool hasSidecar) {
+    private static void MoveFileSystem(string sourcePath, string targetPath, bool hasSidecar) {
 
         File.Move(sourcePath, targetPath);
 
@@ -826,6 +843,9 @@ internal class Collections : Viewport {
             if (File.Exists(sourceSidecarPath))
                 File.Move(sourceSidecarPath, targetSidecarPath);
         }
+    }
+
+    private static void OnFilePathMoved(string sourcePath, string targetPath) {
 
         if (CollectionData.IsLevel(sourcePath) || CollectionData.IsPrefab(sourcePath))
             Editor.OnDocumentPathMoved(sourcePath, targetPath);
@@ -873,12 +893,12 @@ internal class Collections : Viewport {
         var selectedBeforeDelete = _selectedPath;
 
         if (_deleteTargetIsDirectory) {
-            var trashPath = BuildHistoryTrashPath(targetPath);
-
-            History.Execute(
+            History.RecordPathChange(
                 $"Delete {Path.GetFileName(targetPath)}",
-                redo: () => MoveDirectoryToTrash(targetPath, trashPath),
-                undo: () => RestoreDirectoryFromTrash(trashPath, targetPath)
+                () => {
+                    if (Directory.Exists(targetPath)) Directory.Delete(targetPath, recursive: true);
+                },
+                targetPath
             );
 
             if (string.Equals(selectedBeforeDelete, targetPath, StringComparison.OrdinalIgnoreCase))
@@ -889,13 +909,13 @@ internal class Collections : Viewport {
         } else {
 
             var sidecarPath = GetSidecarMetaPath(targetPath);
-            var trashPath = BuildHistoryTrashPath(targetPath);
-            var trashSidecarPath = sidecarPath == null ? null : BuildHistoryTrashPath(sidecarPath);
-
-            History.Execute(
+            History.RecordPathChange(
                 $"Delete {Path.GetFileName(targetPath)}",
-                redo: () => MoveFileToTrash(targetPath, trashPath, sidecarPath, trashSidecarPath),
-                undo: () => RestoreFileFromTrash(trashPath, targetPath, trashSidecarPath, sidecarPath)
+                () => {
+                    if (File.Exists(targetPath)) File.Delete(targetPath);
+                    if (!string.IsNullOrWhiteSpace(sidecarPath) && File.Exists(sidecarPath)) File.Delete(sidecarPath);
+                },
+                sidecarPath == null ? [targetPath] : [targetPath, sidecarPath]
             );
 
             if (string.Equals(selectedBeforeDelete, targetPath, StringComparison.OrdinalIgnoreCase)) Editor.SetSelectedAsset(null);
@@ -916,10 +936,12 @@ internal class Collections : Viewport {
         }
 
         try {
-            History.Execute(
+            var sidecarPath = type == CreateItemType.Collection ? null : GetSidecarMetaPathFor(path);
+
+            History.RecordPathChange(
                 $"Create {GetCreateItemLabel(type)} {Path.GetFileName(path)}",
-                redo: () => CreateItemAtPath(type, trimmedName, path),
-                undo: () => DeleteCreatedItemAtPath(type, path)
+                () => CreateItemAtPath(type, trimmedName, path),
+                sidecarPath == null ? [path] : [path, sidecarPath]
             );
 
             Notifications.Show($"{GetCreateItemLabel(type)} '{Path.GetFileName(path)}' created.");
@@ -963,65 +985,6 @@ internal class Collections : Viewport {
                                          }
                                          """);
                 break;
-        }
-    }
-
-    private static void DeleteCreatedItemAtPath(CreateItemType type, string path) {
-
-        if (type == CreateItemType.Collection) {
-            if (Directory.Exists(path)) Directory.Delete(path, true);
-            return;
-        }
-
-        if (File.Exists(path)) File.Delete(path);
-
-        var sidecarPath = GetSidecarMetaPathFor(path);
-        if (File.Exists(sidecarPath)) File.Delete(sidecarPath);
-    }
-
-    private static string BuildHistoryTrashPath(string originalPath) {
-
-        Directory.CreateDirectory(HistoryTrashRoot);
-        return Path.Combine(HistoryTrashRoot, $"{Guid.NewGuid():N}_{Path.GetFileName(originalPath)}");
-    }
-
-    private static void MoveDirectoryToTrash(string sourcePath, string trashPath) {
-
-        if (!Directory.Exists(sourcePath)) return;
-        if (Directory.Exists(trashPath)) Directory.Delete(trashPath, true);
-        Directory.Move(sourcePath, trashPath);
-    }
-
-    private static void RestoreDirectoryFromTrash(string trashPath, string targetPath) {
-
-        if (!Directory.Exists(trashPath)) return;
-        if (Directory.Exists(targetPath)) Directory.Delete(targetPath, true);
-        Directory.Move(trashPath, targetPath);
-    }
-
-    private static void MoveFileToTrash(string sourcePath, string trashPath, string? sidecarPath, string? trashSidecarPath) {
-
-        if (File.Exists(sourcePath)) {
-            if (File.Exists(trashPath)) File.Delete(trashPath);
-            File.Move(sourcePath, trashPath);
-        }
-
-        if (!string.IsNullOrWhiteSpace(sidecarPath) && !string.IsNullOrWhiteSpace(trashSidecarPath) && File.Exists(sidecarPath)) {
-            if (File.Exists(trashSidecarPath)) File.Delete(trashSidecarPath);
-            File.Move(sidecarPath, trashSidecarPath);
-        }
-    }
-
-    private static void RestoreFileFromTrash(string trashPath, string targetPath, string? trashSidecarPath, string? sidecarPath) {
-
-        if (File.Exists(trashPath)) {
-            if (File.Exists(targetPath)) File.Delete(targetPath);
-            File.Move(trashPath, targetPath);
-        }
-
-        if (!string.IsNullOrWhiteSpace(trashSidecarPath) && !string.IsNullOrWhiteSpace(sidecarPath) && File.Exists(trashSidecarPath)) {
-            if (File.Exists(sidecarPath)) File.Delete(sidecarPath);
-            File.Move(trashSidecarPath, sidecarPath);
         }
     }
 
@@ -1300,11 +1263,21 @@ internal class Collections : Viewport {
             var destinationSidecar = GetSidecarMetaPathFor(destinationPath);
             var hasSidecar = !CollectionData.IsLevel(sourcePath) && !CollectionData.IsPrefab(sourcePath) && File.Exists(sourceSidecar);
 
-            History.Execute(
-                $"Move {Path.GetFileName(sourcePath)}",
-                redo: () => RenameFile(sourcePath, destinationPath, hasSidecar),
-                undo: () => RenameFile(destinationPath, sourcePath, hasSidecar)
+            using var transaction = History.Begin($"Move {Path.GetFileName(sourcePath)}");
+            transaction.CapturePath(sourcePath);
+            transaction.CapturePath(destinationPath);
+            if (hasSidecar) {
+                transaction.CapturePath(sourceSidecar);
+                transaction.CapturePath(destinationSidecar);
+            }
+
+            transaction.After(
+                redo: () => OnFilePathMoved(sourcePath, destinationPath),
+                undo: () => OnFilePathMoved(destinationPath, sourcePath)
             );
+            MoveFileSystem(sourcePath, destinationPath, hasSidecar);
+            OnFilePathMoved(sourcePath, destinationPath);
+            if (!transaction.Commit()) return false;
 
             Notifications.Show($"Moved '{Path.GetFileName(sourcePath)}' to '{AssetManager.GetStoredPath(destinationDirectory)}'.");
             return true;

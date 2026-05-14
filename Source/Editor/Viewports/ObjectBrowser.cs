@@ -393,27 +393,23 @@ internal class ObjectBrowser : Viewport {
                     : applyTarget.GetType().GetProperty(propName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
 
                 if (applyObj != null && applyProperty != null && PrefabUtility.TryGetSourcePrefabFile(applyObj, out var prefabFile) && File.Exists(prefabFile)) {
-                    var beforeJson = File.ReadAllText(prefabFile);
                     var beforeLocalValue = CloneApplyHistoryValue(applyProperty.GetValue(applyTarget));
-                    string? afterJson = null;
-                    History.Execute(
-                        $"Apply {propName ?? "Override"} To Prefab",
+                    using var transaction = History.Begin($"Apply {propName ?? "Override"} To Prefab");
+                    transaction.CapturePath(prefabFile);
+                    transaction.After(
                         redo: () => {
-                            if (afterJson == null) {
-                                applyOverride.Invoke();
-                                afterJson = File.Exists(prefabFile) ? File.ReadAllText(prefabFile) : beforeJson;
-                                return;
-                            }
-
-                            if (!PrefabUtility.RestoreSourcePrefabFile(prefabFile, afterJson) || applyTarget == null) return;
+                            if (applyTarget == null) return;
+                            if (!PrefabUtility.RefreshSourcePrefabFile(prefabFile)) return;
                             RestoreApplyHistoryTargetState(applyTarget, applyProperty, pickerType, beforeLocalValue, isOverridden: false);
                         },
                         undo: () => {
-                            if (!PrefabUtility.RestoreSourcePrefabFile(prefabFile, beforeJson) || applyTarget == null) return;
-
+                            if (applyTarget == null) return;
+                            if (!PrefabUtility.RefreshSourcePrefabFile(prefabFile)) return;
                             RestoreApplyHistoryTargetState(applyTarget, applyProperty, pickerType, beforeLocalValue, isOverridden: true);
                         }
                     );
+                    applyOverride.Invoke();
+                    if (transaction.Commit()) Notifications.Show(transaction.Description);
                 } else
                     applyOverride.Invoke();
 
@@ -1321,15 +1317,14 @@ internal class ObjectBrowser : Viewport {
 
                 if (Button("Apply Component To Prefab", new Vector2(GetContentRegionAvail().X, 0))) {
                     if (PrefabUtility.TryGetSourcePrefabFile(component.Obj, out var prefabFile) && File.Exists(prefabFile)) {
-                        var beforeJson = File.ReadAllText(prefabFile);
-                        History.Execute(
-                            $"Apply Component {component.GetType().Name} To Prefab",
-                            redo: () => {
-                                PrefabUtility.ApplyAddedComponentToPrefab(component);
-                                if (Core.ActiveLevel != null) Core.ActiveLevel.IsDirty = true;
-                            },
-                            undo: () => PrefabUtility.RestoreSourcePrefabFile(prefabFile, beforeJson)
+                        using var transaction = History.Begin($"Apply Component {component.GetType().Name} To Prefab");
+                        transaction.CapturePath(prefabFile);
+                        transaction.After(
+                            redo: () => PrefabUtility.RefreshSourcePrefabFile(prefabFile),
+                            undo: () => PrefabUtility.RefreshSourcePrefabFile(prefabFile)
                         );
+                        PrefabUtility.ApplyAddedComponentToPrefab(component);
+                        if (transaction.Commit()) Notifications.Show(transaction.Description);
                     } else
                         PrefabUtility.ApplyAddedComponentToPrefab(component);
 

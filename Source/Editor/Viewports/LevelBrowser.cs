@@ -597,40 +597,43 @@ internal class LevelBrowser : Viewport {
         var nextSibling = siblingIndex >= 0 && siblingIndex + 1 < siblings.Count ? siblings[siblingIndex + 1] : null;
         Obj? instance = null;
 
-        History.Execute(
-            $"Make Prefab {obj.Name}",
-            redo: () => {
-                if (!File.Exists(path) && !PrefabUtility.SavePrefabFromObject(obj, path, out _))
-                    return;
+        Action redo = () => {
+            if (!File.Exists(path) && !PrefabUtility.SavePrefabFromObject(obj, path, out _))
+                return;
 
-                var asset = AssetManager.GetOrImport<PrefabAsset>(path);
-                if (asset == null) return;
+            var asset = AssetManager.GetOrImport<PrefabAsset>(path);
+            if (asset == null) return;
 
-                if (obj.Parent == parent) {
-                    obj.Parent = null;
-                    parent.ChildEntries.Remove(obj);
-                }
+            if (obj.Parent == parent) {
+                obj.Parent = null;
+                parent.ChildEntries.Remove(obj);
+            }
 
-                if (instance?.Parent != null) {
-                    instance.Parent.ChildEntries.Remove(instance);
-                    instance.Dispose();
-                    instance = null;
-                }
+            if (instance?.Parent != null) {
+                instance.Parent.ChildEntries.Remove(instance);
+                instance.Dispose();
+                instance = null;
+            }
 
-                if (!PrefabUtility.TryInstantiateInto(asset.GUID, parent, out instance) || instance == null)
-                    return;
+            if (!PrefabUtility.TryInstantiateInto(asset.GUID, parent, out instance) || instance == null)
+                return;
 
-                instance.Name = originalName;
-                instance.Transform.Pos = originalPos;
-                instance.Transform.Scale = originalScale;
-                instance.Transform.Rot = originalRot;
+            instance.Name = originalName;
+            instance.Transform.Pos = originalPos;
+            instance.Transform.Scale = originalScale;
+            instance.Transform.Rot = originalRot;
 
-                if (nextSibling != null)
-                    instance.MoveBefore(nextSibling);
+            if (nextSibling != null)
+                instance.MoveBefore(nextSibling);
 
-                SelectObject(instance);
-                if (Core.ActiveLevel != null) Core.ActiveLevel.IsDirty = true;
-            },
+            SelectObject(instance);
+            if (Core.ActiveLevel != null) Core.ActiveLevel.IsDirty = true;
+        };
+
+        using var transaction = History.Begin($"Make Prefab {obj.Name}");
+        transaction.CapturePath(path);
+        transaction.Do(
+            redo,
             undo: () => {
                 if (instance?.Parent != null) {
                     instance.Parent.ChildEntries.Remove(instance);
@@ -638,9 +641,6 @@ internal class LevelBrowser : Viewport {
                 }
 
                 instance = null;
-
-                if (File.Exists(path))
-                    File.Delete(path);
 
                 if (obj.Parent != parent) {
                     obj.Parent = parent;
@@ -654,6 +654,10 @@ internal class LevelBrowser : Viewport {
                 if (Core.ActiveLevel != null) Core.ActiveLevel.IsDirty = true;
             }
         );
+        redo();
+
+        if (!transaction.Commit())
+            return false;
 
         Notifications.Show($"Prefab '{Path.GetFileName(path)}' created.");
         return true;

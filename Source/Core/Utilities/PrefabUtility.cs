@@ -626,6 +626,14 @@ internal static class PrefabUtility {
         if (string.IsNullOrWhiteSpace(prefabFile)) return false;
 
         File.WriteAllText(prefabFile, json);
+        RefreshSourcePrefabFile(prefabFile);
+        return true;
+    }
+
+    public static bool RefreshSourcePrefabFile(string prefabFile) {
+
+        if (string.IsNullOrWhiteSpace(prefabFile) || !File.Exists(prefabFile)) return false;
+
         ClearSourceCache();
         AssetManager.EnsureImported(prefabFile);
         RefreshOpenPrefabInstances(prefabFile);

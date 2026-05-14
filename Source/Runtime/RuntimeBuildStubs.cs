@@ -35,11 +35,27 @@ internal static class History {
     public static void Clear() { }
     public static void Undo() { }
     public static void Redo() { }
+    public static HistoryTransaction Begin(string description) => new(description);
+    public static void Record(string description, Action action, params object[] targets) => action();
+    public static void RecordPathChange(string description, Action action, params string[] paths) => action();
     public static void StartRecording(object target, string name = "") { }
     public static void StopRecording() { }
     public static void SetUndoAction(Action action) { }
     public static void SetRedoAction(Action action) { }
+    public static void CapturePath(string path, string? description = null) { }
     public static void Execute(string name, Action redo, Action undo) => redo();
+}
+
+internal sealed class HistoryTransaction(string description) : IDisposable {
+    public string Description { get; } = description;
+    public void Capture(object target) { }
+    public void CapturePath(string path) { }
+    public void Do(Action redo, Action undo) { }
+    public void After(Action redo, Action undo) { }
+    public void SetUndoAction(Action action) { }
+    public void SetRedoAction(Action action) { }
+    public bool Commit() => false;
+    public void Dispose() { }
 }
 
 internal static class Preview {
