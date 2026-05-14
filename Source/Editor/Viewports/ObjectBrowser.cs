@@ -623,7 +623,7 @@ internal class ObjectBrowser : Viewport {
 
         if (CollectionData.IsProjectRoot(state.CurrentPath)) {
 
-            foreach (var collectionPath in CollectionData.EnumerateRootCollections(CollectionAssetKind.Collection))
+            foreach (var collectionPath in EnumerateVisiblePickerCollections(state.CurrentPath, pickerType, CollectionAssetKind.Collection))
                 DrawPickerCollectionEntry(collectionPath, pickerType, state, ref value, targets, propName, ref changed, ref deactivated);
 
             EndChild();
@@ -632,20 +632,20 @@ internal class ObjectBrowser : Viewport {
 
         if (state.ShowChildCollections) {
 
-            foreach (var collectionPath in CollectionData.EnumerateCollections(state.CurrentPath, CollectionAssetKind.Collection))
+            foreach (var collectionPath in EnumerateVisiblePickerCollections(state.CurrentPath, pickerType, CollectionAssetKind.Collection))
                 DrawPickerCollectionEntry(collectionPath, pickerType, state, ref value, targets, propName, ref changed, ref deactivated);
 
             EndChild();
             return;
         }
 
-        var childCollections = CollectionData.EnumerateCollections(state.CurrentPath, CollectionAssetKind.Collection).Count();
+        var childCollections = EnumerateVisiblePickerCollections(state.CurrentPath, pickerType, CollectionAssetKind.Collection).Count();
         if (childCollections > 0)
             DrawPickerVirtualEntry("Collections", childCollections, Colors.GuiCollection.ToVector4(), () => state.ShowChildCollections = true, Icons.FaArchive);
 
         var activeCategory = state.ActiveCategory ?? pickerKind.Value;
         var activePickerType = GetPickerTypeForKind(activeCategory);
-        var typedCollections = CollectionData.EnumerateCollections(state.CurrentPath, activeCategory).ToList();
+        var typedCollections = EnumerateVisiblePickerCollections(state.CurrentPath, pickerType, activeCategory).ToList();
         var files = GetPickerFilesForCategory(state.CurrentPath, activePickerType);
 
         foreach (var collectionPath in typedCollections)
@@ -811,6 +811,32 @@ internal class ObjectBrowser : Viewport {
                 .Where(path => !CollectionData.ShouldHideAssetPath(path, pickerType))
                 .OrderBy(CollectionData.GetNameWithoutExtension, new NaturalStringComparer()!)
                 .ToList();
+
+    private static IEnumerable<string> EnumerateVisiblePickerCollections(string currentPath, string pickerType, CollectionAssetKind kind) =>
+        GetPickerCollections(currentPath, kind).Where(collectionPath => CollectionHasPickerContent(collectionPath, pickerType));
+
+    private static IEnumerable<string> GetPickerCollections(string currentPath, CollectionAssetKind kind) =>
+        CollectionData.IsProjectRoot(currentPath)
+            ? CollectionData.EnumerateRootCollections(kind)
+            : CollectionData.EnumerateCollections(currentPath, kind);
+
+    private static bool CollectionHasPickerContent(string collectionPath, string pickerType) {
+
+        if (CollectionData.TryGetCollectionSelectionValue(collectionPath, pickerType, out _)) return true;
+
+        if (GetPickerFilesForCategory(collectionPath, pickerType).Count > 0) return true;
+
+        foreach (var childCollection in CollectionData.EnumerateCollections(collectionPath, CollectionAssetKind.Collection))
+            if (CollectionHasPickerContent(childCollection, pickerType))
+                return true;
+
+        if (CollectionData.GetKindForPickerType(pickerType) is { } pickerKind)
+            foreach (var typedCollection in CollectionData.EnumerateCollections(collectionPath, pickerKind))
+                if (CollectionHasPickerContent(typedCollection, pickerType))
+                    return true;
+
+        return false;
+    }
 
     private void DrawAnimationPreviewControls(Animation animation) {
 
