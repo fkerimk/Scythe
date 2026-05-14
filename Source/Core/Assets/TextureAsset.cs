@@ -7,7 +7,7 @@ using static Raylib_cs.Raylib;
 internal class TextureAsset : Asset {
 
     public Texture2D Texture;
-    public AssetSidecarData.TextureImportSettings ImportSettings { get; private set; } = new();
+    [RecordHistory] public AssetSidecarData.TextureImportSettings ImportSettings { get; private set; } = new();
     public bool HasTransparentPixels { get; private set; }
     public int SourceWidth { get; private set; }
     public int SourceHeight { get; private set; }

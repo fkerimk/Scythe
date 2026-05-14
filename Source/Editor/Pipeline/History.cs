@@ -186,6 +186,18 @@ internal static class History {
 
         if (target is Component comp)
             comp.UnloadAndQuit();
+        else if (target is ProjectConfig projectConfig)
+            projectConfig.Save();
+        else if (target is Level level) {
+            level.IsDirty = true;
+            level.Save();
+            if (ReferenceEquals(Core.ActiveLevel, level)) Core.ApplyLevelVisualSettings();
+        }
+        else if (target is LevelAsset levelAsset) {
+            levelAsset.SkyboxAmbientIntensity = Math.Clamp(levelAsset.SkyboxAmbientIntensity, 0.0f, 1.0f);
+            levelAsset.SaveSettings();
+            levelAsset.ApplyToActiveLevelIfOpen();
+        }
         else if (target is ScriptAsset scriptAsset) {
             scriptAsset.SaveMeta();
             scriptAsset.ApplyConfigToScripts();
@@ -193,6 +205,10 @@ internal static class History {
         else if (target is MaterialAsset mat) {
             mat.Save();
             mat.ApplyChanges();
+        } else if (target is TextureAsset texture) {
+            texture.SaveMeta();
+            texture.ApplyTextureFilter();
+            AssetManager.ReimportTextureAsync(texture);
         } else if (target is ModelAsset model) {
             model.ApplySettings();
             model.SaveSettings();

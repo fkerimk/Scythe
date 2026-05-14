@@ -461,16 +461,18 @@ internal class ObjectBrowser : Viewport {
 
             DrawShadowedLabel("Name");
             object? name = ProjectConfig.Current.Name;
-            var (nameChanged, _) = DrawInspectorField("ProjectName", ref name, typeof(string), [], null);
+            var (nameChanged, nameDeactivated) = DrawInspectorField("ProjectName", ref name, typeof(string), [ProjectConfig.Current], nameof(ProjectConfig.Name));
 
             if (nameChanged) {
                 ProjectConfig.Current.Name = (string)name!;
                 ProjectConfig.Current.Save();
             }
 
+            if (nameDeactivated) History.StopRecording();
+
             DrawShadowedLabel("Startup Level");
             object? startupLevel = ProjectConfig.Current.StartupLevel;
-            var (levelChanged, _) = DrawInspectorField("ProjectStartupLevel", ref startupLevel, typeof(string), [], null, "LevelAsset");
+            var (levelChanged, levelDeactivated) = DrawInspectorField("ProjectStartupLevel", ref startupLevel, typeof(string), [ProjectConfig.Current], nameof(ProjectConfig.StartupLevel), "LevelAsset");
 
             if (levelChanged) {
                 ProjectConfig.Current.StartupLevel = (string)startupLevel!;
@@ -479,6 +481,8 @@ internal class ObjectBrowser : Viewport {
                     : "";
                 ProjectConfig.Current.Save();
             }
+
+            if (levelDeactivated) History.StopRecording();
         }
 
         EndSection(open);
@@ -501,7 +505,7 @@ internal class ObjectBrowser : Viewport {
 
             DrawShadowedLabel("Skybox");
             object? skybox = level.Skybox;
-            var (skyboxChanged, _) = DrawInspectorField("LevelSkybox", ref skybox, typeof(string), [], null, "TextureAsset");
+            var (skyboxChanged, skyboxDeactivated) = DrawInspectorField("LevelSkybox", ref skybox, typeof(string), [level], nameof(Level.Skybox), "TextureAsset");
 
             if (skyboxChanged) {
                 level.Skybox = (string)skybox!;
@@ -512,24 +516,30 @@ internal class ObjectBrowser : Viewport {
                 Core.ApplyLevelVisualSettings();
             }
 
+            if (skyboxDeactivated) History.StopRecording();
+
             DrawShadowedLabel("Background Color");
             object? backgroundColor = level.BackgroundColor;
-            var (backgroundChanged, _) = DrawInspectorField("LevelBackgroundColor", ref backgroundColor, typeof(Color), [], null);
+            var (backgroundChanged, backgroundDeactivated) = DrawInspectorField("LevelBackgroundColor", ref backgroundColor, typeof(Color), [level], nameof(Level.BackgroundColor));
 
             if (backgroundChanged) {
                 level.BackgroundColor = (Color)backgroundColor!;
                 level.IsDirty = true;
             }
 
+            if (backgroundDeactivated) History.StopRecording();
+
             DrawShadowedLabel("Ambient Color");
             object? ambientColor = level.AmbientColor;
-            var (ambientChanged, _) = DrawInspectorField("LevelAmbientColor", ref ambientColor, typeof(Color), [], null);
+            var (ambientChanged, ambientDeactivated) = DrawInspectorField("LevelAmbientColor", ref ambientColor, typeof(Color), [level], nameof(Level.AmbientColor));
 
             if (ambientChanged) {
                 level.AmbientColor = (Color)ambientColor!;
                 level.IsDirty = true;
                 Core.ApplyLevelVisualSettings();
             }
+
+            if (ambientDeactivated) History.StopRecording();
         }
 
         EndSection(open);
@@ -906,15 +916,7 @@ internal class ObjectBrowser : Viewport {
     private void DrawLevelAssetInspector(LevelAsset levelAsset) {
 
         var path = levelAsset.File;
-        var raw = Newtonsoft.Json.Linq.JObject.Parse(File.ReadAllText(path));
         var levelName = CollectionData.GetLevelDisplayName(path);
-        var skyboxGuid = raw["Skybox"]?.ToObject<string>() ?? "";
-        var skyboxPath = raw["SkyboxPath"]?.ToObject<string>() ?? "";
-        var skyboxTint = raw["SkyboxTint"]?.ToObject<Color?>() ?? Color.White;
-        var backgroundColor = raw["BackgroundColor"]?.ToObject<Color?>() ?? new Color(25, 25, 25, 255);
-        var ambientColor = raw["AmbientColor"]?.ToObject<Color?>() ?? Color.White;
-        var skyboxAmbientEnabled = raw["SkyboxAmbientEnabled"]?.ToObject<bool?>() ?? false;
-        var skyboxAmbientIntensity = Math.Clamp(raw["SkyboxAmbientIntensity"]?.ToObject<float?>() ?? 1.0f, 0.0f, 1.0f);
 
         PushID(levelAsset.GUID);
         DrawSectionHeader("Level Asset", Icons.FaMap, Colors.GuiCollectionLevel, out var open);
@@ -928,68 +930,79 @@ internal class ObjectBrowser : Viewport {
             DrawInfoRow("Name", levelName);
 
             DrawShadowedLabel("Skybox");
-            object? skybox = skyboxGuid;
-            var (skyboxChanged, _) = DrawInspectorField("LevelAssetSkybox", ref skybox, typeof(string), [], null, "TextureAsset");
+            object? skybox = levelAsset.Skybox;
+            var (skyboxChanged, skyboxDeactivated) = DrawInspectorField("LevelAssetSkybox", ref skybox, typeof(string), [levelAsset], nameof(LevelAsset.Skybox), "TextureAsset");
 
             if (skyboxChanged) {
-                skyboxGuid = (string)skybox!;
-                skyboxPath = AssetManager.GetPath<TextureAsset>(skyboxGuid) is { } resolvedPath
+                levelAsset.Skybox = (string)skybox!;
+                levelAsset.SkyboxPath = AssetManager.GetPath<TextureAsset>(levelAsset.Skybox) is { } resolvedPath
                     ? AssetManager.GetStoredPath(resolvedPath)
                     : "";
-                raw["Skybox"] = skyboxGuid;
-                raw["SkyboxPath"] = skyboxPath;
-                SaveLevelAssetSettings(levelAsset, raw, skyboxGuid, skyboxPath, skyboxTint, backgroundColor, ambientColor, skyboxAmbientEnabled, skyboxAmbientIntensity);
+                levelAsset.SaveSettings();
+                levelAsset.ApplyToActiveLevelIfOpen();
             }
+
+            if (skyboxDeactivated) History.StopRecording();
 
             DrawShadowedLabel("Skybox Tint");
-            object? tint = skyboxTint;
-            var (skyboxTintChanged, _) = DrawInspectorField("LevelAssetSkyboxTint", ref tint, typeof(Color), [], null);
+            object? tint = levelAsset.SkyboxTint;
+            var (skyboxTintChanged, skyboxTintDeactivated) = DrawInspectorField("LevelAssetSkyboxTint", ref tint, typeof(Color), [levelAsset], nameof(LevelAsset.SkyboxTint));
 
             if (skyboxTintChanged) {
-                skyboxTint = (Color)tint!;
-                raw["SkyboxTint"] = Newtonsoft.Json.Linq.JToken.FromObject(skyboxTint);
-                SaveLevelAssetSettings(levelAsset, raw, skyboxGuid, skyboxPath, skyboxTint, backgroundColor, ambientColor, skyboxAmbientEnabled, skyboxAmbientIntensity);
+                levelAsset.SkyboxTint = (Color)tint!;
+                levelAsset.SaveSettings();
+                levelAsset.ApplyToActiveLevelIfOpen();
             }
+
+            if (skyboxTintDeactivated) History.StopRecording();
 
             DrawShadowedLabel("Background Color");
-            object? background = backgroundColor;
-            var (backgroundChanged, _) = DrawInspectorField("LevelAssetBackground", ref background, typeof(Color), [], null);
+            object? background = levelAsset.BackgroundColor;
+            var (backgroundChanged, backgroundDeactivated) = DrawInspectorField("LevelAssetBackground", ref background, typeof(Color), [levelAsset], nameof(LevelAsset.BackgroundColor));
 
             if (backgroundChanged) {
-                backgroundColor = (Color)background!;
-                raw["BackgroundColor"] = Newtonsoft.Json.Linq.JToken.FromObject(backgroundColor);
-                SaveLevelAssetSettings(levelAsset, raw, skyboxGuid, skyboxPath, skyboxTint, backgroundColor, ambientColor, skyboxAmbientEnabled, skyboxAmbientIntensity);
+                levelAsset.BackgroundColor = (Color)background!;
+                levelAsset.SaveSettings();
+                levelAsset.ApplyToActiveLevelIfOpen();
             }
+
+            if (backgroundDeactivated) History.StopRecording();
 
             DrawShadowedLabel("Ambient Color");
-            object? ambient = ambientColor;
-            var (ambientChanged, _) = DrawInspectorField("LevelAssetAmbient", ref ambient, typeof(Color), [], null);
+            object? ambient = levelAsset.AmbientColor;
+            var (ambientChanged, ambientDeactivated) = DrawInspectorField("LevelAssetAmbient", ref ambient, typeof(Color), [levelAsset], nameof(LevelAsset.AmbientColor));
 
             if (ambientChanged) {
-                ambientColor = (Color)ambient!;
-                raw["AmbientColor"] = Newtonsoft.Json.Linq.JToken.FromObject(ambientColor);
-                SaveLevelAssetSettings(levelAsset, raw, skyboxGuid, skyboxPath, skyboxTint, backgroundColor, ambientColor, skyboxAmbientEnabled, skyboxAmbientIntensity);
+                levelAsset.AmbientColor = (Color)ambient!;
+                levelAsset.SaveSettings();
+                levelAsset.ApplyToActiveLevelIfOpen();
             }
+
+            if (ambientDeactivated) History.StopRecording();
 
             DrawShadowedLabel("Skybox Ambient");
-            object? skyboxAmbient = skyboxAmbientEnabled;
-            var (skyboxAmbientChanged, _) = DrawInspectorField("LevelAssetSkyboxAmbientEnabled", ref skyboxAmbient, typeof(bool), [], null);
+            object? skyboxAmbient = levelAsset.SkyboxAmbientEnabled;
+            var (skyboxAmbientChanged, skyboxAmbientDeactivated) = DrawInspectorField("LevelAssetSkyboxAmbientEnabled", ref skyboxAmbient, typeof(bool), [levelAsset], nameof(LevelAsset.SkyboxAmbientEnabled));
 
             if (skyboxAmbientChanged) {
-                skyboxAmbientEnabled = (bool)skyboxAmbient!;
-                raw["SkyboxAmbientEnabled"] = skyboxAmbientEnabled;
-                SaveLevelAssetSettings(levelAsset, raw, skyboxGuid, skyboxPath, skyboxTint, backgroundColor, ambientColor, skyboxAmbientEnabled, skyboxAmbientIntensity);
+                levelAsset.SkyboxAmbientEnabled = (bool)skyboxAmbient!;
+                levelAsset.SaveSettings();
+                levelAsset.ApplyToActiveLevelIfOpen();
             }
+
+            if (skyboxAmbientDeactivated) History.StopRecording();
 
             DrawShadowedLabel("Skybox Ambient Intensity");
-            object? skyboxAmbientIntensityValue = skyboxAmbientIntensity;
-            var (skyboxAmbientIntensityChanged, _) = DrawInspectorField("LevelAssetSkyboxAmbientIntensity", ref skyboxAmbientIntensityValue, typeof(float), [], null);
+            object? skyboxAmbientIntensityValue = levelAsset.SkyboxAmbientIntensity;
+            var (skyboxAmbientIntensityChanged, skyboxAmbientIntensityDeactivated) = DrawInspectorField("LevelAssetSkyboxAmbientIntensity", ref skyboxAmbientIntensityValue, typeof(float), [levelAsset], nameof(LevelAsset.SkyboxAmbientIntensity));
 
             if (skyboxAmbientIntensityChanged) {
-                skyboxAmbientIntensity = Math.Clamp((float)skyboxAmbientIntensityValue!, 0.0f, 1.0f);
-                raw["SkyboxAmbientIntensity"] = skyboxAmbientIntensity;
-                SaveLevelAssetSettings(levelAsset, raw, skyboxGuid, skyboxPath, skyboxTint, backgroundColor, ambientColor, skyboxAmbientEnabled, skyboxAmbientIntensity);
+                levelAsset.SkyboxAmbientIntensity = Math.Clamp((float)skyboxAmbientIntensityValue!, 0.0f, 1.0f);
+                levelAsset.SaveSettings();
+                levelAsset.ApplyToActiveLevelIfOpen();
             }
+
+            if (skyboxAmbientIntensityDeactivated) History.StopRecording();
 
             Columns(1);
             PopStyleVar();
@@ -997,24 +1010,6 @@ internal class ObjectBrowser : Viewport {
 
         EndSection(open);
         PopID();
-    }
-
-    private static void SaveLevelAssetSettings(LevelAsset levelAsset, Newtonsoft.Json.Linq.JObject raw, string skyboxGuid, string skyboxPath, Color skyboxTint, Color backgroundColor, Color ambientColor, bool skyboxAmbientEnabled, float skyboxAmbientIntensity) {
-
-        File.WriteAllText(levelAsset.File, raw.ToString(Newtonsoft.Json.Formatting.Indented));
-        AssetManager.ReloadAsset(levelAsset);
-
-        if (Core.ActiveLevel == null) return;
-        if (!Path.GetFullPath(Core.ActiveLevel.JsonPath).Equals(Path.GetFullPath(levelAsset.File), StringComparison.OrdinalIgnoreCase)) return;
-
-        Core.ActiveLevel.Skybox = skyboxGuid;
-        Core.ActiveLevel.SkyboxPath = skyboxPath;
-        Core.ActiveLevel.SkyboxTint = skyboxTint;
-        Core.ActiveLevel.BackgroundColor = backgroundColor;
-        Core.ActiveLevel.AmbientColor = ambientColor;
-        Core.ActiveLevel.SkyboxAmbientEnabled = skyboxAmbientEnabled;
-        Core.ActiveLevel.SkyboxAmbientIntensity = skyboxAmbientIntensity;
-        Core.ApplyLevelVisualSettings();
     }
 
     private void DrawModelAssetInspector(ModelAsset model) {
@@ -1455,10 +1450,11 @@ internal class ObjectBrowser : Viewport {
             if (selectedFormat < 0) selectedFormat = 0;
             SetNextItemWidth(GetContentRegionAvail().X);
             if (Combo("##texture_format", ref selectedFormat, formatOptions, formatOptions.Length)) {
-
+                History.StartRecording(texture, nameof(TextureAsset.ImportSettings));
                 texture.ImportSettings.Format = formatOptions[selectedFormat];
                 texture.SaveMeta();
                 AssetManager.ReimportTextureAsync(texture);
+                History.StopRecording();
             }
             NextColumn();
 
@@ -1475,10 +1471,11 @@ internal class ObjectBrowser : Viewport {
             DrawShadowedLabel("Max Size");
             SetNextItemWidth(GetContentRegionAvail().X);
             if (Combo("##texture_max_size", ref selectedMaxSize, maxSizeLabels, maxSizeLabels.Length)) {
-
+                History.StartRecording(texture, nameof(TextureAsset.ImportSettings));
                 texture.ImportSettings.MaxSize = maxSizeOptions[selectedMaxSize];
                 texture.SaveMeta();
                 AssetManager.ReimportTextureAsync(texture);
+                History.StopRecording();
             }
             NextColumn();
 
@@ -1489,10 +1486,11 @@ internal class ObjectBrowser : Viewport {
             if (selectedResize < 0) selectedResize = 1;
             SetNextItemWidth(GetContentRegionAvail().X);
             if (Combo("##texture_resize_filter", ref selectedResize, resizeOptions, resizeOptions.Length)) {
-
+                History.StartRecording(texture, nameof(TextureAsset.ImportSettings));
                 texture.ImportSettings.ResizeFilter = resizeOptions[selectedResize];
                 texture.SaveMeta();
                 AssetManager.ReimportTextureAsync(texture);
+                History.StopRecording();
             }
             EndDisabled();
             NextColumn();
@@ -1504,10 +1502,11 @@ internal class ObjectBrowser : Viewport {
             if (selectedCompression < 0) selectedCompression = 1;
             SetNextItemWidth(GetContentRegionAvail().X);
             if (Combo("##texture_compression", ref selectedCompression, compressionOptions, compressionOptions.Length)) {
-
+                History.StartRecording(texture, nameof(TextureAsset.ImportSettings));
                 texture.ImportSettings.Compression = compressionOptions[selectedCompression];
                 texture.SaveMeta();
                 AssetManager.ReimportTextureAsync(texture);
+                History.StopRecording();
             }
             EndDisabled();
             NextColumn();
@@ -1520,12 +1519,15 @@ internal class ObjectBrowser : Viewport {
             if (SliderInt("##texture_quality", ref quality, 1, 100))
                 _pendingTextureQuality[texture.GUID] = quality;
 
+            if (IsItemActivated()) History.StartRecording(texture, nameof(TextureAsset.ImportSettings));
+
             if (IsItemDeactivatedAfterEdit()) {
 
                 texture.ImportSettings.Quality = quality;
                 _pendingTextureQuality[texture.GUID] = quality;
                 texture.SaveMeta();
                 AssetManager.ReimportTextureAsync(texture);
+                History.StopRecording();
             }
             EndDisabled();
             NextColumn();
@@ -1536,10 +1538,11 @@ internal class ObjectBrowser : Viewport {
             if (selectedTextureFilter < 0) selectedTextureFilter = 1;
             SetNextItemWidth(GetContentRegionAvail().X);
             if (Combo("##texture_filter", ref selectedTextureFilter, textureFilterOptions, textureFilterOptions.Length)) {
-
+                History.StartRecording(texture, nameof(TextureAsset.ImportSettings));
                 texture.ImportSettings.TextureFilter = textureFilterOptions[selectedTextureFilter];
                 texture.SaveMeta();
                 AssetManager.ApplyTextureFilterAsync(texture);
+                History.StopRecording();
             }
             NextColumn();
 

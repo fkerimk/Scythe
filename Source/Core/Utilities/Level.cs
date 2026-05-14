@@ -81,13 +81,13 @@ internal class Level {
     public string JsonPath { get; set; } = null!;
     public bool IsPrefabDocument { get; private set; }
     public bool IsDirty { get; set; }
-    [JsonProperty] public string Skybox { get; set; } = "";
-    [JsonProperty] public string SkyboxPath { get; set; } = "";
-    [JsonProperty] public Color SkyboxTint { get; set; } = Color.White;
-    [JsonProperty] public Color BackgroundColor { get; set; } = new Color(25, 25, 25, 255);
-    [JsonProperty] public Color AmbientColor { get; set; } = Color.White;
-    [JsonProperty] public bool SkyboxAmbientEnabled { get; set; }
-    [JsonProperty] public float SkyboxAmbientIntensity { get; set; } = 1.0f;
+    [JsonProperty, RecordHistory] public string Skybox { get; set; } = "";
+    [JsonProperty, RecordHistory] public string SkyboxPath { get; set; } = "";
+    [JsonProperty, RecordHistory] public Color SkyboxTint { get; set; } = Color.White;
+    [JsonProperty, RecordHistory] public Color BackgroundColor { get; set; } = new Color(25, 25, 25, 255);
+    [JsonProperty, RecordHistory] public Color AmbientColor { get; set; } = Color.White;
+    [JsonProperty, RecordHistory] public bool SkyboxAmbientEnabled { get; set; }
+    [JsonProperty, RecordHistory] public float SkyboxAmbientIntensity { get; set; } = 1.0f;
 
     [JsonProperty] public readonly Obj Root = null!;
     [JsonProperty] public CameraData? EditorCamera;
