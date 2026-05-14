@@ -28,21 +28,10 @@ internal abstract class ScytheScript {
     /// <summary>Called every frame.</summary>
     public virtual void Loop(float dt) { }
 
-    /// <summary>Find a component on this Obj by type.</summary>
-    public T? GetComponent<T>() where T : Component {
-        foreach (var c in Obj.ComponentEntries.Values)
-            if (c is T found) return found;
-        return null;
-    }
+    /// <summary>Find a component or attached ScytheScript on this Obj by type.</summary>
+    public T? GetComponent<T>() where T : class => Obj.GetComponent<T>();
 
-    public List<T> GetComponents<T>() where T : Component {
-        var result = new List<T>();
-
-        foreach (var c in Obj.ComponentEntries.Values)
-            if (c is T found) result.Add(found);
-
-        return result;
-    }
+    public List<T> GetComponents<T>() where T : class => Obj.GetComponents<T>();
 
     /// <summary>Find a component in a descendant chain by object path segments.</summary>
     public Component? FindComponent(params string[] names) => Obj.FindComponent(names);

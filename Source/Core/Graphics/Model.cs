@@ -21,7 +21,7 @@ internal class Model(Obj obj) : Component(obj) {
     [Label("Transparent"), JsonProperty, RecordHistory]
     public bool IsTransparent { get; set; }
 
-    [Label("Alpha Cutoff"), JsonProperty, RecordHistory]
+    [Label("Alpha Cutoff"), JsonProperty, RecordHistory, DefaultValue(0.5f)]
     public float AlphaCutoff { get; set; } = 0.5f;
 
     [Label("Cast Shadows"), JsonProperty, RecordHistory, DefaultValue(true)]

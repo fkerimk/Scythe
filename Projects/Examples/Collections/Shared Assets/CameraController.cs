@@ -7,10 +7,10 @@ internal class CameraController : ScytheScript {
     
     [Config] public float Sensitivity = 0.3f;
     
-    protected Vector2 TargetRot = Vector2.Zero;
-    protected Vector3 TargetPos = Vector3.Zero;
+    public Vector2 TargetRot = Vector2.Zero;
+    public Vector3 TargetPos = Vector3.Zero;
     
-    protected Obj? FollowTarget;
+    public Obj? FollowTarget;
     
     public override void Start() {
     

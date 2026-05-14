@@ -30,7 +30,6 @@
               "B": 255,
               "A": 255
             },
-            "AlphaCutoff": 0.5,
             "$ComponentType": "Model"
           },
           {
@@ -92,6 +91,12 @@
           {
             "GUID": "39cae3f358b94660800ebb475efdcdf7",
             "Path": "Collections/FPS/PlayerMovement.cs",
+            "Exposed": {},
+            "$ComponentType": "Script"
+          },
+          {
+            "GUID": "c4b5e23733264efa97d6a46dce4bec1a",
+            "Path": "Collections/FPS/PlayerRotation.cs",
             "Exposed": {},
             "$ComponentType": "Script"
           }
@@ -218,7 +223,6 @@
                                   "B": 255,
                                   "A": 255
                                 },
-                                "AlphaCutoff": 0.5,
                                 "CastShadows": false,
                                 "$ComponentType": "Model"
                               },
@@ -278,7 +282,6 @@
               "B": 255,
               "A": 255
             },
-            "AlphaCutoff": 0.5,
             "$ComponentType": "Model"
           },
           {

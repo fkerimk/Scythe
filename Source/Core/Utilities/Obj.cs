@@ -303,11 +303,33 @@ internal class Obj {
 
     public Obj? GetChildAt(int index) => ChildEntries.GetAt(index);
 
-    public T? GetComponent<T>() where T : Component =>
-        ComponentEntries.Values.OfType<T>().FirstOrDefault();
+    public T? GetComponent<T>() where T : class {
 
-    public List<T> GetComponents<T>() where T : Component =>
-        ComponentEntries.Values.OfType<T>().ToList();
+        foreach (var component in ComponentEntries.Values) {
+            if (component is T typedComponent)
+                return typedComponent;
+
+            if (component is Script { Instance: T typedScript })
+                return typedScript;
+        }
+
+        return null;
+    }
+
+    public List<T> GetComponents<T>() where T : class {
+
+        var result = new List<T>();
+
+        foreach (var component in ComponentEntries.Values) {
+            if (component is T typedComponent)
+                result.Add(typedComponent);
+
+            if (component is Script { Instance: T typedScript })
+                result.Add(typedScript);
+        }
+
+        return result;
+    }
 
     public static bool IsAncestorOf(Obj ancestor, Obj? target) {
 

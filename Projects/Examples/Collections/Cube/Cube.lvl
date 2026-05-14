@@ -69,7 +69,7 @@
               "A": 100
             },
             "IsTransparent": true,
-            "CastShadows": false,
+            "AlphaCutoff": 0.0,
             "$ComponentType": "Model"
           },
           {
@@ -146,7 +146,6 @@
               "B": 255,
               "A": 255
             },
-            "AlphaCutoff": 0.5,
             "$ComponentType": "Model"
           }
         ],
@@ -156,13 +155,13 @@
   },
   "EditorCamera": {
     "Position": {
-      "X": 4.290274,
-      "Y": 1.9841337,
-      "Z": -2.0245771
+      "X": 2.9703166,
+      "Y": 3.2553747,
+      "Z": 2.5505836
     },
     "Rotation": {
-      "X": -0.38483664,
-      "Y": -7.1591825
+      "X": -0.54983675,
+      "Y": -8.66518
     }
   },
   "GUID": "6ff2407524f149a6a81f04f73e7ee5fc",
