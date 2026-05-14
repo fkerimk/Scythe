@@ -86,6 +86,25 @@ internal static class PrefabUtility {
         transform.SetPrefabOverride(overrideKey, sourceProperty != null && !ValuesEqual(currentValue, sourceProperty.GetValue(sourceObj.Transform)));
     }
 
+    public static void UpdateComponentOverrideState(Component component, string propertyName, object? currentValue) {
+
+        if (IsApplyingSync || string.IsNullOrWhiteSpace(propertyName)) return;
+
+        var prefabRoot = component.Obj.FindPrefabRoot();
+        if (prefabRoot == null) {
+            component.SetPrefabOverride(propertyName, false);
+            return;
+        }
+
+        if (!TryGetSourceComponent(component, out var sourceComponent) || sourceComponent == null) {
+            component.SetPrefabOverride(propertyName, true);
+            return;
+        }
+
+        var sourceProperty = sourceComponent.GetType().GetProperty(propertyName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+        component.SetPrefabOverride(propertyName, sourceProperty != null && !ValuesEqual(currentValue, sourceProperty.GetValue(sourceComponent)));
+    }
+
     public static void RefreshOpenPrefabInstances(string prefabFile) {
 
         if (string.IsNullOrWhiteSpace(prefabFile)) return;
@@ -372,6 +391,27 @@ internal static class PrefabUtility {
         sourceProperty.SetValue(sourceComponent, value);
         component.SetPrefabOverride(property.Name, false);
         return SaveSourcePrefab(component.Obj);
+    }
+
+    public static bool TryGetSourceScriptFieldValue(Script script, FieldInfo field, out object? sourceValue) {
+
+        sourceValue = null;
+        if (!TryGetSourceComponent(script, out var sourceComponent) || sourceComponent is not Script sourceScript) return false;
+
+        var sourceAsset = sourceScript.GetAsset();
+        if (sourceAsset?.ScriptType == null) return false;
+
+        sourceValue = sourceScript.GetExposeFieldValue(field, sourceAsset);
+        return true;
+    }
+
+    public static bool ApplyScriptExposeFieldToPrefab(Script script, FieldInfo field, object? value) {
+
+        if (!TryGetSourceComponent(script, out var sourceComponent) || sourceComponent is not Script sourceScript) return false;
+
+        sourceScript.SetExposeFieldValue(field, value);
+        script.SetPrefabOverride(nameof(Script.ExposedValues), false);
+        return SaveSourcePrefab(script.Obj);
     }
 
     public static bool ApplyAddedComponentToPrefab(Component component) {

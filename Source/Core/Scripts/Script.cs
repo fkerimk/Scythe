@@ -116,6 +116,7 @@ internal class Script(Obj obj) : Component(obj) {
         else
             ExposedValues[field.Name] = ScriptFieldUtility.SerializeStoredValue(value);
 
+        PrefabUtility.UpdateComponentOverrideState(this, nameof(ExposedValues), ExposedValues);
         if (Core.ActiveLevel != null) Core.ActiveLevel.IsDirty = true;
         ApplyFieldValueToInstance(field, value);
     }

@@ -72,23 +72,29 @@ internal class ObjectBrowser : Viewport {
 
         var firstObj = targets[0];
 
-        var componentTypes = firstObj.ComponentEntries.Values
-            .Select(component => component.GetType().Name)
-            .Distinct(StringComparer.Ordinal)
-            .OrderBy(name => name, new NaturalStringComparer());
+        if (targets.Count == 1) {
+            foreach (var component in firstObj.ComponentEntries.Values.ToList())
+                DrawProperties([component], true, component.GetType().Name, false);
+        } else {
+            var componentTypes = targets
+                .SelectMany(target => target.ComponentEntries.Values)
+                .Select(component => component.GetType().Name)
+                .Distinct(StringComparer.Ordinal)
+                .OrderBy(name => name, new NaturalStringComparer());
 
-        foreach (var compName in componentTypes) {
-            var groupedComponents = targets
-                .Select(t => t.ComponentEntries.Values.Where(component => component.GetType().Name == compName).ToList())
-                .ToList();
-            var maxSharedCount = groupedComponents.Min(components => components.Count);
-
-            for (var index = 0; index < maxSharedCount; index++) {
-                var compInstances = groupedComponents
-                    .Select(components => components[index])
-                    .Cast<object>()
+            foreach (var compName in componentTypes) {
+                var groupedComponents = targets
+                    .Select(t => t.ComponentEntries.Values.Where(component => component.GetType().Name == compName).ToList())
                     .ToList();
-                DrawProperties(compInstances, true, compName, false);
+                var maxSharedCount = groupedComponents.Min(components => components.Count);
+
+                for (var index = 0; index < maxSharedCount; index++) {
+                    var compInstances = groupedComponents
+                        .Select(components => components[index])
+                        .Cast<object>()
+                        .ToList();
+                    DrawProperties(compInstances, true, compName, false);
+                }
             }
         }
 
@@ -166,7 +172,7 @@ internal class ObjectBrowser : Viewport {
         NextColumn();
     }
 
-    private (bool changed, bool deactivated) DrawInspectorField(string id, ref object? value, Type type, List<object> targets, string? propName, string? pickerType = null, bool showResetButton = false, bool highlightOverride = false, object? resetValue = null, Action? applyOverride = null) {
+    private (bool changed, bool deactivated) DrawInspectorField(string id, ref object? value, Type type, List<object> targets, string? propName, string? pickerType = null, bool showResetButton = false, bool highlightOverride = false, object? resetValue = null, Action? applyOverride = null, Action? applyOverrideWithHistory = null) {
 
         var changed = false;
         var deactivated = false;
@@ -378,6 +384,21 @@ internal class ObjectBrowser : Viewport {
             PushFont(Fonts.ImFontAwesomeSmall);
 
             if (Button($"{Icons.FaCheck}##{id}_apply", new Vector2(resetButtonSize, resetButtonSize))) {
+                if (applyOverrideWithHistory != null) {
+                    if (propName != null)
+                        History.StopRecording();
+
+                    applyOverrideWithHistory.Invoke();
+                    deactivated = true;
+                    PopFont();
+                    EndDisabled();
+
+                    if (IsItemHovered())
+                        SetTooltip("Apply override to prefab");
+
+                    return (changed, deactivated);
+                }
+
                 if (propName != null)
                     History.StopRecording();
 
@@ -1464,10 +1485,16 @@ internal class ObjectBrowser : Viewport {
             var scripts = targets.Cast<Script>().ToList();
             var exposedValues = scripts.Select(script => script.GetExposeFieldValue(field, asset)).ToList();
             value = exposedValues.All(val => ScriptFieldUtility.ValueEquals(val, exposedValues[0])) ? exposedValues[0] : null;
-            isOverridden = exposedValues.Any(val => !ScriptFieldUtility.ValueEquals(val, defaultValue));
+            var (prefabOverride, prefabResetValue) = GetScriptExposePrefabOverrideState(scripts, asset, field);
+            var resetValue = prefabOverride ? prefabResetValue : defaultValue;
+            isOverridden = scripts.All(script => script.Obj.FindPrefabRoot() != null)
+                ? prefabOverride
+                : exposedValues.Any(val => !ScriptFieldUtility.ValueEquals(val, defaultValue));
+            var applyOverride = GetScriptExposePrefabApplyAction(scripts, field);
+            var applyOverrideWithHistory = GetScriptExposePrefabApplyHistoryAction(scripts, asset, field, picker, value);
             DrawShadowedLabel(ScriptFieldUtility.GetLabel(field), isOverridden);
 
-            var (fieldChanged, fieldDeactivated) = DrawInspectorField($"##script_exp_{_propIndex++}", ref value, field.FieldType, targets, field.Name, picker, showResetButton: true, highlightOverride: isOverridden, resetValue: defaultValue);
+            var (fieldChanged, fieldDeactivated) = DrawInspectorField($"##script_exp_{_propIndex++}", ref value, field.FieldType, targets, field.Name, picker, showResetButton: isOverridden, highlightOverride: isOverridden, resetValue: resetValue, applyOverride: applyOverride, applyOverrideWithHistory: applyOverrideWithHistory);
 
             if (fieldChanged)
                 foreach (var script in scripts)
@@ -1491,6 +1518,31 @@ internal class ObjectBrowser : Viewport {
             return (!ObjectGraph.AreEqual(property.GetValue(component), componentValue), componentValue);
 
         return (false, null);
+    }
+
+    private static (bool HighlightOverride, object? ResetValue) GetScriptExposePrefabOverrideState(List<Script> scripts, ScriptAsset asset, FieldInfo field) {
+
+        if (scripts.Count == 0) return (false, null);
+        if (!scripts.All(script => script.Obj.FindPrefabRoot() != null)) return (false, null);
+
+        var sourceValues = new List<object?>();
+
+        foreach (var script in scripts) {
+            if (!PrefabUtility.TryGetSourceScriptFieldValue(script, field, out var sourceValue))
+                return (false, null);
+
+            sourceValues.Add(sourceValue);
+        }
+
+        var resetValue = sourceValues.All(val => ScriptFieldUtility.ValueEquals(val, sourceValues[0])) ? sourceValues[0] : null;
+
+        for (var index = 0; index < scripts.Count; index++) {
+            var currentValue = scripts[index].GetExposeFieldValue(field, asset);
+            if (!ScriptFieldUtility.ValueEquals(currentValue, sourceValues[index]))
+                return (true, resetValue);
+        }
+
+        return (false, resetValue);
     }
 
     private static bool TryGetPrefabSourceValue(Obj obj, PropertyInfo property, out object? sourceValue) {
@@ -1582,6 +1634,45 @@ internal class ObjectBrowser : Viewport {
             Transform transform when TryGetPrefabSourceValue(transform, property, out _) => () => PrefabUtility.ApplyTransformPropertyToPrefab(transform, property, property.GetValue(transform)),
             Component component when TryGetPrefabSourceValue(component, property, out _) => () => PrefabUtility.ApplyComponentPropertyToPrefab(component, property, property.GetValue(component)),
             _ => null
+        };
+    }
+
+    private static Action? GetScriptExposePrefabApplyAction(List<Script> scripts, FieldInfo field) {
+
+        if (scripts.Count != 1) return null;
+
+        var script = scripts[0];
+        return PrefabUtility.TryGetSourceScriptFieldValue(script, field, out _)
+            ? () => PrefabUtility.ApplyScriptExposeFieldToPrefab(script, field, script.GetAsset() is { } asset ? script.GetExposeFieldValue(field, asset) : null)
+            : null;
+    }
+
+    private static Action? GetScriptExposePrefabApplyHistoryAction(List<Script> scripts, ScriptAsset asset, FieldInfo field, string? pickerType, object? value) {
+
+        if (scripts.Count != 1) return null;
+
+        var script = scripts[0];
+        if (!PrefabUtility.TryGetSourcePrefabFile(script.Obj, out var prefabFile) || !File.Exists(prefabFile)) return null;
+        if (!PrefabUtility.TryGetSourceScriptFieldValue(script, field, out _)) return null;
+
+        return () => {
+            var beforeLocalValue = CloneApplyHistoryValue(script.GetExposeFieldValue(field, asset));
+            using var transaction = History.Begin($"Apply {field.Name} To Prefab");
+            transaction.CapturePath(prefabFile);
+            transaction.After(
+                redo: () => {
+                    if (!PrefabUtility.RefreshSourcePrefabFile(prefabFile)) return;
+                    script.SetExposeFieldValue(field, value);
+                    script.SetPrefabOverride(nameof(Script.ExposedValues), false);
+                },
+                undo: () => {
+                    if (!PrefabUtility.RefreshSourcePrefabFile(prefabFile)) return;
+                    script.SetExposeFieldValue(field, beforeLocalValue);
+                    script.SetPrefabOverride(nameof(Script.ExposedValues), true);
+                }
+            );
+            PrefabUtility.ApplyScriptExposeFieldToPrefab(script, field, value);
+            if (transaction.Commit()) Notifications.Show(transaction.Description);
         };
     }
 
