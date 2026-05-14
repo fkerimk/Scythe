@@ -16,12 +16,18 @@ internal static class Shortcuts {
         // Ignore other shortcuts if playing or if text inputs are active
         if (Core.IsPlaying) return;
 
-        if (IsKeyDown(KeyboardKey.LeftControl)) {
+        var ctrlDown = IsKeyDown(KeyboardKey.LeftControl) || IsKeyDown(KeyboardKey.RightControl);
+        var shiftDown = IsKeyDown(KeyboardKey.LeftShift) || IsKeyDown(KeyboardKey.RightShift);
+
+        if (ctrlDown) {
 
             if (IsKeyPressed(KeyboardKey.Q)) Editor.Quit();
             if (IsKeyPressed(KeyboardKey.D)) DuplicateSelectedObject();
             if (IsKeyPressed(KeyboardKey.S)) SaveActiveLevel();
-            if (IsKeyPressed(KeyboardKey.Z)) History.Undo();
+            if (IsKeyPressed(KeyboardKey.Z)) {
+                if (shiftDown) History.Redo();
+                else History.Undo();
+            }
             if (IsKeyPressed(KeyboardKey.Y)) History.Redo();
         }
 
