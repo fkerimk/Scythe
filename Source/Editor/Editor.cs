@@ -154,6 +154,9 @@ internal static unsafe class Editor {
 
                 if (Core.IsAnyLevelDirty) {
 
+                    if (Core.IsPlaying)
+                        TogglePlayMode();
+
                     _showExitModal = true;
                     _scheduledQuit = false;
 
