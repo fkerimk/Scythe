@@ -640,28 +640,12 @@ internal class ObjectBrowser : Viewport {
         }
 
         var childCollections = CollectionData.EnumerateCollections(state.CurrentPath, CollectionAssetKind.Collection).Count();
-        if (state.ActiveCategory == null) {
+        if (childCollections > 0)
+            DrawPickerVirtualEntry("Collections", childCollections, Colors.GuiCollection.ToVector4(), () => state.ShowChildCollections = true, Icons.FaArchive);
 
-            if (childCollections > 0)
-                DrawPickerVirtualEntry("Collections", childCollections, Colors.GuiCollection.ToVector4(), () => state.ShowChildCollections = true, Icons.FaArchive);
-
-            foreach (var category in CollectionData.Categories) {
-
-                var categoryCollections = CollectionData.EnumerateCollections(state.CurrentPath, category.Kind).Count();
-                var categoryFiles = GetPickerFilesForCategory(state.CurrentPath, category.PickerType).Count;
-                var categoryCount = categoryCollections + categoryFiles;
-
-                if (categoryCount == 0) continue;
-
-                DrawPickerVirtualEntry(category.Name, categoryCount, GetPickerCategoryColor(category.Kind), () => state.ActiveCategory = category.Kind, GetCategoryIcon(category.Kind));
-            }
-
-            EndChild();
-            return;
-        }
-
-        var activePickerType = GetPickerTypeForKind(state.ActiveCategory.Value);
-        var typedCollections = CollectionData.EnumerateCollections(state.CurrentPath, state.ActiveCategory.Value).ToList();
+        var activeCategory = state.ActiveCategory ?? pickerKind.Value;
+        var activePickerType = GetPickerTypeForKind(activeCategory);
+        var typedCollections = CollectionData.EnumerateCollections(state.CurrentPath, activeCategory).ToList();
         var files = GetPickerFilesForCategory(state.CurrentPath, activePickerType);
 
         foreach (var collectionPath in typedCollections)
