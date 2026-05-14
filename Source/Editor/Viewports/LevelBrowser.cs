@@ -32,6 +32,8 @@ internal class LevelBrowser : Viewport {
     private readonly Dictionary<int, float> _childHeights = [];
     private Obj? _contextTarget;
     private bool _openContextMenu;
+    private readonly List<Obj> _visibleObjects = [];
+    private bool _scrollToSelection;
     // Rename
     private Obj?    _renamingObj;
     private string  _renameBuf = "";
@@ -46,6 +48,7 @@ internal class LevelBrowser : Viewport {
 
         _rowCount = 0;
         _openContextMenu = false;
+        _visibleObjects.Clear();
         PrefabUtility.ClearSourceCache();
 
         BeginChild("scroll", new Vector2(0, 0));
@@ -108,6 +111,33 @@ internal class LevelBrowser : Viewport {
         // Draw objects
         DrawObject(GetDocumentRoot(), 0, [], GetWindowDrawList());
 
+        if (IsFocused) {
+            if (IsKeyPressed(ImGuiKey.UpArrow, true)) {
+                if (SelectedObject != null) {
+                    var idx = _visibleObjects.IndexOf(SelectedObject);
+                    if (idx > 0) {
+                        SelectObject(_visibleObjects[idx - 1]);
+                        _scrollToSelection = true;
+                    }
+                } else if (_visibleObjects.Count > 0) {
+                    SelectObject(_visibleObjects.Last());
+                    _scrollToSelection = true;
+                }
+            }
+            if (IsKeyPressed(ImGuiKey.DownArrow, true)) {
+                if (SelectedObject != null) {
+                    var idx = _visibleObjects.IndexOf(SelectedObject);
+                    if (idx >= 0 && idx < _visibleObjects.Count - 1) {
+                        SelectObject(_visibleObjects[idx + 1]);
+                        _scrollToSelection = true;
+                    }
+                } else if (_visibleObjects.Count > 0) {
+                    SelectObject(_visibleObjects[0]);
+                    _scrollToSelection = true;
+                }
+            }
+        }
+
         if (IsWindowHovered() && IsMouseReleased(ImGuiMouseButton.Left) && !IsAnyItemHovered())
             SelectObject(null);
 
@@ -146,6 +176,8 @@ internal class LevelBrowser : Viewport {
             GetStateStorage().SetInt(openId, 1);
         }
 
+        _visibleObjects.Add(obj);
+
         var progress = UpdateExpandProgress(objId, hasChildren && isOpen);
         var visualProgress = progress;
         var isRenamingThis = _renamingObj == obj;
@@ -160,6 +192,11 @@ internal class LevelBrowser : Viewport {
             Dummy(new Vector2(rowWidth, rowHeight));
         else
             InvisibleButton(rowId, new Vector2(rowWidth, rowHeight));
+
+        if (isSelected && _scrollToSelection) {
+            SetScrollHereY();
+            _scrollToSelection = false;
+        }
 
         var rowMin = GetItemRectMin();
         var rowMax = GetItemRectMax();
