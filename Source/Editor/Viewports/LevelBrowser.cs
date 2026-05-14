@@ -391,38 +391,33 @@ internal class LevelBrowser : Viewport {
         Text(obj.Name);
         Separator();
 
-        if (BeginMenu("Insert")) {
+        if (MenuItem("New Object")) Level.RecordedMakeObject("Object", obj);
 
-            if (MenuItem("Object")) Level.RecordedMakeObject("Object", obj);
+        if (BeginMenu("Add Lighting")) {
 
-            Separator();
-
-            if (BeginMenu("Lighting")) {
-
-                if (MenuItem("Directional Light")) {
-                    var light = Level.RecordedMakeObject("Directional Light", obj);
-                    (light.MakeComponent("Light") as Light)?.Type = 0;
-                    SelectObject(light);
-                }
-
-                if (MenuItem("Point Light")) {
-                    var light = Level.RecordedMakeObject("Point Light", obj);
-                    (light.MakeComponent("Light") as Light)?.Type = 1;
-                    SelectObject(light);
-                }
-
-                if (MenuItem("Spot Light")) {
-                    var light = Level.RecordedMakeObject("Point Light", obj);
-                    (light.MakeComponent("Light") as Light)?.Type = 2;
-                    SelectObject(light);
-                }
-
-                EndMenu();
+            if (MenuItem("Directional Light")) {
+                var light = Level.RecordedMakeObject("Directional Light", obj);
+                (light.MakeComponent("Light") as Light)?.Type = 0;
+                SelectObject(light);
             }
 
-            CollectionPathMenu.DrawProjectPrefabMenu("Prefabs", prefabPath => InsertPrefab(obj, prefabPath));
+            if (MenuItem("Point Light")) {
+                var light = Level.RecordedMakeObject("Point Light", obj);
+                (light.MakeComponent("Light") as Light)?.Type = 1;
+                SelectObject(light);
+            }
+
+            if (MenuItem("Spot Light")) {
+                var light = Level.RecordedMakeObject("Point Light", obj);
+                (light.MakeComponent("Light") as Light)?.Type = 2;
+                SelectObject(light);
+            }
+
             EndMenu();
         }
+
+        CollectionPathMenu.DrawProjectPrefabMenu("Add Prefab", prefabPath => InsertPrefab(obj, prefabPath));
+        Separator();
 
         BeginDisabled(IsDocumentRoot(obj));
         if (MenuItem("Rename")) StartRename(obj);
