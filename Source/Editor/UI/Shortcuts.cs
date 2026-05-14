@@ -13,6 +13,12 @@ internal static class Shortcuts {
             return;
         }
 
+        if (Core.IsPlaying && IsCursorHidden() && IsKeyPressed(KeyboardKey.Escape)) {
+            EnableCursor();
+            ShowCursor();
+            return;
+        }
+
         // Ignore other shortcuts if playing or if text inputs are active
         if (Core.IsPlaying) return;
 

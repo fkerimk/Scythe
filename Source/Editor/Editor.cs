@@ -314,6 +314,7 @@ internal static unsafe class Editor {
             MenuBar.Draw();
             EditorRender.Draw();
             RuntimeRender.Draw();
+            Core.RuntimeInputEnabled = !Core.IsPlaying || RuntimeRender.IsFocused;
             LevelBrowser.Draw();
             ObjectBrowser.Draw();
             Preview.Draw();
@@ -401,6 +402,7 @@ internal static unsafe class Editor {
             _editorLevelRef = Core.ActiveLevel;
 
             Core.IsPlaying = true;
+            Core.RuntimeInputEnabled = true;
             RuntimeRender.IsOpen = true;
             RuntimeRender.ShouldFocus = true;
 
@@ -419,6 +421,7 @@ internal static unsafe class Editor {
         } else {
             // Stop play mode
             Core.IsPlaying = false;
+            Core.RuntimeInputEnabled = true;
             EnableCursor();
             ShowCursor();
 

@@ -20,6 +20,7 @@ internal static class Core {
     public static bool IsPreviewRender;
     public static bool IsPlaying;
     public static bool IsLoadingLevel;
+    public static bool RuntimeInputEnabled = true;
 
     public static Matrix4x4 LastProjectionMatrix = Matrix4x4.Identity;
     public static Matrix4x4 LastViewMatrix = Matrix4x4.Identity;
@@ -435,10 +436,12 @@ internal static class Core {
         Lights.Clear();
         TransparentRenderQueue.Clear();
 
-        if (IsPlaying || CommandLine.Runtime) Physics.Update();
+        var shouldRunRuntimeLogic = CommandLine.Runtime || !IsPlaying || RuntimeInputEnabled;
+
+        if ((IsPlaying || CommandLine.Runtime) && shouldRunRuntimeLogic) Physics.Update();
 
         // Behavior & Logic (Scripts, Physics Sync) This pass determines WHERE objects want to be in this frame.
-        RunLogic(ActiveLevel.Root);
+        if (shouldRunRuntimeLogic) RunLogic(ActiveLevel.Root);
 
         // Hierarchy Sync & Visuals (World Matrices + Cartoon Bounce) his pass settles the physical truth and prepares the visual state for rendering.
         SyncHierarchy(ActiveLevel.Root);
