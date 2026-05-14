@@ -3,7 +3,7 @@ using Raylib_cs;
 
 namespace Dwarf;
 
-internal class Player : ScytheScript {
+internal class Dwarf : ScytheScript {
     
     private const float MoveSpeed = 3f;
     
@@ -26,7 +26,7 @@ internal class Player : ScytheScript {
             
             _anim = (Animation)Obj.FindComponent("Animation")!;
             _rb = (Rigidbody)Obj.FindComponent("Rigidbody")!;
-            _camObj = Obj.Parent!.Find("Camera")!;
+            _camObj = Root.Find("Camera")!;
             _initialized = true;
         }
 

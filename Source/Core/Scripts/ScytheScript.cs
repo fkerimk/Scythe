@@ -20,6 +20,7 @@ internal abstract class ScytheScript {
     public Vector3    RightFlat  => Obj.RightFlat;
     public string     Name       => Obj.Name;
     public Obj?       Parent     => Obj.Parent;
+    public Obj        Root       => Obj.GetRoot();
 
     /// <summary>Called once before the first Loop.</summary>
     public virtual void Start() { }

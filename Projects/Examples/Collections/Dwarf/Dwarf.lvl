@@ -44,7 +44,7 @@
           },
           "Script": {
             "GUID": "1e033197308f4d25b49447d90af63b5c",
-            "Path": "Collections/Dwarf/Player.cs",
+            "Path": "Collections/Dwarf/Dwarf.cs",
             "Exposed": {}
           },
           "Rigidbody": {

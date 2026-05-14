@@ -317,6 +317,16 @@ internal class Obj {
         return path.ToArray();
     }
 
+    public Obj GetRoot() {
+
+        var current = this;
+
+        while (current.Parent != null)
+            current = current.Parent;
+
+        return current;
+    }
+
     public static bool IsAncestorOf(Obj ancestor, Obj? target) {
 
         if (target == null) return false;
