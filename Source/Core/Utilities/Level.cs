@@ -465,6 +465,8 @@ internal class Level {
 
             if (!sourceComponentsByType.TryGetValue(typeName, out var sourceGroup) || index >= sourceGroup.Count) {
                 var fullToken = CreateFullComponentSnapshot(component, serializer);
+                if (component.PrefabOverrides.Count > 0)
+                    fullToken[nameof(Component.PrefabOverrides)] = JArray.FromObject(component.PrefabOverrides.OrderBy(value => value));
                 fullToken[ComponentTypeToken] = typeName;
                 array.Add(fullToken);
                 continue;

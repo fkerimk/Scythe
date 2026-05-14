@@ -148,6 +148,7 @@ internal class LevelBrowser : Viewport {
 
         var progress = UpdateExpandProgress(objId, hasChildren && isOpen);
         var visualProgress = progress;
+        var isRenamingThis = _renamingObj == obj;
 
         var rowHeight = GetFrameHeight();
         var rowWidth = MathF.Max(GetContentRegionAvail().X, 1f);
@@ -155,7 +156,10 @@ internal class LevelBrowser : Viewport {
         var startPos = GetCursorScreenPos();
 
         SetCursorScreenPos(startPos);
-        InvisibleButton(rowId, new Vector2(rowWidth, rowHeight));
+        if (isRenamingThis)
+            Dummy(new Vector2(rowWidth, rowHeight));
+        else
+            InvisibleButton(rowId, new Vector2(rowWidth, rowHeight));
 
         var rowMin = GetItemRectMin();
         var rowMax = GetItemRectMax();
@@ -202,8 +206,6 @@ internal class LevelBrowser : Viewport {
             && mousePos.X >= arrowRectMin.X && mousePos.X <= arrowRectMax.X
             && mousePos.Y >= arrowRectMin.Y && mousePos.Y <= arrowRectMax.Y;
 
-        var isRenamingThis = _renamingObj == obj;
-
         if (!isRenamingThis && rowHovered && IsMouseReleased(ImGuiMouseButton.Right)) {
             SelectObject(obj);
             _contextTarget = obj;
@@ -220,8 +222,11 @@ internal class LevelBrowser : Viewport {
             }
         }
 
+        if (!isRenamingThis && rowHovered && !arrowHovered && IsMouseDoubleClicked(ImGuiMouseButton.Left) && !IsDocumentRoot(obj))
+            StartRename(obj);
+
         // drag + drop must stay bound to the row item itself
-        if (!IsDragCancelled && BeginDragDropSource()) {
+        if (!isRenamingThis && !IsDragCancelled && BeginDragDropSource()) {
 
             DragObject = obj;
 
@@ -230,7 +235,7 @@ internal class LevelBrowser : Viewport {
             EndDragDropSource();
         }
 
-        if (BeginDragDropTarget()) {
+        if (!isRenamingThis && BeginDragDropTarget()) {
 
             AcceptDragDropPayload("object");
 
@@ -281,13 +286,15 @@ internal class LevelBrowser : Viewport {
                 _reqRenameFocus = false;
             }
 
-            if (InputText("##rename", ref _renameBuf, 128, ImGuiInputTextFlags.EnterReturnsTrue | ImGuiInputTextFlags.AutoSelectAll)) {
+            var submitted = InputText($"##rename_{objId}", ref _renameBuf, 128, ImGuiInputTextFlags.EnterReturnsTrue | ImGuiInputTextFlags.AutoSelectAll);
+
+            if (submitted) {
 
                 ConfirmRename();
             }
 
             if (IsItemActive() && IsKeyPressed(ImGuiKey.Escape)) CancelRename();
-            if (IsItemDeactivated() && !IsItemActive()) CancelRename();
+            if (IsItemDeactivated() && !submitted) CancelRename();
 
         } else {
 

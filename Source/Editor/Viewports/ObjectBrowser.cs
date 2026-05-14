@@ -125,6 +125,8 @@ internal class ObjectBrowser : Viewport {
 
             History.StartRecording(targetObj, $"Add Component {compName}");
             targetObj.ComponentEntries.Add(component);
+            if (targetObj.FindPrefabRoot() != null && Core.ActiveLevel?.IsPrefabDocument != true)
+                PrefabUtility.MarkAsAddedComponent(component);
             if (component.Load()) component.IsLoaded = true;
             if (Core.ActiveLevel != null) Core.ActiveLevel.IsDirty = true;
 
@@ -1260,6 +1262,47 @@ internal class ObjectBrowser : Viewport {
         }
 
         if (open) {
+
+            if (separator && first is Component component && targets.Count == 1 && PrefabUtility.IsAddedComponentOverride(component)) {
+
+                Columns(1);
+                PopStyleVar();
+
+                if (Button("Apply Component To Prefab", new Vector2(GetContentRegionAvail().X, 0))) {
+                    PrefabUtility.ApplyAddedComponentToPrefab(component);
+                    if (Core.ActiveLevel != null) Core.ActiveLevel.IsDirty = true;
+                }
+
+                if (Button("Revert Added Component", new Vector2(GetContentRegionAvail().X, 0))) {
+                    var targetObj = component.Obj;
+                    var componentName = component.GetType().Name;
+                    History.Execute(
+                        $"Revert Added Component {componentName}",
+                        redo: () => {
+                            PrefabUtility.RevertAddedComponent(component);
+                            if (Core.ActiveLevel != null) Core.ActiveLevel.IsDirty = true;
+                        },
+                        undo: () => {
+                            if (targetObj.ComponentEntries.Values.Any(existing => ReferenceEquals(existing, component))) return;
+                            targetObj.ComponentEntries.Add(component);
+                            if (component.Load()) component.IsLoaded = true;
+                            if (Core.ActiveLevel != null) Core.ActiveLevel.IsDirty = true;
+                        }
+                    );
+                    TreePop();
+                    Spacing();
+                    PopID();
+                    return;
+                }
+
+                Spacing();
+                Separator();
+                Spacing();
+
+                PushStyleVar(ImGuiStyleVar.ItemSpacing, new Vector2(8, 8));
+                Columns(2, $"##{title}_cols_added_component", false);
+                SetColumnWidth(0, GetWindowWidth() * 0.3f);
+            }
 
             foreach (var prop in first.GetType().GetProperties()) {
 

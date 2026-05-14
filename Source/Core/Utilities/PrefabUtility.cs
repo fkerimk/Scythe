@@ -4,6 +4,7 @@ using Newtonsoft.Json;
 
 internal static class PrefabUtility {
     private const string AddedChildMarker = "__added_child";
+    private const string AddedComponentMarker = "__added_component";
 
     private static readonly Dictionary<string, Level?> SourceCache = new(StringComparer.OrdinalIgnoreCase);
 
@@ -134,7 +135,7 @@ internal static class PrefabUtility {
         instance = sourceRoot.DeepClone(parent, preserveName: false);
         instance.Prefab = asset.GUID;
         instance.PrefabPath = AssetManager.GetStoredPath(asset.File);
-        ClearOverrideMarkersRecursive(instance);
+        ClearInstanceOverrideMarkersPreservingNestedPrefabs(instance);
 
         return true;
     }
@@ -147,8 +148,9 @@ internal static class PrefabUtility {
             var name = CollectionData.GetLevelDisplayName(path);
             var prefabLevel = new Level(name, path, load: false, applyEditorCamera: false);
             var clone = source.DeepClone(prefabLevel.Root, preserveName: true);
-            clone.ClearPrefabLinksRecursive();
-            ClearOverrideMarkersRecursive(clone);
+            clone.Prefab = "";
+            clone.PrefabPath = "";
+            ClearInstanceOverrideMarkersPreservingNestedPrefabs(clone);
             prefabLevel.Save();
             AssetManager.EnsureImported(path);
             message = $"Prefab '{Path.GetFileName(path)}' created.";
@@ -196,12 +198,28 @@ internal static class PrefabUtility {
 
     public static bool IsAddedChild(Obj obj) => obj.PrefabOverrides.Contains(AddedChildMarker);
 
+    public static void MarkAsAddedComponent(Component component) {
+
+        if (!component.PrefabOverrides.Contains(AddedComponentMarker))
+            component.PrefabOverrides.Add(AddedComponentMarker);
+    }
+
+    public static bool IsAddedComponent(Component component) => component.PrefabOverrides.Contains(AddedComponentMarker);
+
     public static bool IsAddedChildOverride(Obj obj) {
 
         var prefabRoot = obj.FindPrefabRoot();
         if (prefabRoot == null || ReferenceEquals(prefabRoot, obj)) return false;
 
         return IsAddedChild(obj) || !TryGetSourceObject(obj, out _);
+    }
+
+    public static bool IsAddedComponentOverride(Component component) {
+
+        var prefabRoot = component.Obj.FindPrefabRoot();
+        if (prefabRoot == null) return false;
+
+        return IsAddedComponent(component) || !TryGetSourceComponent(component, out _);
     }
 
     public static void MarkAddedChildSubtree(Obj obj) {
@@ -309,8 +327,7 @@ internal static class PrefabUtility {
 
         sourceValue = null;
         if (!component.HasPrefabOverride(property.Name)) return false;
-        if (!TryGetSourceObject(component.Obj, out var sourceObj) || sourceObj == null) return false;
-        if (!sourceObj.ComponentEntries.TryGetValue(component.GetType().Name, component.Obj.ComponentEntries.GetOccurrenceIndex(component), out var sourceComponent)) return false;
+        if (!TryGetSourceComponent(component, out var sourceComponent) || sourceComponent == null) return false;
 
         var sourceProp = sourceComponent.GetType().GetProperty(property.Name, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
         if (sourceProp == null) return false;
@@ -350,8 +367,7 @@ internal static class PrefabUtility {
     public static bool ApplyComponentPropertyToPrefab(Component component, PropertyInfo property, object? value) {
 
         if (!component.HasPrefabOverride(property.Name)) return false;
-        if (!TryGetSourceObject(component.Obj, out var sourceObj) || sourceObj == null) return false;
-        if (!sourceObj.ComponentEntries.TryGetValue(component.GetType().Name, component.Obj.ComponentEntries.GetOccurrenceIndex(component), out var sourceComponent)) return false;
+        if (!TryGetSourceComponent(component, out var sourceComponent) || sourceComponent == null) return false;
 
         var sourceProperty = sourceComponent.GetType().GetProperty(property.Name, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
         if (sourceProperty == null || !sourceProperty.CanWrite) return false;
@@ -361,14 +377,35 @@ internal static class PrefabUtility {
         return SaveSourcePrefab(component.Obj);
     }
 
+    public static bool ApplyAddedComponentToPrefab(Component component) {
+
+        if (!IsAddedComponentOverride(component)) return false;
+        if (!TryGetSourceObject(component.Obj, out var sourceObj) || sourceObj == null) return false;
+
+        var clone = CloneComponent(component, sourceObj);
+        clone.PrefabOverrides.Clear();
+        sourceObj.ComponentEntries.Add(clone);
+
+        component.PrefabOverrides.Clear();
+        return SaveSourcePrefab(component.Obj);
+    }
+
+    public static bool RevertAddedComponent(Component component) {
+
+        if (!IsAddedComponentOverride(component)) return false;
+
+        component.UnloadAndQuit();
+        component.Obj.ComponentEntries.Remove(component);
+        return true;
+    }
+
     public static bool ApplyAddedChildToPrefab(Obj obj) {
 
         if (!IsAddedChildOverride(obj) || obj.Parent == null) return false;
         if (!TryGetSourceObject(obj.Parent, out var sourceParent) || sourceParent == null) return false;
 
         var clone = obj.DeepClone(sourceParent, preserveName: true);
-        clone.ClearPrefabLinksRecursive();
-        ClearOverrideMarkersRecursive(clone);
+        ClearInstanceOverrideMarkersPreservingNestedPrefabs(clone, preserveCurrentPrefabOverrides: HasDirectPrefabLink(clone));
 
         ClearOverrideMarkersRecursive(obj);
         return SaveSourcePrefab(obj);
@@ -456,16 +493,15 @@ internal static class PrefabUtility {
 
             if (!target.ChildEntries.TryGetValue(childName, childIndex, out var targetChild)) {
                 targetChild = sourceChild.DeepClone(target, preserveName: true);
-                targetChild.ClearPrefabLinksRecursive();
-                ClearOverrideMarkersRecursive(targetChild);
+                ClearInstanceOverrideMarkersPreservingNestedPrefabs(targetChild, preserveCurrentPrefabOverrides: HasDirectPrefabLink(targetChild));
             }
 
             SyncObject(targetChild, sourceChild);
         }
 
         if (!isPrefabRoot) {
-            target.Prefab = "";
-            target.PrefabPath = "";
+            target.Prefab = source.Prefab;
+            target.PrefabPath = source.PrefabPath;
         }
     }
 
@@ -475,6 +511,16 @@ internal static class PrefabUtility {
         ObjectGraph.CopyJsonState(sourceComponent, clone);
         clone.PrefabOverrides.Clear();
         return clone;
+    }
+
+    private static bool TryGetSourceComponent(Component component, out Component? sourceComponent) {
+
+        sourceComponent = null;
+        if (!TryGetSourceObject(component.Obj, out var sourceObj) || sourceObj == null) return false;
+        if (!sourceObj.ComponentEntries.TryGetValue(component.GetType().Name, component.Obj.ComponentEntries.GetOccurrenceIndex(component), out var resolved)) return false;
+
+        sourceComponent = resolved;
+        return true;
     }
 
     private static void SyncComponentProperties(Component target, Component source) {
@@ -505,6 +551,27 @@ internal static class PrefabUtility {
         foreach (var child in obj.ChildEntries.Values)
             ClearOverrideMarkersRecursive(child);
     }
+
+    private static void ClearInstanceOverrideMarkersPreservingNestedPrefabs(Obj obj, bool preserveCurrentPrefabOverrides = false) {
+
+        if (!(preserveCurrentPrefabOverrides && HasDirectPrefabLink(obj))) {
+            obj.PrefabOverrides.Clear();
+            obj.Transform.PrefabOverrides.Clear();
+
+            foreach (var component in obj.ComponentEntries.Values)
+                component.PrefabOverrides.Clear();
+        }
+
+        foreach (var child in obj.ChildEntries.Values) {
+            if (HasDirectPrefabLink(child))
+                continue;
+
+            ClearInstanceOverrideMarkersPreservingNestedPrefabs(child);
+        }
+    }
+
+    private static bool HasDirectPrefabLink(Obj obj) =>
+        !string.IsNullOrWhiteSpace(obj.Prefab) || !string.IsNullOrWhiteSpace(obj.PrefabPath);
 
     public static bool HasExplicitOverrides(Obj obj) {
 
