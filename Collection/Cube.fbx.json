@@ -1,12 +1,12 @@
 {
   "GUID": "2cd053e9959f4b91ba52c0cb4d7826a6",
   "AnimationGUID": "0da2d8912ae54ec89f73a7a51d09d202",
-  "AnimationPath": "../../../Collection/Cube.fbx",
+  "AnimationPath": "Built In/Cube.fbx",
   "MeshMaterials": {
     "0": "c2bc42d7b1dd4ba8a1ab6fb36fcef0a8"
   },
   "MeshMaterialPaths": {
-    "0": "../../../Collection/Default.mat"
+    "0": "Built In/Default.mat"
   },
   "ImportScale": 0.01
 }

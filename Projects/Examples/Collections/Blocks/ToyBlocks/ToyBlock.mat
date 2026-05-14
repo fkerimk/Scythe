@@ -1,7 +1,7 @@
 {
   "GUID": "9b81f969d02044d0960e31275916bdcd",
   "Shader": "130640b64e604a7182ed64ef6f055bac",
-  "ShaderPath": "../../../Collection/pbr.vs",
+  "ShaderPath": "Built In/pbr.vs",
   "Textures": {
     "albedo_map": "7b053332bc6345c897bbac635b62d18d",
     "normal_map": "d31bcdf2cbb7464aa0c6891db7a1779c",
@@ -9,10 +9,10 @@
     "roughness_map": "783f5707393c4291a195d2d687341937"
   },
   "TexturePaths": {
-    "albedo_map": "Collections/Blocks/ToyBlocks/ToyBlocksColor.png",
-    "normal_map": "Collections/Blocks/ToyBlocks/ToyBlocksNormal.png",
-    "occlusion_map": "Collections/Blocks/ToyBlocks/ToyBlocksAO.png",
-    "roughness_map": "Collections/Blocks/ToyBlocks/ToyBlocksRoughnes.png"
+    "albedo_map": "Blocks/ToyBlocks/ToyBlocksColor.png",
+    "normal_map": "Blocks/ToyBlocks/ToyBlocksNormal.png",
+    "occlusion_map": "Blocks/ToyBlocks/ToyBlocksAO.png",
+    "roughness_map": "Blocks/ToyBlocks/ToyBlocksRoughnes.png"
   },
   "Floats": {
     "metallic_value": 0.0,

@@ -23,7 +23,7 @@
         "Components": [
           {
             "GUID": "2cd053e9959f4b91ba52c0cb4d7826a6",
-            "Path": "Collection/Cube.fbx",
+            "Path": "Built In/Cube.fbx",
             "Color": {
               "R": 255,
               "G": 255,
@@ -216,7 +216,7 @@
                             "Components": [
                               {
                                 "GUID": "9847c8670e4a413582f5efda90f899c5",
-                                "Path": "Collections/FPS/Pistol/Pistol.fbx",
+                                "Path": "FPS/Pistol/Pistol.fbx",
                                 "Color": {
                                   "R": 255,
                                   "G": 255,
@@ -228,7 +228,7 @@
                               },
                               {
                                 "GUID": "116334fff49941a58c2aea2a58205e3d",
-                                "Path": "Collections/FPS/Pistol/Pistol.fbx",
+                                "Path": "FPS/Pistol/Pistol.fbx",
                                 "IsPlaying": true,
                                 "Looping": true,
                                 "$ComponentType": "Animation"
@@ -275,7 +275,7 @@
         "Components": [
           {
             "GUID": "2cd053e9959f4b91ba52c0cb4d7826a6",
-            "Path": "Collection/Cube.fbx",
+            "Path": "Built In/Cube.fbx",
             "Color": {
               "R": 255,
               "G": 255,
@@ -354,7 +354,7 @@
   },
   "GUID": "1a1ba6d01f0e4ddabcfa301ed352494d",
   "Skybox": "465b2a89cb5945d487d669c1c2150492",
-  "SkyboxPath": "Collection/Skyboxes/Sky 13.png",
+  "SkyboxPath": "Built In/Skyboxes/Sky 13.png",
   "SkyboxTint": {
     "R": 255,
     "G": 255,

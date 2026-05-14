@@ -1,14 +1,14 @@
 {
   "GUID": "01cc61aaba8b447397385f40670746b2",
   "Shader": "130640b64e604a7182ed64ef6f055bac",
-  "ShaderPath": "../../../Collection/pbr.vs",
+  "ShaderPath": "Built In/pbr.vs",
   "Textures": {
     "albedo_map": "637cfd14a472417b882b806e6bca0800",
     "normal_map": "695f1ccfc5e548b4be5e20569412a386"
   },
   "TexturePaths": {
-    "albedo_map": "Collections/FPS/Pistol/Hands_C.png",
-    "normal_map": "Collections/FPS/Pistol/Hands_N.png"
+    "albedo_map": "FPS/Pistol/Hands_C.png",
+    "normal_map": "FPS/Pistol/Hands_N.png"
   },
   "Floats": {
     "metallic_value": 0.0,

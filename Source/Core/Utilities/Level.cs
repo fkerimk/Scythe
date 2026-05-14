@@ -52,24 +52,28 @@ internal class Level {
             }
 
             var modPath = ScytheConfig.Current.Project;
+            var collectionsPath = Path.Combine(modPath, "Collections");
 
             // Standardize separators
             val = val.Replace('\\', '/');
             if (!string.IsNullOrEmpty(modPath)) modPath = modPath.Replace('\\', '/');
+            if (!string.IsNullOrEmpty(collectionsPath)) collectionsPath = collectionsPath.Replace('\\', '/');
 
             //  Try Mod Relative Path
-            if (!string.IsNullOrEmpty(modPath) && val.StartsWith(modPath, StringComparison.OrdinalIgnoreCase)) {
+            if (!string.IsNullOrEmpty(collectionsPath) && val.StartsWith(collectionsPath, StringComparison.OrdinalIgnoreCase)) {
+                val = Path.GetRelativePath(collectionsPath, val).Replace('\\', '/');
+            } else if (!string.IsNullOrEmpty(modPath) && val.StartsWith(modPath, StringComparison.OrdinalIgnoreCase)) {
                 val = Path.GetRelativePath(modPath, val).Replace('\\', '/');
             } else {
                 var builtInIndex = val.IndexOf("/Collection/", StringComparison.OrdinalIgnoreCase);
 
                 if (builtInIndex != -1) {
-                    val = val[(builtInIndex + 1)..];
+                    val = "Built In/" + val[(builtInIndex + "/Collection/".Length)..];
                 } else {
                     var legacyIndex = val.IndexOf("/Resources/", StringComparison.OrdinalIgnoreCase);
 
                     if (legacyIndex != -1)
-                        val = "Collection/" + Path.GetFileName(val);
+                        val = "Built In/" + Path.GetFileName(val);
                 }
             }
 

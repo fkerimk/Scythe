@@ -1,12 +1,12 @@
 {
   "GUID": "2ffe2e0fb2e241079f8f9a2f78aef85e",
   "AnimationGUID": "1d94717fc6dd4dedb5b37c8954c0db6a",
-  "AnimationPath": "Collections/Shared Assets/KenneyPlatformerKit/BlockGrassOverhangLargeTall.fbx",
+  "AnimationPath": "Shared Assets/KenneyPlatformerKit/BlockGrassOverhangLargeTall.fbx",
   "MeshMaterials": {
     "0": "e3fcddeb094f4142ad1d5030da8e3d14"
   },
   "MeshMaterialPaths": {
-    "0": "Collections/Shared Assets/KenneyPlatformerKit/Colormap.mat"
+    "0": "Shared Assets/KenneyPlatformerKit/Colormap.mat"
   },
   "ImportScale": 1.0
 }

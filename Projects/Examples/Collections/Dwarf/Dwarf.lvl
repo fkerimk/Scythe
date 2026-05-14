@@ -27,19 +27,18 @@
         "Components": [
           {
             "GUID": "cb053817c9994577ae188a1ce387e57a",
-            "Path": "Collections/Dwarf/WizardGnome/WizardGnome.fbx",
+            "Path": "Dwarf/WizardGnome/WizardGnome.fbx",
             "Color": {
               "R": 255,
               "G": 255,
               "B": 255,
               "A": 255
             },
-            "AlphaCutoff": 0.5,
             "$ComponentType": "Model"
           },
           {
             "GUID": "5f7a4b3df2764935b97a9e9112ca69e2",
-            "Path": "Collections/Dwarf/WizardGnome/WizardGnome.fbx",
+            "Path": "Dwarf/WizardGnome/WizardGnome.fbx",
             "IsPlaying": true,
             "Looping": true,
             "$ComponentType": "Animation"
@@ -127,14 +126,13 @@
                 "Components": [
                   {
                     "GUID": "2ffe2e0fb2e241079f8f9a2f78aef85e",
-                    "Path": "Collections/Shared Assets/KenneyPlatformerKit/BlockGrassOverhangLargeTall.fbx",
+                    "Path": "Shared Assets/KenneyPlatformerKit/BlockGrassOverhangLargeTall.fbx",
                     "Color": {
                       "R": 255,
                       "G": 255,
                       "B": 255,
                       "A": 255
                     },
-                    "AlphaCutoff": 0.5,
                     "$ComponentType": "Model"
                   },
                   {
@@ -255,7 +253,7 @@
   },
   "GUID": "162de7ccbedf4cfe88fb4611bd60319c",
   "Skybox": "8cd2244ffb8f4998bc2bf49541897cd2",
-  "SkyboxPath": "Collection/Skyboxes/Sky 4.png",
+  "SkyboxPath": "Built In/Skyboxes/Sky 4.png",
   "SkyboxTint": {
     "R": 216,
     "G": 216,

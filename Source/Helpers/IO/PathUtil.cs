@@ -63,7 +63,16 @@ internal static class PathUtil {
 
         if (File.Exists(fullPath) || Directory.Exists(fullPath)) return true;
 
-        fullPath = Path.Join(ScytheConfig.Current.Project, relativePath);
+        var normalized = relativePath.Replace('\\', '/').TrimStart('/');
+        var builtInPrefix = "Built In/";
+        var projectCollectionsRoot = Path.Combine(ScytheConfig.Current.Project, "Collections");
+
+        if (normalized.StartsWith(builtInPrefix, StringComparison.OrdinalIgnoreCase))
+            fullPath = Path.Join(GetBuiltInCollectionRoot(), normalized[builtInPrefix.Length..]);
+        else if (!Path.IsPathRooted(relativePath) && !normalized.StartsWith("Collection/", StringComparison.OrdinalIgnoreCase) && !normalized.StartsWith("Resources/", StringComparison.OrdinalIgnoreCase))
+            fullPath = Path.Join(projectCollectionsRoot, relativePath);
+        else
+            fullPath = Path.Join(ScytheConfig.Current.Project, relativePath);
 
         if (File.Exists(fullPath) || Directory.Exists(fullPath)) return true;
 
@@ -71,9 +80,12 @@ internal static class PathUtil {
 
         if (File.Exists(fullPath) || Directory.Exists(fullPath)) return true;
 
-        var normalized = relativePath.Replace('\\', '/').TrimStart('/');
         if (normalized.Equals("Collection", StringComparison.OrdinalIgnoreCase) || normalized.Equals("Resources", StringComparison.OrdinalIgnoreCase)) {
             fullPath = GetBuiltInCollectionRoot();
+        } else if (normalized.Equals("Built In", StringComparison.OrdinalIgnoreCase)) {
+            fullPath = GetBuiltInCollectionRoot();
+        } else if (normalized.StartsWith(builtInPrefix, StringComparison.OrdinalIgnoreCase)) {
+            fullPath = Path.Join(GetBuiltInCollectionRoot(), normalized[builtInPrefix.Length..]);
         } else if (normalized.StartsWith("Collection/", StringComparison.OrdinalIgnoreCase)) {
             fullPath = Path.Join(GetBaseRoot(), normalized);
         } else if (normalized.StartsWith("Resources/", StringComparison.OrdinalIgnoreCase)) {

@@ -9,6 +9,7 @@ using System.Reactive.Subjects;
 using static Raylib_cs.Raylib;
 
 internal static class AssetManager {
+    private const string BuiltInStoredPrefix = "Built In";
 
     private static readonly Dictionary<string, Asset>     Assets         = new();
     private static readonly Dictionary<string, Asset>     GuidLookup     = new();
@@ -183,6 +184,12 @@ internal static class AssetManager {
 
     private static string GetProjectLookupPath(string path) =>
         Path.GetRelativePath(ScytheConfig.Current.Project, path).Replace('\\', '/').ToLowerInvariant();
+
+    private static string GetProjectCollectionLookupPath(string path) =>
+        Path.GetRelativePath(Path.Combine(ScytheConfig.Current.Project, "Collections"), path).Replace('\\', '/').ToLowerInvariant();
+
+    private static string GetBuiltInStoredPath(string fullPath) =>
+        $"{BuiltInStoredPrefix}/{Path.GetRelativePath(PathUtil.GetBuiltInCollectionRoot(), fullPath).Replace('\\', '/')}";
 
     private static string BuildLookupKey(Type type, string value) =>
         GetTypePrefix(type) + value;
@@ -394,11 +401,16 @@ internal static class AssetManager {
             var idx = full.IndexOf("/collection/", StringComparison.InvariantCultureIgnoreCase);
             var relBuiltIn = full[(idx + 1)..];
             AddPathLookup(assetType, relBuiltIn, asset);
+            AddPathLookup(assetType, NormalizeLookupValue(GetBuiltInStoredPath(file)), asset);
         }
 
         if (full.Contains(ScytheConfig.Current.Project.Replace('\\', '/'), StringComparison.InvariantCultureIgnoreCase)) {
 
             AddPathLookup(assetType, GetProjectLookupPath(file), asset);
+
+            var collectionsRoot = Path.GetFullPath(Path.Combine(ScytheConfig.Current.Project, "Collections"));
+            if (Path.GetFullPath(file).StartsWith(collectionsRoot, StringComparison.OrdinalIgnoreCase))
+                AddPathLookup(assetType, GetProjectCollectionLookupPath(file), asset);
         }
 
         if (!TypeCache.TryGetValue(assetType, out var list)) {
@@ -699,13 +711,17 @@ internal static class AssetManager {
 
         var full = Path.GetFullPath(file);
         var modPath = ScytheConfig.Current.Project;
+        var projectCollectionsPath = Path.Combine(modPath, "Collections");
         var builtInRoot = PathUtil.GetBuiltInCollectionRoot();
+
+        if (full.StartsWith(projectCollectionsPath, StringComparison.OrdinalIgnoreCase))
+            return Path.GetRelativePath(projectCollectionsPath, full).Replace('\\', '/');
 
         if (full.StartsWith(modPath, StringComparison.OrdinalIgnoreCase))
             return Path.GetRelativePath(modPath, full).Replace('\\', '/');
 
         if (full.StartsWith(builtInRoot, StringComparison.OrdinalIgnoreCase))
-            return Path.GetRelativePath(PathUtil.GetBaseRoot(), full).Replace('\\', '/');
+            return GetBuiltInStoredPath(full);
 
         return full.Replace('\\', '/');
     }
@@ -734,9 +750,12 @@ internal static class AssetManager {
                            var full = Path.GetFullPath(a.File);
                            var rel  = full;
 
-                           if (full.StartsWith(modPath, StringComparison.OrdinalIgnoreCase))
-                               rel                                                                    = Path.GetRelativePath(modPath,                               full);
-                           else if (full.StartsWith(builtInRoot, StringComparison.OrdinalIgnoreCase)) rel = Path.GetRelativePath(PathUtil.GetBaseRoot(), full);
+                           if (full.StartsWith(Path.Combine(modPath, "Collections"), StringComparison.OrdinalIgnoreCase))
+                               rel = Path.GetRelativePath(Path.Combine(modPath, "Collections"), full);
+                           else if (full.StartsWith(modPath, StringComparison.OrdinalIgnoreCase))
+                               rel = Path.GetRelativePath(modPath, full);
+                           else if (full.StartsWith(builtInRoot, StringComparison.OrdinalIgnoreCase))
+                               rel = GetBuiltInStoredPath(full);
 
                            return (Path.GetFileNameWithoutExtension(a.File), rel.Replace('\\', '/'), a.GUID);
 

@@ -61,7 +61,7 @@
         "Components": [
           {
             "GUID": "2cd053e9959f4b91ba52c0cb4d7826a6",
-            "Path": "Collection/Cube.fbx",
+            "Path": "Built In/Cube.fbx",
             "Color": {
               "R": 255,
               "G": 255,
@@ -139,7 +139,7 @@
         "Components": [
           {
             "GUID": "2cd053e9959f4b91ba52c0cb4d7826a6",
-            "Path": "Collection/Cube.fbx",
+            "Path": "Built In/Cube.fbx",
             "Color": {
               "R": 255,
               "G": 255,
@@ -166,7 +166,7 @@
   },
   "GUID": "6ff2407524f149a6a81f04f73e7ee5fc",
   "Skybox": "eb828a6f126140b4a7d8c8d515f11574",
-  "SkyboxPath": "Collection/Skyboxes/Sky 2.png",
+  "SkyboxPath": "Built In/Skyboxes/Sky 2.png",
   "SkyboxTint": {
     "R": 255,
     "G": 255,

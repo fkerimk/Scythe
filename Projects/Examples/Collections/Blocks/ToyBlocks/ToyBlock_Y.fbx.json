@@ -1,12 +1,12 @@
 {
   "GUID": "b2128ea0112a4c8ea3984c170b342c82",
   "AnimationGUID": "23ebd95a718845019447560738eeffe2",
-  "AnimationPath": "Collections/Blocks/ToyBlocks/ToyBlock_Y.fbx",
+  "AnimationPath": "Blocks/ToyBlocks/ToyBlock_Y.fbx",
   "MeshMaterials": {
     "0": "9b81f969d02044d0960e31275916bdcd"
   },
   "MeshMaterialPaths": {
-    "0": "Collections/Blocks/ToyBlocks/ToyBlock.mat"
+    "0": "Blocks/ToyBlocks/ToyBlock.mat"
   },
   "ImportScale": 1.0
 }

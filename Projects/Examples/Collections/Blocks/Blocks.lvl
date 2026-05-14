@@ -101,14 +101,13 @@
         "Components": [
           {
             "GUID": "2cd053e9959f4b91ba52c0cb4d7826a6",
-            "Path": "Collection/Cube.fbx",
+            "Path": "Built In/Cube.fbx",
             "Color": {
               "R": 255,
               "G": 255,
               "B": 255,
               "A": 255
             },
-            "AlphaCutoff": 0.5,
             "$ComponentType": "Model"
           },
           {
@@ -130,7 +129,7 @@
       {
         "Name": "ToyBlock_S",
         "Prefab": "285d3b17963a4060b7d2bc9ede3259fc",
-        "PrefabPath": "Collections/Blocks/ToyBlock.pre",
+        "PrefabPath": "Blocks/ToyBlock.pre",
         "Transform": {
           "Pos": {
             "Y": 6.2
@@ -152,7 +151,7 @@
       {
         "Name": "ToyBlock_C",
         "Prefab": "285d3b17963a4060b7d2bc9ede3259fc",
-        "PrefabPath": "Collections/Blocks/ToyBlock.pre",
+        "PrefabPath": "Blocks/ToyBlock.pre",
         "Transform": {
           "Pos": {
             "Y": 5.0
@@ -183,7 +182,7 @@
       {
         "Name": "ToyBlock_Y",
         "Prefab": "285d3b17963a4060b7d2bc9ede3259fc",
-        "PrefabPath": "Collections/Blocks/ToyBlock.pre",
+        "PrefabPath": "Blocks/ToyBlock.pre",
         "Transform": {
           "Pos": {
             "Y": 3.8
@@ -214,7 +213,7 @@
       {
         "Name": "ToyBlock_T",
         "Prefab": "285d3b17963a4060b7d2bc9ede3259fc",
-        "PrefabPath": "Collections/Blocks/ToyBlock.pre",
+        "PrefabPath": "Blocks/ToyBlock.pre",
         "Transform": {
           "Pos": {
             "Y": 2.6
@@ -245,7 +244,7 @@
       {
         "Name": "ToyBlock_H",
         "Prefab": "285d3b17963a4060b7d2bc9ede3259fc",
-        "PrefabPath": "Collections/Blocks/ToyBlock.pre",
+        "PrefabPath": "Blocks/ToyBlock.pre",
         "Transform": {
           "Pos": {
             "Y": 1.3999999
@@ -276,7 +275,7 @@
       {
         "Name": "ToyBlock_E",
         "Prefab": "285d3b17963a4060b7d2bc9ede3259fc",
-        "PrefabPath": "Collections/Blocks/ToyBlock.pre",
+        "PrefabPath": "Blocks/ToyBlock.pre",
         "Transform": {
           "Pos": {
             "Y": 0.19999981
@@ -319,7 +318,7 @@
   },
   "GUID": "573f8a086abd43ecbea13ed3c2b15fa7",
   "Skybox": "790d996108a945a6b9caa935a7c9e7a3",
-  "SkyboxPath": "Collection/Skyboxes/Sky 20.png",
+  "SkyboxPath": "Built In/Skyboxes/Sky 20.png",
   "SkyboxTint": {
     "R": 255,
     "G": 255,

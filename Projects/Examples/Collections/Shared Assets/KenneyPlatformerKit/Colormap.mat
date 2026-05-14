@@ -1,12 +1,12 @@
 {
   "GUID": "e3fcddeb094f4142ad1d5030da8e3d14",
   "Shader": "130640b64e604a7182ed64ef6f055bac",
-  "ShaderPath": "../../../Collection/pbr.vs",
+  "ShaderPath": "Built In/pbr.vs",
   "Textures": {
     "albedo_map": "039af1467efc493aacfb71f3829f166d"
   },
   "TexturePaths": {
-    "albedo_map": "Collections/Shared Assets/KenneyPlatformerKit/Colormap.png"
+    "albedo_map": "Shared Assets/KenneyPlatformerKit/Colormap.png"
   },
   "Floats": {
     "metallic_value": 0.0,

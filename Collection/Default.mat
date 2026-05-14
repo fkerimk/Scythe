@@ -1,12 +1,12 @@
 {
   "GUID": "c2bc42d7b1dd4ba8a1ab6fb36fcef0a8",
   "Shader": "130640b64e604a7182ed64ef6f055bac",
-  "ShaderPath": "../../../Collection/pbr.vs",
+  "ShaderPath": "Built In/pbr.vs",
   "Textures": {
     "albedo_map": "99778a1311684bb5adc5c67a7da50afd"
   },
   "TexturePaths": {
-    "albedo_map": "../../../Collection/Default.png"
+    "albedo_map": "Built In/Default.png"
   },
   "Floats": {
     "metallic_value": 0.0,
