@@ -7,6 +7,10 @@ using static ImGuiNET.ImGui;
 
 internal partial class ObjectBrowser {
 
+    private static float _labelDragDelta;
+    private static bool _labelWasActivated;
+    private static bool _labelWasDeactivated;
+
     private static void DrawSectionHeader(string title, string icon, Color color, out bool open, bool showRemove = false, Action? onRemove = null, bool defaultOpen = true, Component? comp = null) {
 
         var flags = ImGuiTreeNodeFlags.AllowOverlap | ImGuiTreeNodeFlags.SpanFullWidth;
@@ -77,7 +81,14 @@ internal partial class ObjectBrowser {
     private static bool DrawFloatField(string id, ref object? value, string? _) {
 
         var val = (float)(value ?? 0f);
-        if (!InputFloat($"##{id}", ref val)) return false;
+        var changed = DragFloat($"##{id}", ref val, 0.1f);
+
+        if (_labelDragDelta != 0) {
+            val += _labelDragDelta * 0.1f;
+            changed = true;
+        }
+
+        if (!changed) return false;
 
         value = val;
         return true;
@@ -94,7 +105,14 @@ internal partial class ObjectBrowser {
             return true;
         }
 
-        if (!InputInt($"##{id}", ref val)) return false;
+        var changed = DragInt($"##{id}", ref val, 0.1f);
+
+        if (_labelDragDelta != 0) {
+            val += (int)MathF.Round(_labelDragDelta * 0.1f);
+            changed = true;
+        }
+
+        if (!changed) return false;
 
         value = val;
         return true;
@@ -112,7 +130,15 @@ internal partial class ObjectBrowser {
     private static bool DrawVector2Field(string id, ref object? value, string? _) {
 
         var val = (Vector2)(value ?? Vector2.Zero);
-        if (!InputFloat2($"##{id}", ref val)) return false;
+        var changed = DragFloat2($"##{id}", ref val, 0.1f);
+
+        if (_labelDragDelta != 0) {
+            val.X += _labelDragDelta * 0.1f;
+            val.Y += _labelDragDelta * 0.1f;
+            changed = true;
+        }
+
+        if (!changed) return false;
 
         value = val;
         return true;
@@ -121,7 +147,16 @@ internal partial class ObjectBrowser {
     private static bool DrawVector3Field(string id, ref object? value, string? _) {
 
         var val = (Vector3)(value ?? Vector3.Zero);
-        if (!InputFloat3($"##{id}", ref val)) return false;
+        var changed = DragFloat3($"##{id}", ref val, 0.1f);
+
+        if (_labelDragDelta != 0) {
+            val.X += _labelDragDelta * 0.1f;
+            val.Y += _labelDragDelta * 0.1f;
+            val.Z += _labelDragDelta * 0.1f;
+            changed = true;
+        }
+
+        if (!changed) return false;
 
         value = val;
         return true;
@@ -193,10 +228,28 @@ internal partial class ObjectBrowser {
         PushFont(Fonts.ImMontserratRegular);
         if (highlighted) PushStyleColor(ImGuiCol.Text, Colors.Primary.ToVector4());
         var cleanLabel = Generators.SplitCamelCase(label);
+
         var screenPos = GetCursorScreenPos();
+        var labelSize = CalcTextSize(cleanLabel);
+
+        // Draggable area covering the label
+        InvisibleButton($"##drag_{label}", new Vector2(GetContentRegionAvail().X, GetFrameHeight()));
+        if (IsItemHovered()) SetMouseCursor(ImGuiMouseCursor.ResizeEW);
+
+        if (IsItemActivated()) _labelWasActivated = true;
+        if (IsItemDeactivated()) _labelWasDeactivated = true;
+
+        if (IsItemActive() && IsMouseDragging(ImGuiMouseButton.Left)) {
+            _labelDragDelta = GetIO().MouseDelta.X;
+        }
+
+        // Return to start position to draw the text
+        SetCursorScreenPos(screenPos);
+
         var shadowColor = ColorConvertFloat4ToU32(new Vector4(0f, 0f, 0f, 0.2f));
         GetWindowDrawList().AddText(screenPos + new Vector2(1f, 1f), shadowColor, cleanLabel);
         TextUnformatted(cleanLabel);
+
         if (highlighted) PopStyleColor();
         PopFont();
         NextColumn();

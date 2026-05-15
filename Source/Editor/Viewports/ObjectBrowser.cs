@@ -35,6 +35,9 @@ internal partial class ObjectBrowser : Viewport {
     protected override void OnDraw() {
 
         _propIndex = 0;
+        _labelDragDelta = 0;
+        _labelWasActivated = false;
+        _labelWasDeactivated = false;
 
         // Asset inspection
         var selectedFile = Editor.SelectedAssetPath;
@@ -224,10 +227,18 @@ internal partial class ObjectBrowser : Viewport {
         else if (_fieldRenderers.TryGetValue(type, out var renderer))
             changed = renderer(id, ref value, pickerType);
 
-        // History Logic inside Universal Control
-        if (IsItemActivated() && propName != null) targets.ForEach(t => History.StartRecording(t, propName));
+        _labelDragDelta = 0;
 
-        if (IsItemDeactivated()) deactivated = true;
+        // History Logic inside Universal Control
+        if ((IsItemActivated() || _labelWasActivated) && propName != null) {
+            targets.ForEach(t => History.StartRecording(t, propName));
+            _labelWasActivated = false;
+        }
+
+        if (IsItemDeactivated() || _labelWasDeactivated) {
+            deactivated = true;
+            _labelWasDeactivated = false;
+        }
 
         if (IsItemHovered() && type == typeof(string) && !string.IsNullOrEmpty((string)value!)) SetTooltip(GetAssetTooltip((string)value!, pickerType));
 
