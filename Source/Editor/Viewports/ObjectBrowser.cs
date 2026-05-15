@@ -827,7 +827,7 @@ internal partial class ObjectBrowser : Viewport {
 
         if (typeof(ScytheScript).IsAssignableFrom(targetType)) {
             foreach (var component in obj.ComponentEntries.Values.OfType<Script>()) {
-                var scriptType = component.GetAsset()?.ScriptType;
+                var scriptType = component.Instance?.GetType() ?? component.GetAsset()?.ScriptType;
                 if (scriptType == null || !targetType.IsAssignableFrom(scriptType)) continue;
 
                 resolvedTarget = component;
@@ -855,7 +855,7 @@ internal partial class ObjectBrowser : Viewport {
 
         if (!string.IsNullOrWhiteSpace(pickerType) && !IsScenePickerType(pickerType)) {
             var selectedValue = value as string;
-            var path = ResolveAssetReferencePath(selectedValue, pickerType);
+            var path = ResolveAbsoluteAssetReferencePath(selectedValue, pickerType);
 
             if (!string.IsNullOrWhiteSpace(path) && File.Exists(path))
                 Editor.SetSelectedAsset(path);
@@ -892,6 +892,19 @@ internal partial class ObjectBrowser : Viewport {
         if (obj != null)
             LevelBrowser.SelectObject(obj);
     }
+
+    private static string ResolveAbsoluteAssetReferencePath(string? selectedValue, string pickerType) =>
+        pickerType switch {
+            "ShaderAsset" => AssetManager.GetPath<ShaderAsset>(selectedValue ?? "") ?? "",
+            "LevelAsset" => AssetManager.GetPath<LevelAsset>(selectedValue ?? "") ?? "",
+            "PrefabAsset" => AssetManager.GetPath<PrefabAsset>(selectedValue ?? "") ?? "",
+            "TextureAsset" => AssetManager.GetPath<TextureAsset>(selectedValue ?? "") ?? "",
+            "ModelAsset" => AssetManager.GetPath<ModelAsset>(selectedValue ?? "") ?? "",
+            "AnimationAsset" => AssetManager.GetPath<AnimationAsset>(selectedValue ?? "") ?? "",
+            "MaterialAsset" => AssetManager.GetPath<MaterialAsset>(selectedValue ?? "") ?? "",
+            "ScriptAsset" => AssetManager.GetPath<ScriptAsset>(selectedValue ?? "") ?? "",
+            _ => ""
+        };
 
 
 

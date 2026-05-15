@@ -339,7 +339,7 @@ internal partial class ObjectBrowser {
             }
 
             if (component is not Script script) continue;
-            var scriptType = script.GetAsset()?.ScriptType;
+            var scriptType = script.Instance?.GetType() ?? script.GetAsset()?.ScriptType;
 
             if (scriptType != null && typeof(ScytheScript).IsAssignableFrom(targetType) && targetType.IsAssignableFrom(scriptType))
                 yield return script;
