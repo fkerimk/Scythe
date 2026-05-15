@@ -318,7 +318,7 @@ internal partial class ObjectBrowser : Viewport {
         }
 
         if (!isArrayField)
-            DrawPickerPopup(id, pickerType, ref value, targets, propName, ref changed, ref deactivated);
+            DrawPickerPopup(id, type, pickerType, ref value, targets, propName, ref changed, ref deactivated);
 
         PopItemWidth();
         NextColumn();
@@ -574,7 +574,7 @@ internal partial class ObjectBrowser : Viewport {
         if (IsItemHovered() && type == typeof(string) && value is string stringValue && !string.IsNullOrEmpty(stringValue))
             SetTooltip(GetAssetTooltip(stringValue, pickerType));
 
-        DrawPickerPopup(id, pickerType, ref value, targets, propName, ref changed, ref deactivated);
+        DrawPickerPopup(id, type, pickerType, ref value, targets, propName, ref changed, ref deactivated);
 
         return changed;
     }
@@ -648,7 +648,7 @@ internal partial class ObjectBrowser : Viewport {
             targets.ForEach(t => History.StartRecording(t, propName));
     }
 
-    private void DrawPickerPopup(string id, string? pickerType, ref object? value, List<object> targets, string? propName, ref bool changed, ref bool deactivated) {
+    private void DrawPickerPopup(string id, Type fieldType, string? pickerType, ref object? value, List<object> targets, string? propName, ref bool changed, ref bool deactivated) {
 
         SetNextWindowSizeConstraints(new Vector2(320, 100), new Vector2(320, 600));
         SetNextWindowSize(new Vector2(320, 0), ImGuiCond.Appearing);
@@ -658,7 +658,7 @@ internal partial class ObjectBrowser : Viewport {
         InputTextWithHint("##filter", "Search...", ref _searchFilter, 128);
 
         if (IsScenePickerType(pickerType))
-            DrawScenePickerPopup(pickerType!, ref value, targets, propName, ref changed, ref deactivated);
+            DrawScenePickerPopup(fieldType, ref value, targets, propName, ref changed, ref deactivated);
         else if (SupportsCollectionPicker(pickerType))
             DrawCollectionAwarePickerPopup(id, pickerType!, ref value, targets, propName, ref changed, ref deactivated);
         else
@@ -686,11 +686,6 @@ internal partial class ObjectBrowser : Viewport {
 
     private static bool IsScenePickerType(string? pickerType) =>
         !string.IsNullOrWhiteSpace(pickerType) && pickerType.StartsWith("SceneRef:", StringComparison.Ordinal);
-
-    private static Type? GetScenePickerTargetType(string pickerType) =>
-        !IsScenePickerType(pickerType)
-            ? null
-            : Type.GetType(pickerType["SceneRef:".Length..], throwOnError: false);
 
     private void HandleInspectorDropTarget(ref object? value, Type type, string? pickerType, List<object> targets, string? propName, ref bool changed, ref bool deactivated) {
 

@@ -111,10 +111,9 @@ internal partial class ObjectBrowser {
         EndChild();
     }
 
-    private void DrawScenePickerPopup(string pickerType, ref object? value, List<object> targets, string? propName, ref bool changed, ref bool deactivated) {
+    private void DrawScenePickerPopup(Type targetType, ref object? value, List<object> targets, string? propName, ref bool changed, ref bool deactivated) {
 
-        var targetType = GetScenePickerTargetType(pickerType);
-        if (targetType == null || Core.ActiveLevel == null) {
+        if (Core.ActiveLevel == null) {
             TextDisabled("No active level.");
             return;
         }

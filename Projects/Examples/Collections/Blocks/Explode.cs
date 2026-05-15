@@ -5,12 +5,7 @@ namespace Blocks;
 
 internal class Explode : ScytheScript {
     
-    private Rigidbody _rb = null!;
-
-    public override void Start() {
-        
-        _rb = (Rigidbody)FindComponent("Rigidbody")!;
-    }
+    [Expose] private Rigidbody _rigidbody;
 
     public override void Loop(float dt) {
         
@@ -25,7 +20,7 @@ internal class Explode : ScytheScript {
 
     private void ApplyExplosion(Vector3 explosionPosition, float explosionForce, float explosionRadius, float randomness = 1, float upwardsMultiplier = 1, float angularMultiplier = 1) {
         
-        var delta = _rb.Pos - explosionPosition;
+        var delta = _rigidbody.Pos - explosionPosition;
 
         var distSq = delta.LengthSquared();
         var radiusSq = explosionRadius * explosionRadius;
@@ -49,7 +44,7 @@ internal class Explode : ScytheScript {
 
         direction = direction.LengthSquared() > 0.0001f ? Vector3.Normalize(direction) : new Vector3(0f, 1f, 0f);
 
-        _rb.Velocity += direction * explosionForce * power;
+        _rigidbody.Velocity += direction * explosionForce * power;
 
         // Angular velocity
         var horizontalDirection = direction with { Y = 0f };
@@ -72,7 +67,7 @@ internal class Explode : ScytheScript {
         if (!(angularDir.LengthSquared() > 0.0001f)) return;
         
         angularDir = Vector3.Normalize(angularDir);
-        _rb.AngularVelocity += angularDir * explosionForce * angularMultiplier * power;
+        _rigidbody.AngularVelocity += angularDir * explosionForce * angularMultiplier * power;
     }
 
     private static Vector3 RandomUnitVector() {

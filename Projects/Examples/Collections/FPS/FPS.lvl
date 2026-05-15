@@ -99,7 +99,9 @@
           {
             "GUID": "c4b5e23733264efa97d6a46dce4bec1a",
             "Path": "FPS/PlayerRotation.cs",
-            "Exposed": {},
+            "Exposed": {
+              "_cameraController": "{\"Path\":[{\"Name\":\"Player\",\"Occurrence\":0},{\"Name\":\"Camera Parent\",\"Occurrence\":0},{\"Name\":\"Rotation\",\"Occurrence\":0}],\"ComponentType\":\"Script\",\"ComponentOccurrence\":0,\"ScriptType\":\"SharedAssets.FirstPersonCamera\"}"
+            },
             "$ComponentType": "Script"
           }
         ],
