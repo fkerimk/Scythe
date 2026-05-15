@@ -22,6 +22,8 @@ internal partial class ObjectBrowser : Viewport {
     private static readonly Dictionary<string, PickerTypeMetadata> _pickerTypeMetadata = CreatePickerTypeMetadata();
     private static readonly Dictionary<CollectionAssetKind, PickerCategoryMetadata> _pickerCategoryMetadata = CreatePickerCategoryMetadata();
     private static readonly Dictionary<string, Action<ObjectBrowser, string>> _assetInspectorByExtension = CreateAssetInspectorByExtension();
+    private string? _draggingArrayId;
+    private int _draggingArrayIndex = -1;
 
     public ObjectBrowser() : base("Object") {
 
@@ -367,11 +369,15 @@ internal partial class ObjectBrowser : Viewport {
             ? array.Cast<object?>().ToList()
             : new List<object?>();
         var changed = false;
+        const float actionSpacing = 8f;
+        const float indexWidth = 28f;
+        var actionButtonSize = GetFrameHeight();
 
         BeginGroup();
 
         var count = items.Count;
-        SetNextItemWidth(MathF.Min(90f, MathF.Max(1f, GetContentRegionAvail().X)));
+        var countWidth = MathF.Max(1f, GetContentRegionAvail().X - actionButtonSize - actionSpacing);
+        SetNextItemWidth(countWidth);
         if (DragInt($"##{id}_count", ref count, 0.2f)) {
             StartHistoryCapture(targets, propName);
             count = Math.Max(0, count);
@@ -389,15 +395,63 @@ internal partial class ObjectBrowser : Viewport {
         if (IsItemHovered())
             SetTooltip("Array length");
 
+        SameLine(0, actionSpacing);
+        PushFont(Fonts.ImFontAwesomeSmall);
+        if (Button($"{Icons.FaPlus}##{id}_add", new Vector2(actionButtonSize, actionButtonSize))) {
+            StartHistoryCapture(targets, propName);
+            items.Add(ScriptFieldUtility.GetTypeDefault(elementType));
+            changed = true;
+            deactivated = true;
+        }
+        PopFont();
+
         for (var index = 0; index < items.Count; index++) {
             PushID($"{id}_{index}");
 
-            AlignTextToFramePadding();
-            TextDisabled($"[{index}]");
-            SameLine();
+            var rowStart = GetCursorScreenPos();
+            InvisibleButton($"##reorder_{index}", new Vector2(indexWidth, GetFrameHeight()));
+            var indexMin = GetItemRectMin();
+            var indexMax = GetItemRectMax();
+            var indexHovered = IsItemHovered();
+
+            if (indexHovered)
+                SetMouseCursor(ImGuiMouseCursor.Hand);
+
+            var textColor = ColorConvertFloat4ToU32(Colors.GuiTextDisabled.ToVector4());
+            var textSize = CalcTextSize(index.ToString());
+            var textPos = new Vector2(
+                indexMin.X + (indexWidth - textSize.X) * 0.5f,
+                indexMin.Y + (GetFrameHeight() - textSize.Y) * 0.5f
+            );
+            GetWindowDrawList().AddText(textPos, textColor, index.ToString());
+
+            if (BeginDragDropSource()) {
+                _draggingArrayId = id;
+                _draggingArrayIndex = index;
+                SetDragDropPayload("ARRAY_REORDER", IntPtr.Zero, 0);
+                TextUnformatted(index.ToString());
+                EndDragDropSource();
+            }
+
+            if (BeginDragDropTarget()) {
+                var payload = AcceptDragDropPayload("ARRAY_REORDER");
+                if (!payload.Equals(default(ImGuiPayloadPtr)) && string.Equals(_draggingArrayId, id, StringComparison.Ordinal) && _draggingArrayIndex >= 0 && _draggingArrayIndex != index) {
+                    StartHistoryCapture(targets, propName);
+                    var movedItem = items[_draggingArrayIndex];
+                    items.RemoveAt(_draggingArrayIndex);
+                    var targetIndex = _draggingArrayIndex < index ? index - 1 : index;
+                    items.Insert(targetIndex, movedItem);
+                    _draggingArrayIndex = targetIndex;
+                    changed = true;
+                    deactivated = true;
+                }
+                EndDragDropTarget();
+            }
+
+            SetCursorScreenPos(new Vector2(rowStart.X + indexWidth + actionSpacing, rowStart.Y));
 
             var elementValue = items[index];
-            var availableWidth = MathF.Max(1f, GetContentRegionAvail().X - GetFrameHeight() - 8f);
+            var availableWidth = MathF.Max(1f, GetContentRegionAvail().X - actionButtonSize - actionSpacing);
             SetNextItemWidth(availableWidth);
 
             if (DrawInlineFieldControl($"##value_{index}", ref elementValue, elementType, targets, propName, pickerType, ref deactivated)) {
@@ -405,7 +459,7 @@ internal partial class ObjectBrowser : Viewport {
                 changed = true;
             }
 
-            SameLine();
+            SameLine(0, actionSpacing);
             PushFont(Fonts.ImFontAwesomeSmall);
 
             if (Button($"{Icons.FaXMark}##remove", new Vector2(GetFrameHeight(), GetFrameHeight()))) {
@@ -419,15 +473,6 @@ internal partial class ObjectBrowser : Viewport {
             PopFont();
             PopID();
         }
-
-        PushFont(Fonts.ImFontAwesomeSmall);
-        if (Button($"{Icons.FaPlus}##{id}_add", new Vector2(GetFrameHeight(), GetFrameHeight()))) {
-            StartHistoryCapture(targets, propName);
-            items.Add(ScriptFieldUtility.GetTypeDefault(elementType));
-            changed = true;
-            deactivated = true;
-        }
-        PopFont();
 
         EndGroup();
 
