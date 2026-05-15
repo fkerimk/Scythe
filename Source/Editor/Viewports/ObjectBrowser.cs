@@ -434,10 +434,13 @@ internal partial class ObjectBrowser : Viewport {
                 && mousePos.X <= rowMax.X
                 && mousePos.Y >= rowMin.Y
                 && mousePos.Y <= rowMax.Y) {
-                hoverInsertIndex = mousePos.Y < (rowMin.Y + rowMax.Y) * 0.5f ? index : index + 1;
-                var indicatorY = hoverInsertIndex == index ? rowMin.Y + 1f : rowMax.Y - 1f;
-                indicatorStart = new Vector2(rowMin.X, indicatorY);
-                indicatorEnd = new Vector2(rowMax.X, indicatorY);
+                var candidateInsertIndex = mousePos.Y < (rowMin.Y + rowMax.Y) * 0.5f ? index : index + 1;
+                if (candidateInsertIndex != _draggingArrayIndex && candidateInsertIndex != _draggingArrayIndex + 1) {
+                    hoverInsertIndex = candidateInsertIndex;
+                    var indicatorY = hoverInsertIndex == index ? rowMin.Y + 1f : rowMax.Y - 1f;
+                    indicatorStart = new Vector2(rowMin.X, indicatorY);
+                    indicatorEnd = new Vector2(rowMax.X, indicatorY);
+                }
             }
 
             InvisibleButton($"##reorder_{index}", new Vector2(indexWidth, rowHeight));
@@ -505,13 +508,15 @@ internal partial class ObjectBrowser : Viewport {
 
         if (IsMouseReleased(ImGuiMouseButton.Left) && isDraggingThisArray) {
             if (hoverInsertIndex >= 0) {
+                var sourceIndex = _draggingArrayIndex;
                 var targetIndex = hoverInsertIndex;
-                if (targetIndex > _draggingArrayIndex) targetIndex--;
+                var isNoOpDrop = targetIndex == sourceIndex || targetIndex == sourceIndex + 1;
+                if (targetIndex > sourceIndex) targetIndex--;
 
-                if (targetIndex != _draggingArrayIndex) {
+                if (!isNoOpDrop && targetIndex != sourceIndex) {
                     StartHistoryCapture(targets, propName);
-                    var movedItem = items[_draggingArrayIndex];
-                    items.RemoveAt(_draggingArrayIndex);
+                    var movedItem = items[sourceIndex];
+                    items.RemoveAt(sourceIndex);
                     items.Insert(targetIndex, movedItem);
                     changed = true;
                     deactivated = true;
