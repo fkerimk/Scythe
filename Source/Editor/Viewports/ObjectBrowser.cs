@@ -210,6 +210,8 @@ internal partial class ObjectBrowser : Viewport {
             inlineApplyWithHistoryAction: useInlineArrayActions ? applyOverrideWithHistory : null
         );
 
+        HandleInspectorDropTarget(ref value, type, pickerType, targets, propName, ref changed, ref deactivated);
+
         _labelDragDelta = 0;
 
         // History Logic inside Universal Control
@@ -688,6 +690,207 @@ internal partial class ObjectBrowser : Viewport {
         !IsScenePickerType(pickerType)
             ? null
             : Type.GetType(pickerType["SceneRef:".Length..], throwOnError: false);
+
+    private void HandleInspectorDropTarget(ref object? value, Type type, string? pickerType, List<object> targets, string? propName, ref bool changed, ref bool deactivated) {
+
+        if (!BeginDragDropTarget()) return;
+
+        AcceptDragDropPayload("collection_entry");
+        AcceptDragDropPayload("object");
+        AcceptDragDropPayload("component");
+        var hasActivePayload = !string.IsNullOrWhiteSpace(DragDropPayload.Data)
+                               || LevelBrowser.DragObject != null
+                               || LevelBrowser.DragComponent != null;
+
+        var dropHandled = false;
+        var canAcceptDrop = false;
+        var invalidReason = "";
+
+        if (!dropHandled && TryResolveDraggedAssetValue(pickerType, out var draggedAssetValue, out var assetInvalidReason)) {
+            if (draggedAssetValue != null) {
+                canAcceptDrop = true;
+
+                if (IsMouseReleased(ImGuiMouseButton.Left)) {
+                    ApplyPickerValue(draggedAssetValue, ref value, targets, propName, ref changed, ref deactivated);
+                    dropHandled = true;
+                }
+            } else {
+                invalidReason = assetInvalidReason;
+            }
+        }
+
+        if (!dropHandled && TryResolveDraggedSceneValue(type, out var draggedSceneValue, out var sceneInvalidReason)) {
+            if (draggedSceneValue != null) {
+                canAcceptDrop = true;
+
+                if (IsMouseReleased(ImGuiMouseButton.Left)) {
+                    ApplyPickerValue(draggedSceneValue, ref value, targets, propName, ref changed, ref deactivated);
+                    dropHandled = true;
+                }
+            } else if (string.IsNullOrWhiteSpace(invalidReason)) {
+                invalidReason = sceneInvalidReason;
+            }
+        }
+
+        if (hasActivePayload && canAcceptDrop) {
+            var drawList = GetWindowDrawList();
+            drawList.AddRect(GetItemRectMin(), GetItemRectMax(), GetColorU32(Colors.Primary.ToVector4()), 4f, ImDrawFlags.None, 1.5f);
+        }
+
+        if (hasActivePayload && !dropHandled && !string.IsNullOrWhiteSpace(invalidReason) && IsMouseReleased(ImGuiMouseButton.Left))
+            Notifications.Show(invalidReason);
+
+        if (IsMouseReleased(ImGuiMouseButton.Left)) {
+            LevelBrowser.DragComponent = null;
+            LevelBrowser.DragObject = null;
+        }
+
+        EndDragDropTarget();
+    }
+
+    private static bool TryResolveDraggedAssetValue(string? pickerType, out object? value, out string invalidReason) {
+
+        value = null;
+        invalidReason = "";
+
+        if (string.IsNullOrWhiteSpace(pickerType) || IsScenePickerType(pickerType)) return false;
+        if (string.IsNullOrWhiteSpace(DragDropPayload.Data) || Directory.Exists(DragDropPayload.Data)) return false;
+
+        var draggedPath = DragDropPayload.Data;
+        if (!File.Exists(draggedPath)) return false;
+
+        if (!CollectionData.IsPathCompatibleWithPicker(draggedPath, pickerType)) {
+            invalidReason = $"Drop failed: '{Path.GetFileName(draggedPath)}' is not compatible with this field.";
+            return true;
+        }
+
+        var resolvedValue = ResolvePickerAssetValue(draggedPath, pickerType);
+        if (string.IsNullOrWhiteSpace(resolvedValue)) {
+            invalidReason = $"Drop failed: Could not resolve '{Path.GetFileName(draggedPath)}'.";
+            return true;
+        }
+
+        value = resolvedValue;
+        return true;
+    }
+
+    private static bool TryResolveDraggedSceneValue(Type targetType, out object? value, out string invalidReason) {
+
+        value = null;
+        invalidReason = "";
+
+        if (!ScriptFieldUtility.IsSceneReferenceType(targetType)) return false;
+
+        if (LevelBrowser.DragComponent != null) {
+            var draggedComponent = LevelBrowser.DragComponent;
+            if (draggedComponent is Script script && typeof(ScytheScript).IsAssignableFrom(targetType)) {
+                var scriptType = script.GetAsset()?.ScriptType;
+                if (scriptType != null && targetType.IsAssignableFrom(scriptType)) {
+                    value = SceneReferenceValue.FromTarget(script);
+                    return true;
+                }
+            }
+
+            if (targetType.IsInstanceOfType(draggedComponent)) {
+                value = SceneReferenceValue.FromTarget(draggedComponent);
+                return true;
+            }
+
+            invalidReason = $"Drop failed: '{draggedComponent.GetType().Name}' is not compatible with this field.";
+            return true;
+        }
+
+        if (LevelBrowser.DragObject != null) {
+            var draggedObject = LevelBrowser.DragObject;
+
+            if (targetType == typeof(Obj)) {
+                value = SceneReferenceValue.FromTarget(draggedObject);
+                return true;
+            }
+
+            if (TryResolveSceneTargetFromObject(draggedObject, targetType, out var resolvedTarget)) {
+                value = SceneReferenceValue.FromTarget(resolvedTarget);
+                return true;
+            }
+
+            invalidReason = $"Drop failed: '{draggedObject.Name}' is not compatible with this field.";
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool TryResolveSceneTargetFromObject(Obj obj, Type targetType, out object resolvedTarget) {
+
+        resolvedTarget = null!;
+
+        if (typeof(ScytheScript).IsAssignableFrom(targetType)) {
+            foreach (var component in obj.ComponentEntries.Values.OfType<Script>()) {
+                var scriptType = component.GetAsset()?.ScriptType;
+                if (scriptType == null || !targetType.IsAssignableFrom(scriptType)) continue;
+
+                resolvedTarget = component;
+                return true;
+            }
+
+            return false;
+        }
+
+        if (!typeof(Component).IsAssignableFrom(targetType)) return false;
+
+        foreach (var component in obj.ComponentEntries.Values) {
+            if (!targetType.IsInstanceOfType(component)) continue;
+
+            resolvedTarget = component;
+            return true;
+        }
+
+        return false;
+    }
+
+    private static void NavigateToPickerReference(object? value, string? pickerType, Type targetType) {
+
+        if (value == null) return;
+
+        if (!string.IsNullOrWhiteSpace(pickerType) && !IsScenePickerType(pickerType)) {
+            var selectedValue = value as string;
+            var path = ResolveAssetReferencePath(selectedValue, pickerType);
+
+            if (!string.IsNullOrWhiteSpace(path) && File.Exists(path))
+                Editor.SetSelectedAsset(path);
+
+            return;
+        }
+
+        var sceneTarget = value is SceneReferenceValue reference
+            ? ScriptFieldUtility.ResolveStoredValueForAssignment(reference, targetType, Core.ActiveLevel?.Root)
+            : value;
+
+        var obj = sceneTarget switch {
+            Obj sceneObj => sceneObj,
+            ScytheScript script => script.Obj,
+            Component component => component.Obj,
+            _ => null
+        };
+
+        if (obj == null && value is SceneReferenceValue unresolvedReference && Core.ActiveLevel != null) {
+            var current = Core.ActiveLevel.Root;
+
+            foreach (var segment in unresolvedReference.Path) {
+                if (!current.ChildEntries.TryGetValue(segment.Name, segment.Occurrence, out var next)) {
+                    current = null!;
+                    break;
+                }
+
+                current = next;
+            }
+
+            obj = current;
+        }
+
+        if (obj != null)
+            LevelBrowser.SelectObject(obj);
+    }
 
 
 

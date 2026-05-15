@@ -91,7 +91,9 @@
           {
             "GUID": "39cae3f358b94660800ebb475efdcdf7",
             "Path": "FPS/PlayerMovement.cs",
-            "Exposed": {},
+            "Exposed": {
+              "_rigidbody": "{\"Path\":[{\"Name\":\"Player\",\"Occurrence\":0}],\"ComponentType\":\"Rigidbody\",\"ComponentOccurrence\":0,\"ScriptType\":null}"
+            },
             "$ComponentType": "Script"
           },
           {
@@ -237,7 +239,8 @@
                                 "GUID": "9fc9156584494ea6b076491d1511d09e",
                                 "Path": "FPS/PistolAnimation.cs",
                                 "Exposed": {
-                                  "_animationComponent": "{\"Path\":[{\"Name\":\"Player\",\"Occurrence\":0},{\"Name\":\"Camera Parent\",\"Occurrence\":0},{\"Name\":\"Rotation\",\"Occurrence\":0},{\"Name\":\"Bobbing\",\"Occurrence\":0},{\"Name\":\"Camera\",\"Occurrence\":0},{\"Name\":\"Pistol\",\"Occurrence\":0}],\"ComponentType\":\"Animation\",\"ComponentOccurrence\":0,\"ScriptType\":null}"
+                                  "_animationComponent": "{\"Path\":[{\"Name\":\"Player\",\"Occurrence\":0},{\"Name\":\"Camera Parent\",\"Occurrence\":0},{\"Name\":\"Rotation\",\"Occurrence\":0},{\"Name\":\"Bobbing\",\"Occurrence\":0},{\"Name\":\"Camera\",\"Occurrence\":0},{\"Name\":\"Pistol\",\"Occurrence\":0}],\"ComponentType\":\"Animation\",\"ComponentOccurrence\":0,\"ScriptType\":null}",
+                                  "_animation": "{\"Path\":[{\"Name\":\"Player\",\"Occurrence\":0},{\"Name\":\"Camera Parent\",\"Occurrence\":0},{\"Name\":\"Rotation\",\"Occurrence\":0},{\"Name\":\"Bobbing\",\"Occurrence\":0},{\"Name\":\"Camera\",\"Occurrence\":0},{\"Name\":\"Pistol\",\"Occurrence\":0}],\"ComponentType\":\"Animation\",\"ComponentOccurrence\":0,\"ScriptType\":null}"
                                 },
                                 "$ComponentType": "Script"
                               }

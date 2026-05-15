@@ -10,7 +10,7 @@ internal class CameraController : ScytheScript {
     public Vector2 TargetRot = Vector2.Zero;
     public Vector3 TargetPos = Vector3.Zero;
     
-    public Obj? FollowTarget;
+    [Expose] public Obj? FollowTarget;
     
     public override void Start() {
     

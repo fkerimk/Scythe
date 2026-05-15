@@ -191,7 +191,9 @@
           {
             "GUID": "20ced3943a5b464eb4998a5076bd53ef",
             "Path": "Shared Assets/OrbitalFollowCamera.cs",
-            "Exposed": {},
+            "Exposed": {
+              "FollowTarget": "{\"Path\":[{\"Name\":\"Dwarf\",\"Occurrence\":0}],\"ComponentType\":null,\"ComponentOccurrence\":0,\"ScriptType\":null}"
+            },
             "$ComponentType": "Script"
           }
         ],

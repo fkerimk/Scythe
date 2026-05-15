@@ -2,25 +2,27 @@ using System.Numerics;
 using Raylib_cs;
 using SharedAssets;
 
+namespace FPS;
+
 internal class PlayerRotation : ScytheScript {
     
-    private CameraController cameraController;
+    [Expose] private CameraController _cameraController;
 
-    private Vector3 offset;
+    private Vector3 _offset;
     
     public override void Start() {
         
         Raylib.DisableCursor();
 
-        cameraController = GetChildAt(0).GetChildAt(0).GetComponent<CameraController>();
-        cameraController.SetParent(Core.ActiveLevel?.Root, keepWorld: true);
+        _cameraController = GetChildAt(0).GetChildAt(0).GetComponent<CameraController>();
+        _cameraController.SetParent(Core.ActiveLevel?.Root, keepWorld: true);
         
-        offset = cameraController.Pos - Pos;
+        _offset = _cameraController.Pos - Pos;
     }
 
     public override void Loop(float dt) {
         
-        Transform.Rot = Raymath.QuaternionFromEuler(0, cameraController.TargetRot.Y * (float)(Math.PI / 180.0), 0);
-        cameraController.Pos = Raymath.Vector3Lerp(cameraController.Pos, Pos + offset, dt * 15f);
+        Transform.Rot = Raymath.QuaternionFromEuler(0, _cameraController.TargetRot.Y * (float)(Math.PI / 180.0), 0);
+        _cameraController.Pos = Raymath.Vector3Lerp(_cameraController.Pos, Pos + _offset, dt * 15f);
     }
 }

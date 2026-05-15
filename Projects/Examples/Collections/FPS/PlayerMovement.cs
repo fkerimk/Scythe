@@ -1,15 +1,12 @@
 using System.Numerics;
 using Raylib_cs;
 
+namespace FPS;
+
 internal class PlayerMovement : ScytheScript {
     
-    private Rigidbody? _rb;
-    [Expose]
-    private float speed = 3f;
-
-    public override void Start() {
-        _rb = GetComponent<Rigidbody>();
-    }
+    [Expose] private Rigidbody? _rigidbody;
+    [Expose] private float _speed = 3f;
 
     public override void Loop(float dt) {
         Vector2 moveInput = new Vector2(
@@ -18,16 +15,16 @@ internal class PlayerMovement : ScytheScript {
         );
 
         var cam = FindFirstCameraComponent(Core.ActiveLevel?.Root);
-        if (cam == null || _rb == null) return;
+        if (cam == null || _rigidbody == null) return;
         
         Vector3 rightFlat = cam.Obj.RightFlat;
         Vector3 fwdFlat = cam.Obj.FwdFlat;
 
-        Vector3 vel = -moveInput.X * speed * rightFlat
-                    + moveInput.Y * speed * fwdFlat
-                    + Vector3.UnitY * _rb.Velocity.Y;
+        Vector3 vel = -moveInput.X * _speed * rightFlat
+                    + moveInput.Y * _speed * fwdFlat
+                    + Vector3.UnitY * _rigidbody.Velocity.Y;
 
-        _rb.Velocity = vel;
+        _rigidbody.Velocity = vel;
     }
     
     private Camera? FindFirstCameraComponent(Obj? obj) {

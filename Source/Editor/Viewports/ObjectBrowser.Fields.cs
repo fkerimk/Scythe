@@ -67,21 +67,40 @@ internal partial class ObjectBrowser {
     private static bool DrawStringField(string id, ref object? value, string? pickerType) {
 
         var val = (string)(value ?? "");
-        var display = GetAssetDisplayValue(val, pickerType);
 
-        if (string.IsNullOrEmpty(display)) display = val;
+        if (!string.IsNullOrWhiteSpace(pickerType)) {
+            var display = GetAssetDisplayValue(val, pickerType);
+            if (string.IsNullOrEmpty(display)) display = "None";
 
-        if (!InputTextWithHint($"##{id}", "None", ref display, 512, string.IsNullOrEmpty(pickerType) ? ImGuiInputTextFlags.None : ImGuiInputTextFlags.ReadOnly) || !string.IsNullOrEmpty(pickerType))
+            var clicked = Button(display, new Vector2(GetContentRegionAvail().X, 0f));
+
+            if (clicked && !string.IsNullOrWhiteSpace(val))
+                NavigateToPickerReference(val, pickerType, typeof(string));
+
+            return false;
+        }
+
+        var textValue = GetAssetDisplayValue(val, pickerType);
+
+        if (string.IsNullOrEmpty(textValue)) textValue = val;
+
+        if (!InputTextWithHint($"##{id}", "None", ref textValue, 512, string.IsNullOrEmpty(pickerType) ? ImGuiInputTextFlags.None : ImGuiInputTextFlags.ReadOnly) || !string.IsNullOrEmpty(pickerType))
             return false;
 
-        value = display;
+        value = textValue;
         return true;
     }
 
     private static bool DrawSceneReferenceField(string id, ref object? value, Type type) {
 
         var display = GetSceneReferenceDisplayValue(value, type);
-        InputTextWithHint($"##{id}", "None", ref display, 512, ImGuiInputTextFlags.ReadOnly);
+        if (string.IsNullOrEmpty(display)) display = "None";
+
+        var clicked = Button(display, new Vector2(GetContentRegionAvail().X, 0f));
+
+        if (clicked && value != null)
+            NavigateToPickerReference(value, null, type);
+
         return false;
     }
 

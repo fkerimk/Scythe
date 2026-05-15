@@ -1,8 +1,10 @@
 using Raylib_cs;
 
+namespace FPS;
+
 internal class PistolAnimation : ScytheScript {
     
-    [Expose] private Animation _animationComponent;
+    [Expose] private Animation _animation;
     
     private int _track;
 
@@ -19,6 +21,6 @@ internal class PistolAnimation : ScytheScript {
         if (targetTrack == _track) return;
         
         _track = targetTrack;
-        _animationComponent.Play(_track, 0.2f);
+        _animation.Play(_track, 0.2f);
     }
 }

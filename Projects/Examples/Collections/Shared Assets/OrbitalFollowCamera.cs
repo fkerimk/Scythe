@@ -13,8 +13,6 @@ internal class OrbitalFollowCamera : CameraController {
     public override void Start() {
         
         base.Start();
-
-        FollowTarget = Obj.Parent!.Find("Dwarf")!;
         _smoothTargetPos = FollowTarget.Pos;
     }
 
