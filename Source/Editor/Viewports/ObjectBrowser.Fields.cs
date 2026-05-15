@@ -11,7 +11,7 @@ internal partial class ObjectBrowser {
     private static bool _labelWasActivated;
     private static bool _labelWasDeactivated;
 
-    private static void DrawSectionHeader(string title, string icon, Color color, out bool open, bool showRemove = false, Action? onRemove = null, bool defaultOpen = true, Component? comp = null) {
+    private static void DrawSectionHeader(string title, string icon, Color color, out bool open, bool showRemove = false, Action? onRemove = null, bool defaultOpen = true, Component? comp = null, string? subtitle = null) {
 
         var flags = ImGuiTreeNodeFlags.AllowOverlap | ImGuiTreeNodeFlags.SpanFullWidth;
         if (defaultOpen) flags |= ImGuiTreeNodeFlags.DefaultOpen;
@@ -23,6 +23,7 @@ internal partial class ObjectBrowser {
 
         PushStyleVar(ImGuiStyleVar.FramePadding, new Vector2(4, 3));
         PushStyleColor(ImGuiCol.Header, new Vector4(0, 0, 0, 0));
+        SetNextItemOpen(defaultOpen, ImGuiCond.Once);
         open = TreeNodeEx($"##{title}", flags);
 
         if (comp != null && BeginDragDropSource()) {
@@ -46,6 +47,13 @@ internal partial class ObjectBrowser {
         PushFont(Fonts.ImMontserratRegular);
         Text(title);
         PopFont();
+
+        if (!string.IsNullOrWhiteSpace(subtitle)) {
+            SameLine();
+            PushStyleColor(ImGuiCol.Text, Colors.GuiTextDisabled.ToVector4());
+            Text($"({subtitle})");
+            PopStyleColor();
+        }
 
         if (showRemove && onRemove != null) {
 

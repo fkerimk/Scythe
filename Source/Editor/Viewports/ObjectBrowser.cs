@@ -17,6 +17,7 @@ internal partial class ObjectBrowser : Viewport {
     private bool _showAnimationFrames;
     private readonly Dictionary<string, int> _pendingTextureQuality = new();
     private readonly Dictionary<string, PickerBrowserState> _pickerStates = new();
+    private readonly HashSet<int> _forceOpenHeaders = [];
     private static readonly Dictionary<Type, InspectorFieldRenderer> _fieldRenderers = CreateFieldRenderers();
     private static readonly Dictionary<Type, InspectableProperty[]> _inspectablePropertyCache = new();
     private static readonly Dictionary<string, PickerTypeMetadata> _pickerTypeMetadata = CreatePickerTypeMetadata();
@@ -148,6 +149,7 @@ internal partial class ObjectBrowser : Viewport {
                 redo: () => {
                     if (!targetObj.ComponentEntries.Values.Any(existing => ReferenceEquals(existing, component))) {
                         targetObj.ComponentEntries.Add(component);
+                        _forceOpenHeaders.Add(component.GetHashCode());
                         if (targetObj.FindPrefabRoot() != null && Core.ActiveLevel?.IsPrefabDocument != true)
                             PrefabUtility.MarkAsAddedComponent(component);
                     }
@@ -1074,6 +1076,10 @@ internal partial class ObjectBrowser : Viewport {
             var icon = first is Component c ? c.LabelIcon : Icons.FaCube;
             var color = first is Component cc ? cc.LabelColor : Colors.GuiTypeModel;
             var isRemovable = first is Component and not Transform && targets.Count == 1;
+            var forceOpen = _forceOpenHeaders.Remove(first.GetHashCode());
+            var subtitle = first is Script scriptComponent
+                ? GetScriptHeaderSubtitle(scriptComponent)
+                : null;
 
             DrawSectionHeader(
                 title,
@@ -1104,8 +1110,9 @@ internal partial class ObjectBrowser : Viewport {
                     );
 
                 },
-                defaultOpen,
-                first as Component
+                defaultOpen || forceOpen,
+                first as Component,
+                subtitle
             );
 
         } else {
@@ -1229,6 +1236,14 @@ internal partial class ObjectBrowser : Viewport {
         }
 
         PopID();
+    }
+
+    private static string? GetScriptHeaderSubtitle(Script scriptComponent) {
+
+        var asset = scriptComponent.GetAsset();
+        if (asset == null) return null;
+
+        return Path.GetFileNameWithoutExtension(asset.File);
     }
 
 
