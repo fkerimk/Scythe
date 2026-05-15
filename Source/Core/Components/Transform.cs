@@ -34,7 +34,7 @@ internal class Transform(Obj obj) : Component(obj) {
 
             var q = Raymath.QuaternionFromEuler(value.X.DegToRad(), (-value.Y).DegToRad(), (-value.Z).DegToRad());
 
-            if (MathF.Abs(Quaternion.Dot(Rot, q)) > 0.9999f) return;
+            if (MathF.Abs(Quaternion.Dot(Rot, q)) > 0.9999999f) return;
 
             PrefabUtility.UpdateTransformOverrideState(this, nameof(Euler), value);
             Rot = q;
@@ -96,7 +96,7 @@ internal class Transform(Obj obj) : Component(obj) {
                 var parentRot = Obj.Parent.Transform.WorldRot;
                 var q = Quaternion.Inverse(parentRot) * value;
 
-                if (MathF.Abs(Quaternion.Dot(Rot, q)) > 0.9999f) return;
+                if (MathF.Abs(Quaternion.Dot(Rot, q)) > 0.9999999f) return;
 
                 Rot = q;
             }
@@ -115,7 +115,7 @@ internal class Transform(Obj obj) : Component(obj) {
 
             var q = Raymath.QuaternionFromEuler(value.X.DegToRad(), (-value.Y).DegToRad(), (-value.Z).DegToRad());
 
-            if (MathF.Abs(Quaternion.Dot(WorldRot, q)) > 0.9999f) return;
+            if (MathF.Abs(Quaternion.Dot(WorldRot, q)) > 0.9999999f) return;
 
             WorldRot = q;
         }
@@ -240,7 +240,7 @@ internal class Transform(Obj obj) : Component(obj) {
 
         // Only process bounce if selected, moving, or still settling
         var isMoving = _visualVel.LengthSquared() > 0.0001f;
-        var isRotating = MathF.Abs(Quaternion.Dot(_visualRot, targetRot)) < 0.9999f;
+        var isRotating = MathF.Abs(Quaternion.Dot(_visualRot, targetRot)) < 0.9999999f;
 
         if (!Obj.IsSelected && !isMoving && !isRotating) {
 
