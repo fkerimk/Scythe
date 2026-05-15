@@ -98,7 +98,7 @@ internal class Script(Obj obj) : Component(obj) {
     public object? GetExposeFieldValue(FieldInfo field, ScriptAsset asset) {
 
         if (ExposedValues.TryGetValue(field.Name, out var raw))
-            return ScriptFieldUtility.DeserializeStoredValue(raw, field.FieldType, Obj.GetRoot());
+            return ScriptFieldUtility.DeserializeStoredValue(raw, field.FieldType, Obj);
 
         if (Instance != null && field.DeclaringType?.IsAssignableFrom(Instance.GetType()) == true)
             return field.GetValue(Instance);
@@ -142,7 +142,7 @@ internal class Script(Obj obj) : Component(obj) {
 
     private object? GetStoredExposeFieldValue(FieldInfo field, ScriptAsset asset) =>
         ExposedValues.TryGetValue(field.Name, out var raw)
-            ? ScriptFieldUtility.DeserializeStoredValue(raw, field.FieldType, Obj.GetRoot())
+            ? ScriptFieldUtility.DeserializeStoredValue(raw, field.FieldType, Obj)
             : asset.GetConfigFieldValue(field);
 
     private void ApplyFieldValueToInstance(FieldInfo field, object? value) {
@@ -150,7 +150,7 @@ internal class Script(Obj obj) : Component(obj) {
         if (Instance == null) return;
         if (field.DeclaringType?.IsAssignableFrom(Instance.GetType()) != true) return;
 
-        field.SetValue(Instance, ScriptFieldUtility.ResolveStoredValueForAssignment(value, field.FieldType, Obj.GetRoot()));
+        field.SetValue(Instance, ScriptFieldUtility.ResolveStoredValueForAssignment(value, field.FieldType, Obj));
     }
 
     private ScriptAsset? ResolveAssetReference(bool markDirty) {

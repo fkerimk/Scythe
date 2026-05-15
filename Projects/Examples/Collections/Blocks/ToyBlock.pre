@@ -1,9 +1,11 @@
 {
   "Root": {
     "Name": "Root",
-    "Children": {
-      "ToyBlock_S": {
-        "Children": {},
+    "Children": [
+      {
+        "Name": "ToyBlock_S",
+        "Prefab": null,
+        "PrefabPath": null,
         "Transform": {
           "Pos": {
             "Y": 6.2
@@ -21,10 +23,8 @@
             "W": 0.70710677
           }
         },
-        "Prefab": "",
-        "PrefabPath": "",
-        "Components": {
-          "Model": {
+        "Components": [
+          {
             "GUID": "4402bb7c40ff4b2c8a73217dce7840d0",
             "Path": "Collections/Blocks/ToyBlocks/ToyBlock_S.fbx",
             "Color": {
@@ -33,36 +33,42 @@
               "B": 255,
               "A": 255
             },
-            "AlphaCutoff": 0.5
+            "$ComponentType": "Model"
           },
-          "BoxCollider": {
+          {
             "Size": {
               "X": 1.0,
               "Y": 1.0,
               "Z": 1.0
-            }
+            },
+            "$ComponentType": "BoxCollider"
           },
-          "Rigidbody": {
-            "Bounciness": 0.0
+          {
+            "Bounciness": 0.0,
+            "$ComponentType": "Rigidbody"
           },
-          "Script": {
+          {
             "GUID": "d469251dbd744051b9b04758d8b8d630",
-            "Path": "Collections/Blocks/Explode.cs",
-            "Exposed": {}
+            "Path": "Blocks/Explode.cs",
+            "Exposed": {
+              "_rigidbody": "{\"Path\":[],\"ComponentType\":\"Rigidbody\",\"ComponentOccurrence\":0,\"ScriptType\":null,\"IsPrefabLocal\":true}"
+            },
+            "$ComponentType": "Script"
           }
-        }
+        ],
+        "Children": []
       }
-    }
+    ]
   },
   "EditorCamera": {
     "Position": {
-      "X": 4.960425,
-      "Y": 6.447205,
-      "Z": -1.507079
+      "X": 9.284239,
+      "Y": 7.1466694,
+      "Z": -6.76077
     },
     "Rotation": {
-      "X": -0.3998373,
-      "Y": -1.1951828
+      "X": -0.22583224,
+      "Y": -0.9011964
     }
   },
   "GUID": "285d3b17963a4060b7d2bc9ede3259fc",

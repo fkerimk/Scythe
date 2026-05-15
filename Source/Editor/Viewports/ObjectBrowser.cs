@@ -858,8 +858,10 @@ internal partial class ObjectBrowser : Viewport {
             return;
         }
 
+        var sceneReferenceContext = LevelBrowser.SelectedObject ?? Core.ActiveLevel?.Root;
+
         var sceneTarget = value is SceneReferenceValue reference
-            ? ScriptFieldUtility.ResolveStoredValueForAssignment(reference, targetType, Core.ActiveLevel?.Root)
+            ? ScriptFieldUtility.ResolveStoredValueForAssignment(reference, targetType, sceneReferenceContext)
             : value;
 
         var obj = sceneTarget switch {
@@ -869,8 +871,10 @@ internal partial class ObjectBrowser : Viewport {
             _ => null
         };
 
-        if (obj == null && value is SceneReferenceValue unresolvedReference && Core.ActiveLevel != null) {
-            var current = Core.ActiveLevel.Root;
+        if (obj == null && value is SceneReferenceValue unresolvedReference && sceneReferenceContext != null) {
+            var current = unresolvedReference.IsPrefabLocal
+                ? sceneReferenceContext.FindPrefabRoot() ?? sceneReferenceContext.GetRoot()
+                : sceneReferenceContext.GetRoot();
 
             foreach (var segment in unresolvedReference.Path) {
                 if (!current.ChildEntries.TryGetValue(segment.Name, segment.Occurrence, out var next)) {

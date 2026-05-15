@@ -391,9 +391,33 @@ internal static class PrefabUtility {
 
         if (!TryGetSourceComponent(script, out var sourceComponent) || sourceComponent is not Script sourceScript) return false;
 
-        sourceScript.SetExposeFieldValue(field, value);
+        sourceScript.SetExposeFieldValue(field, RemapExposeValueForPrefab(script, field, value));
         script.SetPrefabOverride(nameof(Script.ExposedValues), false);
         return SaveSourcePrefab(script.Obj);
+    }
+
+    private static object? RemapExposeValueForPrefab(Script instanceScript, FieldInfo field, object? value) {
+
+        if (value == null) return null;
+        if (!ScriptFieldUtility.IsSceneReferenceType(field.FieldType)) return value;
+
+        var resolvedValue = ScriptFieldUtility.ResolveStoredValueForAssignment(value, field.FieldType, instanceScript.Obj);
+        if (resolvedValue == null) return value;
+
+        var instancePrefabRoot = instanceScript.Obj.FindPrefabRoot();
+        if (instancePrefabRoot == null) return resolvedValue;
+
+        var targetObj = resolvedValue switch {
+            Obj obj => obj,
+            ScytheScript targetScript => targetScript.Obj,
+            Component component => component.Obj,
+            _ => null
+        };
+
+        if (targetObj == null || !ReferenceEquals(targetObj.FindPrefabRoot(), instancePrefabRoot))
+            return resolvedValue;
+
+        return SceneReferenceValue.FromTarget(resolvedValue, instancePrefabRoot);
     }
 
     public static bool ApplyAddedComponentToPrefab(Component component) {

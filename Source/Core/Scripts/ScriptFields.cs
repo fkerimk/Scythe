@@ -73,14 +73,14 @@ internal static class ScriptFieldUtility {
 
     public static object? GetTypeDefault(Type type) => type.IsValueType ? Activator.CreateInstance(type) : null;
 
-    public static object? DeserializeStoredValue(string raw, Type type, Obj? contextRoot = null) {
+    public static object? DeserializeStoredValue(string raw, Type type, Obj? contextObj = null) {
 
         if (IsSceneReferenceType(type)) {
             try {
                 var reference = JsonConvert.DeserializeObject<SceneReferenceValue>(raw);
                 if (reference == null) return null;
 
-                reference.ResolvedValue = ResolveSceneReference(reference, type, contextRoot);
+                reference.ResolvedValue = ResolveSceneReference(reference, type, contextObj);
                 return reference;
             } catch {
                 return null;
@@ -110,13 +110,13 @@ internal static class ScriptFieldUtility {
         return JsonConvert.SerializeObject(value, Formatting.None);
     }
 
-    public static object? ResolveStoredValueForAssignment(object? value, Type type, Obj? contextRoot = null) {
+    public static object? ResolveStoredValueForAssignment(object? value, Type type, Obj? contextObj = null) {
 
         if (!IsSceneReferenceType(type)) return value;
         if (value == null) return null;
 
         if (value is SceneReferenceValue sceneReference)
-            return ResolveSceneReference(sceneReference, type, contextRoot);
+            return ResolveSceneReference(sceneReference, type, contextObj);
 
         if (type.IsInstanceOfType(value)) return value;
         return null;
@@ -137,11 +137,11 @@ internal static class ScriptFieldUtility {
         }
     }
 
-    private static object? ResolveSceneReference(SceneReferenceValue reference, Type targetType, Obj? contextRoot) {
+    private static object? ResolveSceneReference(SceneReferenceValue reference, Type targetType, Obj? contextObj) {
 
-        if (contextRoot == null) return null;
+        if (contextObj == null) return null;
 
-        var obj = ResolveTargetObject(reference, contextRoot);
+        var obj = ResolveTargetObject(reference, contextObj);
         if (obj == null) return null;
 
         if (targetType == typeof(Obj)) return obj;
@@ -153,9 +153,11 @@ internal static class ScriptFieldUtility {
         return null;
     }
 
-    private static Obj? ResolveTargetObject(SceneReferenceValue reference, Obj contextRoot) {
+    private static Obj? ResolveTargetObject(SceneReferenceValue reference, Obj contextObj) {
 
-        var current = contextRoot;
+        var current = reference.IsPrefabLocal
+            ? contextObj.FindPrefabRoot() ?? contextObj.GetRoot()
+            : contextObj.GetRoot();
 
         foreach (var segment in reference.Path) {
             if (!current.ChildEntries.TryGetValue(segment.Name, segment.Occurrence, out var next))
@@ -192,44 +194,48 @@ internal sealed class SceneReferenceValue {
     public string? ComponentType { get; set; }
     public int ComponentOccurrence { get; set; }
     public string? ScriptType { get; set; }
+    public bool IsPrefabLocal { get; set; }
     [JsonIgnore] public object? ResolvedValue { get; set; }
 
-    public static SceneReferenceValue FromTarget(object target) => target switch {
-        Obj obj => BuildForObject(obj),
-        ScytheScript script => BuildForScript(script),
-        Script script => BuildForScriptComponent(script),
-        Component component => BuildForComponent(component),
+    public static SceneReferenceValue FromTarget(object target, Obj? relativeRoot = null) => target switch {
+        Obj obj => BuildForObject(obj, relativeRoot),
+        ScytheScript script => BuildForScript(script, relativeRoot),
+        Script script => BuildForScriptComponent(script, relativeRoot),
+        Component component => BuildForComponent(component, relativeRoot),
         _ => throw new InvalidOperationException($"Unsupported scene reference target type: {target.GetType().FullName}")
     };
 
     public bool EqualsReference(SceneReferenceValue other) =>
-        ComponentOccurrence == other.ComponentOccurrence
+        IsPrefabLocal == other.IsPrefabLocal
+        && ComponentOccurrence == other.ComponentOccurrence
         && string.Equals(ComponentType, other.ComponentType, StringComparison.Ordinal)
         && string.Equals(ScriptType, other.ScriptType, StringComparison.Ordinal)
         && Path.Count == other.Path.Count
         && Path.Zip(other.Path, (left, right) =>
             string.Equals(left.Name, right.Name, StringComparison.Ordinal) && left.Occurrence == right.Occurrence).All(equal => equal);
 
-    private static SceneReferenceValue BuildForObject(Obj obj) =>
-        new() { Path = BuildPath(obj) };
+    private static SceneReferenceValue BuildForObject(Obj obj, Obj? relativeRoot) =>
+        new() { Path = BuildPath(obj, relativeRoot), IsPrefabLocal = relativeRoot != null };
 
-    private static SceneReferenceValue BuildForComponent(Component component) =>
+    private static SceneReferenceValue BuildForComponent(Component component, Obj? relativeRoot) =>
         new() {
-            Path = BuildPath(component.Obj),
+            Path = BuildPath(component.Obj, relativeRoot),
             ComponentType = component.GetType().Name,
             ComponentOccurrence = component.Obj.ComponentEntries.GetOccurrenceIndex(component),
-            ScriptType = component is Script script ? script.GetAsset()?.ScriptType?.FullName : null
+            ScriptType = component is Script script ? script.GetAsset()?.ScriptType?.FullName : null,
+            IsPrefabLocal = relativeRoot != null
         };
 
-    private static SceneReferenceValue BuildForScriptComponent(Script script) =>
+    private static SceneReferenceValue BuildForScriptComponent(Script script, Obj? relativeRoot) =>
         new() {
-            Path = BuildPath(script.Obj),
+            Path = BuildPath(script.Obj, relativeRoot),
             ComponentType = nameof(Script),
             ComponentOccurrence = script.Obj.ComponentEntries.GetOccurrenceIndex(script),
-            ScriptType = script.GetAsset()?.ScriptType?.FullName
+            ScriptType = script.GetAsset()?.ScriptType?.FullName,
+            IsPrefabLocal = relativeRoot != null
         };
 
-    private static SceneReferenceValue BuildForScript(ScytheScript script) {
+    private static SceneReferenceValue BuildForScript(ScytheScript script, Obj? relativeRoot) {
 
         var component = script.Obj.ComponentEntries.Values
             .OfType<Script>()
@@ -239,19 +245,20 @@ internal sealed class SceneReferenceValue {
             throw new InvalidOperationException($"Script instance '{script.GetType().FullName}' is not attached to an Obj.");
 
         return new SceneReferenceValue {
-            Path = BuildPath(component.Obj),
+            Path = BuildPath(component.Obj, relativeRoot),
             ComponentType = nameof(Script),
             ComponentOccurrence = component.Obj.ComponentEntries.GetOccurrenceIndex(component),
-            ScriptType = script.GetType().FullName
+            ScriptType = script.GetType().FullName,
+            IsPrefabLocal = relativeRoot != null
         };
     }
 
-    private static List<SceneReferencePathSegment> BuildPath(Obj obj) {
+    private static List<SceneReferencePathSegment> BuildPath(Obj obj, Obj? relativeRoot = null) {
 
         var path = new List<SceneReferencePathSegment>();
         var current = obj;
 
-        while (current.Parent != null) {
+        while (current.Parent != null && !ReferenceEquals(current, relativeRoot)) {
             path.Add(new SceneReferencePathSegment {
                 Name = current.Name,
                 Occurrence = current.Parent.ChildEntries.GetOccurrenceIndex(current)

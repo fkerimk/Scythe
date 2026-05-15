@@ -256,7 +256,7 @@ internal partial class ObjectBrowser {
     private static string FormatSceneReferenceDisplay(SceneReferenceValue reference, Type type) {
 
         var path = reference.Path.Count == 0
-            ? "Level"
+            ? reference.IsPrefabLocal ? "Self" : "Level"
             : string.Join("/", reference.Path.Select(segment => segment.Name));
 
         if (type == typeof(Obj)) return path;
