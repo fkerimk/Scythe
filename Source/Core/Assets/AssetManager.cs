@@ -20,6 +20,8 @@ internal static class AssetManager {
 #if !SCYTHE_RUNTIME_BUILD
     private static readonly Subject<string>               ImportRequests = new();
 #endif
+    private static readonly ImportBinding[]               ImportBindings = CreateImportBindings();
+    private static readonly Dictionary<string, PickerBinding> PickerBindings = CreatePickerBindings();
     private static readonly HashSet<string>               _textureImportsInProgress = [];
     private static readonly List<string>                  _pendingFiles  = new();
     private static readonly Dictionary<string, int>       _ignoredChanges = new();
@@ -204,6 +206,34 @@ internal static class AssetManager {
 
     private static T? GetLoadedLookupAsset<T>(Dictionary<string, Asset> source, string key) where T : Asset =>
         source.TryGetValue(key, out var asset) && asset is T { IsLoaded: true } typedAsset ? typedAsset : null;
+
+    private static ImportBinding[] CreateImportBindings() => [
+        CreateImportBinding<LevelAsset>(AssetPaths.IsLevel, ImportLevel),
+        CreateImportBinding<PrefabAsset>(AssetPaths.IsPrefab, ImportPrefab),
+        CreateImportBinding<MaterialAsset>(AssetPaths.IsMaterial, ImportMaterial),
+        CreateImportBinding<TextureAsset>(AssetFilePatterns.IsTexture, ImportTexture),
+        CreateImportBinding<ModelAsset>(AssetFilePatterns.IsModel, ImportModel),
+        CreateImportBinding<ScriptAsset>(AssetFilePatterns.IsScript, ImportScript),
+        CreateImportBinding<ShaderAsset>(AssetFilePatterns.IsShader, ImportShader)
+    ];
+
+    private static ImportBinding CreateImportBinding<T>(Func<string, bool> matches, Action<string> import) where T : Asset =>
+        new((path, importIfMissingOnly) => TryEnsureImported<T>(path, matches, import, importIfMissingOnly));
+
+    private static Dictionary<string, PickerBinding> CreatePickerBindings() =>
+        new(StringComparer.Ordinal) {
+            ["ShaderAsset"] = CreatePickerBinding<ShaderAsset>(),
+            ["TextureAsset"] = CreatePickerBinding<TextureAsset>(),
+            ["ModelAsset"] = CreatePickerBinding<ModelAsset>(),
+            ["AnimationAsset"] = CreatePickerBinding<AnimationAsset>(),
+            ["MaterialAsset"] = CreatePickerBinding<MaterialAsset>(),
+            ["ScriptAsset"] = CreatePickerBinding<ScriptAsset>(),
+            ["PrefabAsset"] = CreatePickerBinding<PrefabAsset>(),
+            ["LevelAsset"] = CreatePickerBinding<LevelAsset>()
+        };
+
+    private static PickerBinding CreatePickerBinding<T>() where T : Asset =>
+        new(() => GetNames<T>(), path => GetOrImport<T>(path)?.GUID ?? "");
 
     private static void HandleFileChange(string file) {
 
@@ -476,25 +506,17 @@ internal static class AssetManager {
 
         if (!PathUtil.GetPath(path, out var fullPath) && !File.Exists(path)) return;
         fullPath = Path.GetFullPath(PathUtil.GetPath(path, out var resolvedPath) ? resolvedPath : path);
-
-        TryEnsureImported<LevelAsset>(fullPath, AssetPaths.IsLevel, ImportLevel);
-        TryEnsureImported<PrefabAsset>(fullPath, AssetPaths.IsPrefab, ImportPrefab);
-        TryEnsureImported<MaterialAsset>(fullPath, AssetPaths.IsMaterial, ImportMaterial);
-        TryEnsureImported<TextureAsset>(fullPath, AssetFilePatterns.IsTexture, ImportTexture);
-        TryEnsureImported<ModelAsset>(fullPath, AssetFilePatterns.IsModel, ImportModel);
-        TryEnsureImported<ScriptAsset>(fullPath, AssetFilePatterns.IsScript, ImportScript);
-        TryEnsureImported<ShaderAsset>(fullPath, AssetFilePatterns.IsShader, ImportShader);
+        EnsureImported(fullPath, importIfMissingOnly: true);
     }
 
-    private static bool TryImportKnownAsset(string file) {
+    private static bool TryImportKnownAsset(string file) =>
+        EnsureImported(file, importIfMissingOnly: false);
 
-        if (TryEnsureImported<LevelAsset>(file, AssetPaths.IsLevel, ImportLevel)) return true;
-        if (TryEnsureImported<PrefabAsset>(file, AssetPaths.IsPrefab, ImportPrefab)) return true;
-        if (TryEnsureImported<MaterialAsset>(file, AssetPaths.IsMaterial, ImportMaterial)) return true;
-        if (TryEnsureImported<TextureAsset>(file, AssetFilePatterns.IsTexture, ImportTexture, importIfMissingOnly: false)) return true;
-        if (TryEnsureImported<ModelAsset>(file, AssetFilePatterns.IsModel, ImportModel, importIfMissingOnly: false)) return true;
-        if (TryEnsureImported<ScriptAsset>(file, AssetFilePatterns.IsScript, ImportScript, importIfMissingOnly: false)) return true;
-        if (TryEnsureImported<ShaderAsset>(file, AssetFilePatterns.IsShader, ImportShader, importIfMissingOnly: false)) return true;
+    private static bool EnsureImported(string fullPath, bool importIfMissingOnly) {
+
+        foreach (var binding in ImportBindings)
+            if (binding.Ensure(fullPath, importIfMissingOnly))
+                return true;
 
         return false;
     }
@@ -765,29 +787,11 @@ internal static class AssetManager {
                    .ToList();
     }
 
-    public static List<(string Name, string Path, string GUID)> GetNames(string pickerType) => pickerType switch {
-        "ShaderAsset" => GetNames<ShaderAsset>(),
-        "TextureAsset" => GetNames<TextureAsset>(),
-        "ModelAsset" => GetNames<ModelAsset>(),
-        "AnimationAsset" => GetNames<AnimationAsset>(),
-        "MaterialAsset" => GetNames<MaterialAsset>(),
-        "ScriptAsset" => GetNames<ScriptAsset>(),
-        "PrefabAsset" => GetNames<PrefabAsset>(),
-        "LevelAsset" => GetNames<LevelAsset>(),
-        _ => []
-    };
+    public static List<(string Name, string Path, string GUID)> GetNames(string pickerType) =>
+        PickerBindings.TryGetValue(pickerType, out var binding) ? binding.GetNames() : [];
 
-    public static string GetGuidForPickerType(string path, string pickerType) => pickerType switch {
-        "LevelAsset" => GetOrImport<LevelAsset>(path)?.GUID ?? "",
-        "PrefabAsset" => GetOrImport<PrefabAsset>(path)?.GUID ?? "",
-        "MaterialAsset" => GetOrImport<MaterialAsset>(path)?.GUID ?? "",
-        "ModelAsset" => GetOrImport<ModelAsset>(path)?.GUID ?? "",
-        "ScriptAsset" => GetOrImport<ScriptAsset>(path)?.GUID ?? "",
-        "TextureAsset" => GetOrImport<TextureAsset>(path)?.GUID ?? "",
-        "ShaderAsset" => GetOrImport<ShaderAsset>(path)?.GUID ?? "",
-        "AnimationAsset" => GetOrImport<AnimationAsset>(path)?.GUID ?? "",
-        _ => ""
-    };
+    public static string GetGuidForPickerType(string path, string pickerType) =>
+        PickerBindings.TryGetValue(pickerType, out var binding) ? binding.GetGuid(path) : "";
 
     public static IEnumerable<T> GetAll<T>() where T : Asset => !TypeCache.TryGetValue(typeof(T), out var list) ? [] : list.Cast<T>();
 
@@ -1139,4 +1143,7 @@ internal static class AssetManager {
 
         return true;
     }
+
+    private readonly record struct ImportBinding(Func<string, bool, bool> Ensure);
+    private readonly record struct PickerBinding(Func<List<(string Name, string Path, string GUID)>> GetNames, Func<string, string> GetGuid);
 }

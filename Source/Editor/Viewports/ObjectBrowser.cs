@@ -177,40 +177,11 @@ internal partial class ObjectBrowser : Viewport {
         PushItemWidth(-1); // Fill the entire column
         var isArrayField = type.IsArray && type.GetArrayRank() == 1;
 
-        // Asset Picker Logic
-        if (!string.IsNullOrEmpty(pickerType) && !isArrayField) {
+        if (!isArrayField && DrawPickerButtons(id, pickerType, ref value, targets, propName, trackActivation: true))
+            changed = deactivated = true;
 
-            PushFont(Fonts.ImFontAwesomeSmall);
-
-            if (Button($"{Icons.FaSearch}##{id}_btn")) {
-
-                var names = AssetManager.GetNames(pickerType);
-
-                _foundAssets = names.ToArray();
-                _pickerEntries = BuildPickerEntries(pickerType);
-                _searchFilter = "";
-                _pickerStates[id] = new PickerBrowserState();
-
-                OpenPopup($"Picker_{id}");
-            }
-
-            if (IsItemActivated() && propName != null) targets.ForEach(t => History.StartRecording(t, propName));
-            if (IsItemDeactivated()) deactivated = true;
-
-            SameLine();
-
-            if (Button($"{Icons.FaXMark}##{id}_clear")) {
-                value = "";
-                changed = true;
-                deactivated = true;
-            }
-
-            if (IsItemActivated() && propName != null) targets.ForEach(t => History.StartRecording(t, propName));
-            PopFont();
-            SameLine();
-
+        if (!string.IsNullOrEmpty(pickerType) && !isArrayField)
             SetNextItemWidth(GetContentRegionAvail().X);
-        }
 
         var resetButtonSize = GetFrameHeight();
         var useInlineArrayActions = isArrayField && highlightOverride;
@@ -344,20 +315,8 @@ internal partial class ObjectBrowser : Viewport {
                 SetTooltip("Apply override to prefab");
         }
 
-        // Picker Popup logic
-        SetNextWindowSize(new Vector2(320, 0), ImGuiCond.Appearing);
-
-        if (!isArrayField && BeginPopup($"Picker_{id}")) {
-
-            SetNextItemWidth(-1);
-            InputTextWithHint("##filter", "Search...", ref _searchFilter, 128);
-
-            if (SupportsCollectionPicker(pickerType))
-                DrawCollectionAwarePickerPopup(id, pickerType!, ref value, targets, propName, ref changed, ref deactivated);
-            else
-                DrawFlatPickerPopup(ref value, targets, propName, ref changed, ref deactivated);
-            EndPopup();
-        }
+        if (!isArrayField)
+            DrawPickerPopup(id, pickerType, ref value, targets, propName, ref changed, ref deactivated);
 
         PopItemWidth();
         NextColumn();
@@ -594,30 +553,8 @@ internal partial class ObjectBrowser : Viewport {
 
         var changed = false;
 
-        if (!string.IsNullOrEmpty(pickerType)) {
-            PushFont(Fonts.ImFontAwesomeSmall);
-
-            if (Button($"{Icons.FaSearch}##{id}_btn")) {
-                _foundAssets = AssetManager.GetNames(pickerType).ToArray();
-                _pickerEntries = BuildPickerEntries(pickerType);
-                _searchFilter = "";
-                _pickerStates[id] = new PickerBrowserState();
-                OpenPopup($"Picker_{id}");
-            }
-
-            PopFont();
-            SameLine();
-
-            PushFont(Fonts.ImFontAwesomeSmall);
-            if (Button($"{Icons.FaXMark}##{id}_clear")) {
-                StartHistoryCapture(targets, propName);
-                value = "";
-                changed = true;
-                deactivated = true;
-            }
-            PopFont();
-            SameLine();
-        }
+        if (DrawPickerButtons(id, pickerType, ref value, targets, propName, trackActivation: false))
+            changed = deactivated = true;
 
         if (type.IsEnum)
             changed |= DrawEnumField(id, ref value, type);
@@ -630,19 +567,7 @@ internal partial class ObjectBrowser : Viewport {
         if (IsItemHovered() && type == typeof(string) && value is string stringValue && !string.IsNullOrEmpty(stringValue))
             SetTooltip(GetAssetTooltip(stringValue, pickerType));
 
-        SetNextWindowSize(new Vector2(320, 0), ImGuiCond.Appearing);
-
-        if (BeginPopup($"Picker_{id}")) {
-            SetNextItemWidth(-1);
-            InputTextWithHint("##filter", "Search...", ref _searchFilter, 128);
-
-            if (SupportsCollectionPicker(pickerType))
-                DrawCollectionAwarePickerPopup(id, pickerType!, ref value, targets, propName, ref changed, ref deactivated);
-            else
-                DrawFlatPickerPopup(ref value, targets, propName, ref changed, ref deactivated);
-
-            EndPopup();
-        }
+        DrawPickerPopup(id, pickerType, ref value, targets, propName, ref changed, ref deactivated);
 
         return changed;
     }
@@ -663,6 +588,67 @@ internal partial class ObjectBrowser : Viewport {
 
         foreach (var target in targets)
             History.StartRecording(target, propName);
+    }
+
+    private bool DrawPickerButtons(string id, string? pickerType, ref object? value, List<object> targets, string? propName, bool trackActivation) {
+
+        if (string.IsNullOrEmpty(pickerType))
+            return false;
+
+        PushFont(Fonts.ImFontAwesomeSmall);
+
+        if (Button($"{Icons.FaSearch}##{id}_btn"))
+            OpenPicker(id, pickerType);
+
+        if (trackActivation) TrackPickerActivation(targets, propName);
+
+        SameLine();
+
+        var cleared = false;
+        if (Button($"{Icons.FaXMark}##{id}_clear")) {
+            StartHistoryCapture(targets, propName);
+            value = "";
+            cleared = true;
+        }
+
+        if (trackActivation) TrackPickerActivation(targets, propName);
+
+        PopFont();
+        SameLine();
+        return cleared;
+    }
+
+    private void OpenPicker(string id, string pickerType) {
+
+        _foundAssets = AssetManager.GetNames(pickerType).ToArray();
+        _pickerEntries = BuildPickerEntries(pickerType);
+        _searchFilter = "";
+        _pickerStates[id] = new PickerBrowserState();
+        OpenPopup($"Picker_{id}");
+    }
+
+    private static void TrackPickerActivation(List<object> targets, string? propName) {
+
+        if (propName == null) return;
+
+        if (IsItemActivated())
+            targets.ForEach(t => History.StartRecording(t, propName));
+    }
+
+    private void DrawPickerPopup(string id, string? pickerType, ref object? value, List<object> targets, string? propName, ref bool changed, ref bool deactivated) {
+
+        SetNextWindowSize(new Vector2(320, 0), ImGuiCond.Appearing);
+        if (!BeginPopup($"Picker_{id}")) return;
+
+        SetNextItemWidth(-1);
+        InputTextWithHint("##filter", "Search...", ref _searchFilter, 128);
+
+        if (SupportsCollectionPicker(pickerType))
+            DrawCollectionAwarePickerPopup(id, pickerType!, ref value, targets, propName, ref changed, ref deactivated);
+        else
+            DrawFlatPickerPopup(ref value, targets, propName, ref changed, ref deactivated);
+
+        EndPopup();
     }
 
 
@@ -693,43 +679,24 @@ internal partial class ObjectBrowser : Viewport {
         DrawSectionHeader("Project", Icons.FaHouse, Colors.GuiText, out var open);
 
         if (open) {
-
-            DrawShadowedLabel("Name");
-            object? name = ProjectConfig.Current.Name;
-            var (nameChanged, nameDeactivated) = DrawInspectorField("ProjectName", ref name, typeof(string), [ProjectConfig.Current], nameof(ProjectConfig.Name));
-
-            if (nameChanged) {
-                ProjectConfig.Current.Name = (string)name!;
+            DrawConfigField("Name", "ProjectName", ProjectConfig.Current.Name, typeof(string), nameof(ProjectConfig.Name), null, value => {
+                ProjectConfig.Current.Name = (string)value!;
                 ProjectConfig.Current.Save();
-            }
+            });
 
-            if (nameDeactivated) History.StopRecording();
-
-            DrawShadowedLabel("Startup Level");
-            object? startupLevel = ProjectConfig.Current.StartupLevel;
-            var (levelChanged, levelDeactivated) = DrawInspectorField("ProjectStartupLevel", ref startupLevel, typeof(string), [ProjectConfig.Current], nameof(ProjectConfig.StartupLevel), "LevelAsset");
-
-            if (levelChanged) {
-                ProjectConfig.Current.StartupLevel = (string)startupLevel!;
+            DrawConfigField("Startup Level", "ProjectStartupLevel", ProjectConfig.Current.StartupLevel, typeof(string), nameof(ProjectConfig.StartupLevel), "LevelAsset", value => {
+                ProjectConfig.Current.StartupLevel = (string)value!;
                 ProjectConfig.Current.StartupLevelPath = AssetManager.GetPath<LevelAsset>(ProjectConfig.Current.StartupLevel) is { } path
                     ? AssetManager.GetStoredPath(path)
                     : "";
                 ProjectConfig.Current.Save();
-            }
+            });
 
-            if (levelDeactivated) History.StopRecording();
-
-            DrawShadowedLabel("Background Scripts");
-            object? backgroundScripts = ProjectConfig.Current.BackgroundScripts;
-            var (backgroundScriptsChanged, backgroundScriptsDeactivated) = DrawInspectorField("ProjectBackgroundScripts", ref backgroundScripts, typeof(string[]), [ProjectConfig.Current], nameof(ProjectConfig.BackgroundScripts), "ScriptAsset");
-
-            if (backgroundScriptsChanged) {
-                ProjectConfig.Current.BackgroundScripts = (string[]?)backgroundScripts ?? [];
+            DrawConfigField("Background Scripts", "ProjectBackgroundScripts", ProjectConfig.Current.BackgroundScripts, typeof(string[]), nameof(ProjectConfig.BackgroundScripts), "ScriptAsset", value => {
+                ProjectConfig.Current.BackgroundScripts = (string[]?)value ?? [];
                 SyncProjectBackgroundScriptPaths();
                 ProjectConfig.Current.Save();
-            }
-
-            if (backgroundScriptsDeactivated) History.StopRecording();
+            });
         }
 
         EndSection(open);
@@ -750,43 +717,25 @@ internal partial class ObjectBrowser : Viewport {
             TextDisabled(level.Name);
             NextColumn();
 
-            DrawShadowedLabel("Skybox");
-            object? skybox = level.Skybox;
-            var (skyboxChanged, skyboxDeactivated) = DrawInspectorField("LevelSkybox", ref skybox, typeof(string), [level], nameof(Level.Skybox), "TextureAsset");
-
-            if (skyboxChanged) {
-                level.Skybox = (string)skybox!;
+            DrawConfigField("Skybox", "LevelSkybox", level.Skybox, typeof(string), nameof(Level.Skybox), "TextureAsset", value => {
+                level.Skybox = (string)value!;
                 level.SkyboxPath = AssetManager.GetPath<TextureAsset>(level.Skybox) is { } path
                     ? AssetManager.GetStoredPath(path)
                     : "";
                 level.IsDirty = true;
                 Core.ApplyLevelVisualSettings();
-            }
+            }, level);
 
-            if (skyboxDeactivated) History.StopRecording();
-
-            DrawShadowedLabel("Background Color");
-            object? backgroundColor = level.BackgroundColor;
-            var (backgroundChanged, backgroundDeactivated) = DrawInspectorField("LevelBackgroundColor", ref backgroundColor, typeof(Color), [level], nameof(Level.BackgroundColor));
-
-            if (backgroundChanged) {
-                level.BackgroundColor = (Color)backgroundColor!;
+            DrawConfigField("Background Color", "LevelBackgroundColor", level.BackgroundColor, typeof(Color), nameof(Level.BackgroundColor), null, value => {
+                level.BackgroundColor = (Color)value!;
                 level.IsDirty = true;
-            }
+            }, level);
 
-            if (backgroundDeactivated) History.StopRecording();
-
-            DrawShadowedLabel("Ambient Color");
-            object? ambientColor = level.AmbientColor;
-            var (ambientChanged, ambientDeactivated) = DrawInspectorField("LevelAmbientColor", ref ambientColor, typeof(Color), [level], nameof(Level.AmbientColor));
-
-            if (ambientChanged) {
-                level.AmbientColor = (Color)ambientColor!;
+            DrawConfigField("Ambient Color", "LevelAmbientColor", level.AmbientColor, typeof(Color), nameof(Level.AmbientColor), null, value => {
+                level.AmbientColor = (Color)value!;
                 level.IsDirty = true;
                 Core.ApplyLevelVisualSettings();
-            }
-
-            if (ambientDeactivated) History.StopRecording();
+            }, level);
         }
 
         EndSection(open);
@@ -1192,6 +1141,21 @@ internal partial class ObjectBrowser : Viewport {
 
         if (target is Component componentTarget && pickerType != null)
             componentTarget.UnloadAndQuit();
+    }
+
+    private void DrawConfigField(string label, string id, object? currentValue, Type type, string propertyName, string? pickerType, Action<object?> apply, object? target = null) {
+
+        target ??= ProjectConfig.Current;
+        DrawShadowedLabel(label);
+
+        object? value = currentValue;
+        var (changed, deactivated) = DrawInspectorField(id, ref value, type, [target], propertyName, pickerType);
+
+        if (changed)
+            apply(value);
+
+        if (deactivated)
+            History.StopRecording();
     }
 
 
