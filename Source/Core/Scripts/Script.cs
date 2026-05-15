@@ -57,6 +57,9 @@ internal class Script(Obj obj) : Component(obj) {
         Instance.Loop(Raylib.GetFrameTime());
     }
 
+    public int GetExecutionOrder() =>
+        ScriptOrderUtility.GetExecutionOrder(Instance?.GetType() ?? GetAsset()?.ScriptType);
+
     public void PrepareForHotReload() {
 
         _hotReloadInstance = Instance;

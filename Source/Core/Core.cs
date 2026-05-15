@@ -560,27 +560,56 @@ internal static class Core {
     }
 
     private static void StartScripts(Obj obj) {
-
-        foreach (var component in obj.ComponentEntries.Values) {
-            if (component is Script script && script.IsLoaded) script.EnsureStarted();
-        }
-
-        foreach (var child in obj.ChildEntries.Values.ToArray()) StartScripts(child);
+        foreach (var script in EnumerateScripts(obj).OrderBy(script => script.GetExecutionOrder()))
+            if (script.IsLoaded)
+                script.EnsureStarted();
     }
 
     private static void RunLogic(Obj obj) {
 
-        // Priority: Rigidbodies must sync physics to transform before scripts run
-        if (obj.ComponentEntries.TryGetValue("Rigidbody", out var rb) && rb.IsLoaded) rb.Logic();
+        RunRigidbodyLogic(obj);
+        RunScriptLogic(obj);
+        RunComponentLogic(obj);
+    }
+
+    private static void RunRigidbodyLogic(Obj obj) {
+
+        if (obj.ComponentEntries.TryGetValue("Rigidbody", out var rb) && rb.IsLoaded)
+            rb.Logic();
+
+        foreach (var child in obj.ChildEntries.Values.ToArray())
+            RunRigidbodyLogic(child);
+    }
+
+    private static void RunScriptLogic(Obj obj) {
+
+        foreach (var script in EnumerateScripts(obj).OrderBy(script => script.GetExecutionOrder()))
+            if (script.IsLoaded)
+                script.Logic();
+    }
+
+    private static void RunComponentLogic(Obj obj) {
 
         foreach (var component in obj.ComponentEntries.Values) {
 
-            if (component is Rigidbody) continue;
+            if (component is Rigidbody or Script) continue;
 
             if (component.IsLoaded) component.Logic();
         }
 
-        foreach (var child in obj.ChildEntries.Values.ToArray()) RunLogic(child);
+        foreach (var child in obj.ChildEntries.Values.ToArray())
+            RunComponentLogic(child);
+    }
+
+    private static IEnumerable<Script> EnumerateScripts(Obj root) {
+
+        foreach (var component in root.ComponentEntries.Values)
+            if (component is Script script)
+                yield return script;
+
+        foreach (var child in root.ChildEntries.Values.ToArray())
+            foreach (var script in EnumerateScripts(child))
+                yield return script;
     }
 
     private static void SyncHierarchy(Obj obj) {

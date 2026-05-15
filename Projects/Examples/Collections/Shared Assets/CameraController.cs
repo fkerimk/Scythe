@@ -3,6 +3,7 @@ using Raylib_cs;
 
 namespace SharedAssets;
 
+[ScriptOrder(100)]
 internal class CameraController : ScytheScript {
     
     [Config] public float Sensitivity = 0.3f;
@@ -26,9 +27,9 @@ internal class CameraController : ScytheScript {
         CustomPass(dt);
         
         Rotation(mouseDelta);
-        if (FollowTarget != null) Movement();
-        
         ApplyRotation();
+        
+        if (FollowTarget != null) Movement();
         if (FollowTarget != null) ApplyMovement();
     }
     
