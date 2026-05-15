@@ -426,6 +426,7 @@ internal partial class ObjectBrowser : Viewport {
             deactivated = true;
         }
 
+        var resetHovered = false;
         if (inlineResetVisible) {
             SameLine(0, actionSpacing);
             if (Button($"{Icons.FaRotateLeft}##{id}_reset", new Vector2(actionButtonSize, actionButtonSize))) {
@@ -436,11 +437,10 @@ internal partial class ObjectBrowser : Viewport {
                 changed = true;
                 deactivated = true;
             }
-
-            if (IsItemHovered())
-                SetTooltip("Reset override");
+            resetHovered = IsItemHovered();
         }
 
+        var applyHovered = false;
         if (inlineApplyAction != null) {
             SameLine(0, actionSpacing);
             if (Button($"{Icons.FaCheck}##{id}_apply", new Vector2(actionButtonSize, actionButtonSize))) {
@@ -458,11 +458,15 @@ internal partial class ObjectBrowser : Viewport {
 
                 deactivated = true;
             }
-
-            if (IsItemHovered())
-                SetTooltip("Apply override to prefab");
+            applyHovered = IsItemHovered();
         }
         PopFont();
+
+        if (resetHovered)
+            SetTooltip("Reset override");
+
+        if (applyHovered)
+            SetTooltip("Apply override to prefab");
 
         for (var index = 0; index < items.Count; index++) {
             PushID($"{id}_{index}");
