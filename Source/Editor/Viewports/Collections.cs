@@ -218,10 +218,15 @@ internal class Collections : Viewport {
     }
 
     private void DrawBrowser() {
-
         _entryClickedThisFrame = false;
 
-        if (!BeginChild("Browser")) return;
+        PushStyleVar(ImGuiStyleVar.WindowPadding, new Vector2(8, 4));
+        if (!BeginChild("Browser", new Vector2(0, 0), ImGuiChildFlags.None, ImGuiWindowFlags.None)) {
+            PopStyleVar();
+            return;
+        }
+
+        Dummy(new Vector2(0, 2));
 
         if (_showChildCollections) {
 
@@ -250,6 +255,7 @@ internal class Collections : Viewport {
         }
 
         EndChild();
+        PopStyleVar();
     }
 
     private IEnumerable<BrowserEntry> GetBrowserEntries() {
@@ -343,17 +349,11 @@ internal class Collections : Viewport {
 
         SameLine(startX + iconWidth + 5f);
 
-        if (isSelected) {
-            PushStyleColor(ImGuiCol.Header, Colors.GuiButtonActive.ToVector4());
-            PushStyleColor(ImGuiCol.HeaderHovered, Colors.GuiButtonActive.ToVector4());
-            PushStyleColor(ImGuiCol.HeaderActive, Colors.GuiButtonActive.ToVector4());
-        }
-
         PushStyleColor(ImGuiCol.Text, color);
         var clicked = Selectable(ProjectLabel, isSelected, ImGuiSelectableFlags.None, new Vector2(GetContentRegionAvail().X, 0f));
         PopStyleColor();
 
-        if (isSelected) PopStyleColor(3);
+        if (isSelected) DrawSelectionHighlight();
         if (!clicked) return;
 
         _entryClickedThisFrame = true;
@@ -377,7 +377,8 @@ internal class Collections : Viewport {
         PopFont();
 
         SameLine(startX + iconWidth + 5f);
-        var clicked = DrawRenamableEntry(path, name, color, isSelected: false);
+        var isSelected = string.Equals(_selectedPath, path, StringComparison.OrdinalIgnoreCase);
+        var clicked = DrawRenamableEntry(path, name, color, isSelected);
         DrawEntryDragSource(path, name, isDirectory: true);
         var dropped = HandleCollectionDropTarget(path);
 
@@ -445,18 +446,13 @@ internal class Collections : Viewport {
         if (state.Count == 0) BeginDisabled();
 
         var isSelected = _activeCategory?.Name == state.Category.Name;
-        if (isSelected) {
-            PushStyleColor(ImGuiCol.Header, Colors.GuiButtonActive.ToVector4());
-            PushStyleColor(ImGuiCol.HeaderHovered, Colors.GuiButtonActive.ToVector4());
-            PushStyleColor(ImGuiCol.HeaderActive, Colors.GuiButtonActive.ToVector4());
-        }
-
         PushStyleColor(ImGuiCol.Text, color);
         var clicked = Selectable(state.Category.Name, isSelected, ImGuiSelectableFlags.None, new Vector2(GetContentRegionAvail().X, 0f));
         PopStyleColor();
+
         DrawRightAlignedCount(state.Count, color);
 
-        if (isSelected) PopStyleColor(3);
+        if (isSelected) DrawSelectionHighlight();
         if (state.Count == 0) EndDisabled();
 
         if (!clicked) return;
@@ -490,10 +486,6 @@ internal class Collections : Viewport {
         DrawEntryContextMenu(path, isDirectory: false);
         var doubleClicked = IsItemHovered() && IsMouseDoubleClicked(ImGuiMouseButton.Left);
 
-        if (isSelected && !string.Equals(_renamingPath, path, StringComparison.OrdinalIgnoreCase)) {
-            var drawList = GetWindowDrawList();
-            drawList.AddRect(GetItemRectMin(), GetItemRectMax(), GetColorU32(Colors.Primary.ToVector4()), 4f, ImDrawFlags.None, 1.5f);
-        }
         if (doubleClicked && (CollectionData.IsLevel(path) || CollectionData.IsPrefab(path))) {
             _entryClickedThisFrame = true;
             Editor.OpenLevel(path);
@@ -676,7 +668,23 @@ internal class Collections : Viewport {
         PushStyleColor(ImGuiCol.Text, color);
         var clicked = Selectable($"{displayName}##{path}", isSelected, ImGuiSelectableFlags.None, new Vector2(GetContentRegionAvail().X, 0f));
         PopStyleColor();
+
+        if (isSelected) DrawSelectionHighlight();
+
         return clicked;
+    }
+
+    private static void DrawSelectionHighlight() {
+        var drawList = GetWindowDrawList();
+        var min = GetItemRectMin();
+        var max = GetItemRectMax();
+
+        var primaryColor = Colors.Primary.ToVector4();
+        var bgColor = primaryColor;
+        bgColor.W = 0.08f;
+
+        drawList.AddRectFilled(min, max, ColorConvertFloat4ToU32(bgColor), 4f);
+        drawList.AddRect(min, max, ColorConvertFloat4ToU32(primaryColor), 4f, ImDrawFlags.None, 1.5f);
     }
 
     private void DrawRenameInput(string path) {
