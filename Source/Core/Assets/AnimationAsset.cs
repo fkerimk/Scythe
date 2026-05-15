@@ -3,6 +3,7 @@
 internal class AnimationAsset : Asset {
 
     public List<AnimationClip> Animations = [];
+    private ModelAsset.ModelSettings _settings = new();
 
     public override bool Load() {
 
@@ -15,6 +16,7 @@ internal class AnimationAsset : Asset {
             if (System.IO.File.Exists(jsonPath)) {
 
                 var settings = JsonFile.ReadOrDefault(jsonPath, new ModelAsset.ModelSettings());
+                _settings = settings;
                 var changed = false;
                 if (string.IsNullOrWhiteSpace(settings.AnimationGUID)) {
 
@@ -30,7 +32,8 @@ internal class AnimationAsset : Asset {
 
                 GUID = settings.AnimationGUID;
                 if (changed) JsonFile.WriteIndented(jsonPath, settings);
-            }
+            } else
+                _settings = new ModelAsset.ModelSettings();
 
             ImportedFile = AssetManager.GetImportedModelFile(File, GUID);
             if (!TryLoadImportedOrRebuild()) return false;
@@ -57,7 +60,7 @@ internal class AnimationAsset : Asset {
 
         if (!string.Equals(Path.GetExtension(ResolvedFile), ".scymodel", StringComparison.OrdinalIgnoreCase)) {
 #if !SCYTHE_RUNTIME_BUILD
-            Animations = AssimpLoader.Load(File).Animations;
+            Animations = ModelAsset.BuildAnimationClips(AssimpLoader.Load(File).Animations, _settings);
             return true;
 #else
             return false;
@@ -73,7 +76,7 @@ internal class AnimationAsset : Asset {
             return true;
 
 #if !SCYTHE_RUNTIME_BUILD
-        Animations = AssimpLoader.Load(File).Animations;
+        Animations = ModelAsset.BuildAnimationClips(AssimpLoader.Load(File).Animations, _settings);
         return true;
 #else
         return false;
@@ -85,7 +88,7 @@ internal class AnimationAsset : Asset {
         if (!CompiledAssetCache.LoadModel(cacheFile, out _, out _, out _, out _, out var compiledAnimations))
             return false;
 
-        Animations = compiledAnimations;
+        Animations = ModelAsset.BuildAnimationClips(compiledAnimations, _settings);
         return true;
     }
 }

@@ -9,6 +9,11 @@ using System.Reactive.Subjects;
 using static Raylib_cs.Raylib;
 
 internal static class AssetManager {
+    private sealed class ImportedAnimationTrackCacheEntry {
+        public string Signature = "";
+        public List<AnimationClip> Tracks = [];
+    }
+
     private const string BuiltInStoredPrefix = "Built In";
 
     private static readonly Dictionary<string, Asset>     Assets         = new();
@@ -16,6 +21,7 @@ internal static class AssetManager {
     private static readonly List<FileSystemWatcher>       Watchers       = [];
     private static readonly Dictionary<string, Asset>     PathLookup     = new();
     private static readonly Dictionary<Type, List<Asset>> TypeCache      = new();
+    private static readonly Dictionary<string, ImportedAnimationTrackCacheEntry> ImportedAnimationTrackCache = new();
     private static readonly ConcurrentQueue<Action>       PendingActions = new();
 #if !SCYTHE_RUNTIME_BUILD
     private static readonly Subject<string>               ImportRequests = new();
@@ -55,6 +61,7 @@ internal static class AssetManager {
             GuidLookup.Clear();
             Assets.Clear();
             TypeCache.Clear();
+            ImportedAnimationTrackCache.Clear();
 
             var builtInPath = "";
             bool hasBuiltIn = PathUtil.GetPath("Collection", out builtInPath);
@@ -389,6 +396,50 @@ internal static class AssetManager {
 
     private static void ImportShader(string file) {
         GetOrLoad<ShaderAsset>(file);
+    }
+
+    public static List<AnimationClip> GetImportedAnimationTracks(string file) {
+
+        if (!File.Exists(file)) return [];
+
+        var settings = JsonFile.ReadOrDefault(file + ".json", new ModelAsset.ModelSettings());
+        if (string.IsNullOrWhiteSpace(settings.GUID))
+            settings.GUID = Guid.NewGuid().ToString("N");
+
+        var importedFile = GetImportedModelFile(file, settings.GUID);
+        var cacheKey = Path.GetFullPath(file).Replace('\\', '/');
+        var signature = BuildImportedAnimationTrackSignature(file, importedFile);
+
+        if (ImportedAnimationTrackCache.TryGetValue(cacheKey, out var cached) && string.Equals(cached.Signature, signature, StringComparison.Ordinal))
+            return cached.Tracks;
+
+        List<AnimationClip> tracks;
+        if (File.Exists(importedFile) && CompiledAssetCache.LoadModel(importedFile, out _, out _, out _, out _, out var compiledAnimations))
+            tracks = compiledAnimations;
+        else {
+
+#if !SCYTHE_RUNTIME_BUILD
+            tracks = AssimpLoader.Load(file).Animations;
+#else
+            tracks = [];
+#endif
+        }
+
+        ImportedAnimationTrackCache[cacheKey] = new ImportedAnimationTrackCacheEntry {
+            Signature = signature,
+            Tracks = tracks
+        };
+
+        return tracks;
+    }
+
+    private static string BuildImportedAnimationTrackSignature(string sourceFile, string importedFile) {
+
+        var jsonFile = sourceFile + ".json";
+        var sourceTicks = File.Exists(sourceFile) ? File.GetLastWriteTimeUtc(sourceFile).Ticks : 0;
+        var importedTicks = File.Exists(importedFile) ? File.GetLastWriteTimeUtc(importedFile).Ticks : 0;
+        var jsonTicks = File.Exists(jsonFile) ? File.GetLastWriteTimeUtc(jsonFile).Ticks : 0;
+        return $"{sourceTicks}:{importedTicks}:{jsonTicks}";
     }
 
     private static void GetOrLoad<T>(string file) where T : Asset, new() {

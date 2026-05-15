@@ -42,8 +42,8 @@ internal class Animation(Obj obj) : Component(obj) {
     [Label("Is Playing"), JsonProperty, RecordHistory]
     public bool IsPlaying { get; set; } = true;
 
-    [Label("Looping"), JsonProperty, RecordHistory]
-    public bool Looping { get; set; } = true;
+    [JsonProperty("Looping")]
+    private bool LegacyLooping { set { } }
 
     [JsonIgnore]
     public bool EditorPreviewEnabled { get; private set; }
@@ -138,7 +138,7 @@ internal class Animation(Obj obj) : Component(obj) {
             EditorPreviewEnabled = true;
             EditorPreviewPlaying = false;
 
-            if (!Looping && _frameRaw >= clip.Duration)
+            if (!clip.Loop && _frameRaw >= clip.Duration)
                 EditorPreviewPlaying = false;
 
             _lastTrack = -1;
@@ -274,7 +274,7 @@ internal class Animation(Obj obj) : Component(obj) {
 
         if (_frameRaw >= currentClip.Duration) {
 
-            if (Looping)
+            if (currentClip.Loop)
                 _frameRaw %= (float)currentClip.Duration;
             else {
                 _frameRaw = (float)currentClip.Duration;
@@ -299,7 +299,7 @@ internal class Animation(Obj obj) : Component(obj) {
 
             if (_prevFrameRaw >= prevClip.Duration) {
 
-                if (Looping)
+                if (prevClip.Loop)
                     _prevFrameRaw %= (float)prevClip.Duration;
                 else
                     _prevFrameRaw = (float)prevClip.Duration;

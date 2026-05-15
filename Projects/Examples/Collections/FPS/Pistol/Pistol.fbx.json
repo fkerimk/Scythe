@@ -10,5 +10,14 @@
     "0": "FPS/Pistol/Hands.mat",
     "1": "FPS/Pistol/Beretta.mat"
   },
-  "ImportScale": 0.02
+  "ImportScale": 0.02,
+  "AnimationClips": [
+    {
+      "Name": "Up",
+      "Track": 0,
+      "StartFrame": 0,
+      "EndFrame": 49,
+      "Loop": false
+    }
+  ]
 }

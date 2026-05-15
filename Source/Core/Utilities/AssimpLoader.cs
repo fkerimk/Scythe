@@ -28,12 +28,19 @@ internal static partial class AssimpLoader {
         var bones = new List<BoneInfo>();
         var boneMapping = new Dictionary<string, List<int>>();
 
+        var animations = scene.Animations.Select(ProcessAnimation).ToList();
+        for (var i = 0; i < animations.Count; i++) {
+            animations[i].SourceTrack = i;
+            animations[i].StartFrame = 0d;
+            animations[i].EndFrame = animations[i].Duration;
+        }
+
         return (
             scene.Meshes.Select(mesh => ProcessMesh(mesh, bones, boneMapping)).ToList(),
             bones,
             ProcessNode(scene.RootNode),
             globalInverse,
-            scene.Animations.Select(ProcessAnimation).ToList()
+            animations
         );
     }
 

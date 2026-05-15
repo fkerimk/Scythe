@@ -128,6 +128,22 @@ internal partial class ObjectBrowser {
         return true;
     }
 
+    private static bool DrawDoubleField(string id, ref object? value, string? _) {
+
+        var val = (double)(value ?? 0d);
+        var changed = InputDouble($"##{id}", ref val, 0.1, 1.0, "%.3f");
+
+        if (_labelDragDelta != 0) {
+            val += _labelDragDelta * 0.1d;
+            changed = true;
+        }
+
+        if (!changed) return false;
+
+        value = val;
+        return true;
+    }
+
     private static bool DrawIntField(string id, ref object? value, string? _) {
 
         var val = (int)(value ?? 0);

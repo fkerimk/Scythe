@@ -163,13 +163,188 @@ internal partial class ObjectBrowser {
 
                 if (deactivated) History.StopRecording();
             }
-
             Columns(1);
+            DrawModelAnimationClips(model);
             PopStyleVar();
         }
 
         EndSection(open);
         PopID();
+    }
+
+    private void DrawModelAnimationClips(ModelAsset model) {
+
+        var sourceAnimations = AssetManager.GetImportedAnimationTracks(model.File);
+        ModelAsset.EnsureDefaultAnimationClips(sourceAnimations, model.Settings);
+
+        var buttonSize = new Vector2(GetFrameHeight(), GetFrameHeight());
+        Separator();
+        Spacing();
+        PushFont(Fonts.ImMontserratRegular);
+        Text("Animation Clips");
+        PopFont();
+        SameLine();
+        PushFont(Fonts.ImFontAwesomeSmall);
+        if (Button($"{Icons.FaPlus}##add_anim_clip", buttonSize)) {
+            History.StartRecording(model, nameof(ModelAsset.Settings));
+            var defaultTrack = sourceAnimations.Count > 0 ? 0 : -1;
+            model.Settings.AnimationClips.Add(CreateDefaultClipSettings(sourceAnimations, defaultTrack, appendCopySuffix: true));
+            ApplyModelAnimationClipChanges(model, sourceAnimations);
+            History.StopRecording();
+        }
+        SameLine();
+        if (Button($"{Icons.FaRotateLeft}##reset_anim_clips", buttonSize)) {
+            History.StartRecording(model, nameof(ModelAsset.Settings));
+            ResetAnimationClipsToDefaults(model, sourceAnimations);
+            History.StopRecording();
+        }
+        PopFont();
+        if (IsItemHovered())
+            SetTooltip("Reset clips to imported defaults");
+
+        if (model.Settings.AnimationClips.Count == 0) {
+            PushStyleColor(ImGuiCol.Text, Colors.GuiTextDisabled.ToVector4());
+            TextUnformatted("No clips.");
+            PopStyleColor();
+            return;
+        }
+
+        for (var i = 0; i < model.Settings.AnimationClips.Count; i++) {
+            var clipSettings = model.Settings.AnimationClips[i];
+            var trackName = clipSettings.Track >= 0 && clipSettings.Track < sourceAnimations.Count
+                ? ModelAsset.GetDefaultClipName(sourceAnimations[clipSettings.Track], clipSettings.Track)
+                : "Missing Track";
+
+            PushID($"anim_clip_{i}");
+            Separator();
+            TextColored(Colors.GuiTextDisabled.ToVector4(), $"Clip {i}");
+            SameLine();
+            if (SmallButton($"Up##move_up_clip") && i > 0) {
+                History.StartRecording(model, nameof(ModelAsset.Settings));
+                (model.Settings.AnimationClips[i - 1], model.Settings.AnimationClips[i]) = (model.Settings.AnimationClips[i], model.Settings.AnimationClips[i - 1]);
+                ApplyModelAnimationClipChanges(model, sourceAnimations);
+                History.StopRecording();
+            }
+            SameLine();
+            if (SmallButton($"Down##move_down_clip") && i < model.Settings.AnimationClips.Count - 1) {
+                History.StartRecording(model, nameof(ModelAsset.Settings));
+                (model.Settings.AnimationClips[i + 1], model.Settings.AnimationClips[i]) = (model.Settings.AnimationClips[i], model.Settings.AnimationClips[i + 1]);
+                ApplyModelAnimationClipChanges(model, sourceAnimations);
+                History.StopRecording();
+            }
+            SameLine();
+            if (SmallButton($"Revert##revert_clip")) {
+                History.StartRecording(model, nameof(ModelAsset.Settings));
+                model.Settings.AnimationClips[i] = CreateDefaultClipSettings(sourceAnimations, clipSettings.Track, appendCopySuffix: false);
+                ApplyModelAnimationClipChanges(model, sourceAnimations);
+                History.StopRecording();
+            }
+            SameLine();
+            if (SmallButton($"Delete##remove_clip")) {
+                History.StartRecording(model, nameof(ModelAsset.Settings));
+                model.Settings.AnimationClips.RemoveAt(i);
+                ApplyModelAnimationClipChanges(model, sourceAnimations);
+                History.StopRecording();
+                PopID();
+                continue;
+            }
+
+            var trackMax = Math.Max(0, sourceAnimations.Count - 1);
+            int sourceDuration = clipSettings.Track >= 0 && clipSettings.Track < sourceAnimations.Count
+                ? (int)Math.Ceiling(sourceAnimations[clipSettings.Track].Duration)
+                : 0;
+
+            PushStyleVar(ImGuiStyleVar.ItemSpacing, new Vector2(8, 8));
+            Columns(2, $"##anim_clip_fields_{i}", false);
+            SetColumnWidth(0, GetWindowWidth() * 0.28f);
+
+            DrawInfoRow("Source", $"{trackName} ({sourceDuration} frames)");
+
+            object? clipName = clipSettings.Name;
+            var (clipNameChanged, clipNameDeactivated) = DrawClipSettingField(model, "Name", ref clipName, typeof(string));
+            clipSettings.Name = (string)clipName!;
+            if (clipNameChanged) ApplyModelAnimationClipChanges(model, sourceAnimations);
+            if (clipNameDeactivated) History.StopRecording();
+
+            object? trackValue = clipSettings.Track;
+            var (trackChanged, trackDeactivated) = DrawClipSettingField(model, "Track", ref trackValue, typeof(int));
+            clipSettings.Track = sourceAnimations.Count == 0 ? -1 : Math.Clamp((int)trackValue!, 0, trackMax);
+            if (trackChanged) ApplyModelAnimationClipChanges(model, sourceAnimations);
+            if (trackDeactivated) History.StopRecording();
+
+            sourceDuration = clipSettings.Track >= 0 && clipSettings.Track < sourceAnimations.Count
+                ? (int)Math.Ceiling(sourceAnimations[clipSettings.Track].Duration)
+                : 0;
+            clipSettings.StartFrame = Math.Clamp(clipSettings.StartFrame, 0, sourceDuration);
+            clipSettings.EndFrame = Math.Clamp(clipSettings.EndFrame, clipSettings.StartFrame, sourceDuration);
+
+            object? startFrame = clipSettings.StartFrame;
+            var (startFrameChanged, startFrameDeactivated) = DrawClipSettingField(model, "Start Frame", ref startFrame, typeof(int));
+            clipSettings.StartFrame = Math.Clamp((int)startFrame!, 0, sourceDuration);
+            if (startFrameChanged) ApplyModelAnimationClipChanges(model, sourceAnimations);
+            if (startFrameDeactivated) History.StopRecording();
+
+            object? endFrame = clipSettings.EndFrame;
+            var (endFrameChanged, endFrameDeactivated) = DrawClipSettingField(model, "End Frame", ref endFrame, typeof(int));
+            clipSettings.EndFrame = Math.Clamp((int)endFrame!, clipSettings.StartFrame, sourceDuration);
+            if (endFrameChanged) ApplyModelAnimationClipChanges(model, sourceAnimations);
+            if (endFrameDeactivated) History.StopRecording();
+
+            object? loop = clipSettings.Loop;
+            var (loopChanged, loopDeactivated) = DrawClipSettingField(model, "Loop", ref loop, typeof(bool));
+            clipSettings.Loop = (bool)loop!;
+            if (loopChanged) ApplyModelAnimationClipChanges(model, sourceAnimations);
+            if (loopDeactivated) History.StopRecording();
+
+            Columns(1);
+            PopStyleVar();
+            PopID();
+        }
+    }
+
+    private (bool Changed, bool Deactivated) DrawClipSettingField(ModelAsset model, string label, ref object? value, Type type) {
+
+        DrawShadowedLabel(label);
+        return DrawInspectorField($"ModelAnimClip_{label}", ref value, type, [model], nameof(ModelAsset.Settings));
+    }
+
+    private static ModelAsset.ModelSettings.AnimationClipSettings CreateDefaultClipSettings(List<AnimationClip> sourceAnimations, int trackIndex, bool appendCopySuffix) {
+
+        if (trackIndex < 0 || trackIndex >= sourceAnimations.Count) {
+            return new ModelAsset.ModelSettings.AnimationClipSettings {
+                Name = "Clip",
+                Track = -1,
+                StartFrame = 0,
+                EndFrame = 0,
+                Loop = true
+            };
+        }
+
+        var source = sourceAnimations[trackIndex];
+        var name = ModelAsset.GetDefaultClipName(source, trackIndex);
+        if (appendCopySuffix)
+            name += " Copy";
+
+        return new ModelAsset.ModelSettings.AnimationClipSettings {
+            Name = name,
+            Track = trackIndex,
+            StartFrame = 0,
+            EndFrame = (int)Math.Ceiling(source.Duration),
+            Loop = true
+        };
+    }
+
+    private static void ResetAnimationClipsToDefaults(ModelAsset model, List<AnimationClip> sourceAnimations) {
+
+        model.Settings.AnimationClips.Clear();
+        ModelAsset.EnsureDefaultAnimationClips(sourceAnimations, model.Settings);
+        ApplyModelAnimationClipChanges(model, sourceAnimations);
+    }
+
+    private static void ApplyModelAnimationClipChanges(ModelAsset model, List<AnimationClip> sourceAnimations) {
+
+        model.Animations = ModelAsset.BuildAnimationClips(sourceAnimations, model.Settings);
+        model.SaveSettings();
     }
 
     private void DrawMaterialAssetInspector(MaterialAsset mat) {

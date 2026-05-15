@@ -361,6 +361,10 @@ internal static partial class CompiledAssetCache {
     private static void WriteAnimation(BinaryWriter writer, AnimationClip clip) {
 
         writer.Write(clip.Name);
+        writer.Write(clip.SourceTrack);
+        writer.Write(clip.StartFrame);
+        writer.Write(clip.EndFrame);
+        writer.Write(clip.Loop);
         writer.Write(clip.Duration);
         writer.Write(clip.TicksPerSecond);
         writer.Write(clip.Channels.Count);
@@ -396,6 +400,10 @@ internal static partial class CompiledAssetCache {
 
         var clip = new AnimationClip {
             Name = reader.ReadString(),
+            SourceTrack = reader.ReadInt32(),
+            StartFrame = reader.ReadDouble(),
+            EndFrame = reader.ReadDouble(),
+            Loop = reader.ReadBoolean(),
             Duration = reader.ReadDouble(),
             TicksPerSecond = reader.ReadDouble()
         };

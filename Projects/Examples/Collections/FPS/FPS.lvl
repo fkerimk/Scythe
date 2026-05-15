@@ -234,7 +234,6 @@
                                 "GUID": "116334fff49941a58c2aea2a58205e3d",
                                 "Path": "FPS/Pistol/Pistol.fbx",
                                 "IsPlaying": true,
-                                "Looping": true,
                                 "$ComponentType": "Animation"
                               },
                               {

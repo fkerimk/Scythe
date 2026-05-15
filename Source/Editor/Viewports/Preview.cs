@@ -675,6 +675,7 @@ internal class Preview : Viewport {
                 break;
 
             case ModelAsset { Animations.Count: > 0 } model:
+                _currentAnimationIndex = Math.Clamp(_currentAnimationIndex, 0, model.Animations.Count - 1);
                 label = model.Animations[_currentAnimationIndex].Name;
                 count = model.Animations.Count;
                 currentIndex = _currentAnimationIndex;
@@ -802,6 +803,8 @@ internal class Preview : Viewport {
 
                 if (isInteractive && model.Animations.Count > 0) {
 
+                    _currentAnimationIndex = Math.Clamp(_currentAnimationIndex, 0, model.Animations.Count - 1);
+	
                     EnsurePreviewModelCache(model);
 
                     if (_previewModelMeshes.Count == model.Meshes.Count && _previewModelBones.Count > 0) {

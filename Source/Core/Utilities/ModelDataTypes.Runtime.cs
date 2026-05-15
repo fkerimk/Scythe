@@ -110,6 +110,10 @@ internal class AnimationChannel {
 internal class AnimationClip {
 
     public string Name = "";
+    public int SourceTrack;
+    public double StartFrame;
+    public double EndFrame;
+    public bool Loop = true;
     public double Duration;
     public double TicksPerSecond;
     public readonly List<AnimationChannel> Channels = [];
@@ -117,6 +121,100 @@ internal class AnimationClip {
 }
 
 internal static partial class AssimpLoader {
+
+    public static AnimationClip CreateClipSegment(AnimationClip source, string name, int sourceTrack, double startFrame, double endFrame, bool loop) {
+
+        var clampedStart = Math.Clamp(startFrame, 0d, source.Duration);
+        var clampedEnd = Math.Clamp(endFrame, clampedStart, source.Duration);
+        var clip = new AnimationClip {
+            Name = name,
+            SourceTrack = sourceTrack,
+            StartFrame = clampedStart,
+            EndFrame = clampedEnd,
+            Loop = loop,
+            Duration = clampedEnd - clampedStart,
+            TicksPerSecond = source.TicksPerSecond
+        };
+
+        foreach (var sourceChannel in source.Channels) {
+            var channel = new AnimationChannel { NodeName = sourceChannel.NodeName };
+            AddVector3Keys(channel.PositionKeys, sourceChannel.PositionKeys, clampedStart, clampedEnd, value => value);
+            AddQuaternionKeys(channel.RotationKeys, sourceChannel.RotationKeys, clampedStart, clampedEnd, value => value);
+            AddVector3Keys(channel.ScaleKeys, sourceChannel.ScaleKeys, clampedStart, clampedEnd, value => value);
+            clip.Channels.Add(channel);
+            clip.ChannelMap[channel.NodeName] = channel;
+        }
+
+        return clip;
+    }
+
+    private static void AddVector3Keys(List<(double Time, Vector3 Value)> target, List<(double Time, Vector3 Value)> source, double start, double end, Func<Vector3, Vector3> map) {
+
+        if (source.Count == 0) return;
+
+        target.Add((0d, map(InterpolateVector3(source, start))));
+
+        foreach (var (time, value) in source) {
+            if (time <= start || time >= end) continue;
+            target.Add((time - start, map(value)));
+        }
+
+        var localEnd = end - start;
+        if (localEnd > 0d)
+            target.Add((localEnd, map(InterpolateVector3(source, end))));
+    }
+
+    private static void AddQuaternionKeys(List<(double Time, Quaternion Value)> target, List<(double Time, Quaternion Value)> source, double start, double end, Func<Quaternion, Quaternion> map) {
+
+        if (source.Count == 0) return;
+
+        target.Add((0d, map(InterpolateQuaternion(source, start))));
+
+        foreach (var (time, value) in source) {
+            if (time <= start || time >= end) continue;
+            target.Add((time - start, map(value)));
+        }
+
+        var localEnd = end - start;
+        if (localEnd > 0d)
+            target.Add((localEnd, map(InterpolateQuaternion(source, end))));
+    }
+
+    private static Vector3 InterpolateVector3(List<(double Time, Vector3 Value)> keys, double time) {
+
+        if (keys.Count == 1) return keys[0].Value;
+        if (time <= keys[0].Time) return keys[0].Value;
+        if (time >= keys[^1].Time) return keys[^1].Value;
+
+        for (var i = 0; i < keys.Count - 1; i++) {
+            var current = keys[i];
+            var next = keys[i + 1];
+            if (time < current.Time || time > next.Time) continue;
+            var length = next.Time - current.Time;
+            var factor = length <= double.Epsilon ? 0f : (float)((time - current.Time) / length);
+            return Vector3.Lerp(current.Value, next.Value, factor);
+        }
+
+        return keys[^1].Value;
+    }
+
+    private static Quaternion InterpolateQuaternion(List<(double Time, Quaternion Value)> keys, double time) {
+
+        if (keys.Count == 1) return keys[0].Value;
+        if (time <= keys[0].Time) return keys[0].Value;
+        if (time >= keys[^1].Time) return keys[^1].Value;
+
+        for (var i = 0; i < keys.Count - 1; i++) {
+            var current = keys[i];
+            var next = keys[i + 1];
+            if (time < current.Time || time > next.Time) continue;
+            var length = next.Time - current.Time;
+            var factor = length <= double.Epsilon ? 0f : (float)((time - current.Time) / length);
+            return Quaternion.Normalize(Quaternion.Slerp(current.Value, next.Value, factor));
+        }
+
+        return keys[^1].Value;
+    }
 
     public static void UpdateAnimation(ModelNode node, AnimationClip clip, double time, in Matrix4x4 parentTransform, in Matrix4x4 globalInverse, Dictionary<string, List<BoneInfo>> boneMap) {
 

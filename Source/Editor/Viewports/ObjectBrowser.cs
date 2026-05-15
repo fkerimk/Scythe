@@ -673,6 +673,7 @@ internal partial class ObjectBrowser : Viewport {
     private static Dictionary<Type, InspectorFieldRenderer> CreateFieldRenderers() => new() {
         [typeof(string)] = DrawStringField,
         [typeof(float)] = DrawFloatField,
+        [typeof(double)] = DrawDoubleField,
         [typeof(int)] = DrawIntField,
         [typeof(bool)] = DrawBoolField,
         [typeof(Vector2)] = DrawVector2Field,

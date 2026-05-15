@@ -21,12 +21,21 @@ internal class ModelAsset : Asset {
 
     public class ModelSettings : ICloneable {
 
+        public class AnimationClipSettings {
+            public string Name = "";
+            public int Track;
+            public int StartFrame;
+            public int EndFrame;
+            public bool Loop = true;
+        }
+
         public string GUID = "";
         public string AnimationGUID = "";
         public string AnimationPath = "";
         public Dictionary<int, string> MeshMaterials = new();
         public Dictionary<int, string> MeshMaterialPaths = new();
         public float ImportScale = 1.0f;
+        public List<AnimationClipSettings> AnimationClips = [];
 
         public object Clone() => ObjectGraph.DeepClone(this);
     }
@@ -139,7 +148,7 @@ internal class ModelAsset : Asset {
         Bones = compiledBones;
         RootNode = compiledRoot;
         GlobalInverse = compiledGlobalInverse;
-        Animations = compiledAnimations;
+        Animations = BuildAnimationClips(compiledAnimations, Settings);
         return true;
     }
 
@@ -151,7 +160,7 @@ internal class ModelAsset : Asset {
         Bones = data.Bones;
         RootNode = data.Root;
         GlobalInverse = data.GlobalInverse;
-        Animations = data.Animations;
+        Animations = BuildAnimationClips(data.Animations, Settings);
     }
 #endif
 
@@ -346,4 +355,51 @@ internal class ModelAsset : Asset {
         yield return File;
         yield return File + ".json";
     }
+
+    public static List<AnimationClip> BuildAnimationClips(List<AnimationClip> sourceAnimations, ModelSettings settings) {
+
+        EnsureDefaultAnimationClips(sourceAnimations, settings);
+
+        var clips = new List<AnimationClip>();
+        foreach (var definition in settings.AnimationClips) {
+            if (definition.Track < 0 || definition.Track >= sourceAnimations.Count) continue;
+
+            var source = sourceAnimations[definition.Track];
+            var clipName = string.IsNullOrWhiteSpace(definition.Name)
+                ? GetDefaultClipName(source, definition.Track)
+                : definition.Name;
+            var startFrame = Math.Clamp((double)definition.StartFrame, 0d, source.Duration);
+            var endFrame = Math.Clamp((double)definition.EndFrame, startFrame, source.Duration);
+            clips.Add(AssimpLoader.CreateClipSegment(source, clipName, definition.Track, startFrame, endFrame, definition.Loop));
+        }
+
+        return clips;
+    }
+
+    public static void EnsureDefaultAnimationClips(List<AnimationClip> sourceAnimations, ModelSettings settings) {
+
+        settings.AnimationClips ??= [];
+
+        if (sourceAnimations.Count == 0) {
+            if (settings.AnimationClips.Count > 0)
+                settings.AnimationClips.Clear();
+            return;
+        }
+
+        if (settings.AnimationClips.Count > 0) return;
+
+        for (var i = 0; i < sourceAnimations.Count; i++) {
+            var source = sourceAnimations[i];
+            settings.AnimationClips.Add(new ModelSettings.AnimationClipSettings {
+                Name = GetDefaultClipName(source, i),
+                Track = i,
+                StartFrame = 0,
+                EndFrame = (int)Math.Ceiling(source.Duration),
+                Loop = true
+            });
+        }
+    }
+
+    public static string GetDefaultClipName(AnimationClip source, int trackIndex) =>
+        string.IsNullOrWhiteSpace(source.Name) ? $"Track {trackIndex}" : source.Name;
 }
