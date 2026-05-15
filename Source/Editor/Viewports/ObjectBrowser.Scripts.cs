@@ -27,7 +27,7 @@ internal partial class ObjectBrowser {
             if (kind == ScriptFieldStorageKind.Config) {
 
                 var assets = targets.Cast<ScriptAsset>().ToList();
-                var values = assets.Select(scriptAsset => scriptAsset.GetConfigFieldValue(field)).ToList();
+                var values = assets.Select(scriptAsset => scriptAsset.GetInspectorConfigFieldValue(field)).ToList();
                 value = values.All(val => ScriptFieldUtility.ValueEquals(val, values[0])) ? values[0] : null;
                 isOverridden = values.Any(val => !ScriptFieldUtility.ValueEquals(val, defaultValue));
                 DrawShadowedLabel(ScriptFieldUtility.GetLabel(field), isOverridden);
@@ -36,7 +36,7 @@ internal partial class ObjectBrowser {
 
                 if (changed)
                     foreach (var scriptAsset in assets)
-                        scriptAsset.SetConfigFieldValue(field, value);
+                        scriptAsset.SetInspectorConfigFieldValue(field, value);
 
                 if (deactivated) History.StopRecording();
                 continue;
@@ -50,8 +50,8 @@ internal partial class ObjectBrowser {
             isOverridden = scripts.All(script => script.Obj.FindPrefabRoot() != null)
                 ? prefabOverride
                 : exposedValues.Any(val => !ScriptFieldUtility.ValueEquals(val, defaultValue));
-            var applyOverride = GetScriptExposePrefabApplyAction(scripts, field);
-            var applyOverrideWithHistory = GetScriptExposePrefabApplyHistoryAction(scripts, asset, field, picker, value);
+            var applyOverride = Core.IsPlaying ? null : GetScriptExposePrefabApplyAction(scripts, field);
+            var applyOverrideWithHistory = Core.IsPlaying ? null : GetScriptExposePrefabApplyHistoryAction(scripts, asset, field, picker, value);
             DrawShadowedLabel(ScriptFieldUtility.GetLabel(field), isOverridden);
 
             var (fieldChanged, fieldDeactivated) = DrawInspectorField($"##script_exp_{_propIndex++}", ref value, field.FieldType, targets, field.Name, picker, showResetButton: isOverridden, highlightOverride: isOverridden, resetValue: resetValue, applyOverride: applyOverride, applyOverrideWithHistory: applyOverrideWithHistory);

@@ -101,6 +101,9 @@ internal class Script(Obj obj) : Component(obj) {
 
     public object? GetExposeFieldValue(FieldInfo field, ScriptAsset asset) {
 
+        if (Core.IsPlaying && Instance != null && field.DeclaringType?.IsAssignableFrom(Instance.GetType()) == true)
+            return field.GetValue(Instance);
+
         if (ExposedValues.TryGetValue(field.Name, out var raw))
             return ScriptFieldUtility.DeserializeStoredValue(raw, field.FieldType, Obj);
 
@@ -111,6 +114,11 @@ internal class Script(Obj obj) : Component(obj) {
     }
 
     public void SetExposeFieldValue(FieldInfo field, object? value) {
+
+        if (Core.IsPlaying) {
+            ApplyFieldValueToInstance(field, value);
+            return;
+        }
 
         var asset = GetAsset();
         var baseValue = asset?.GetConfigFieldValue(field) ?? ScriptFieldUtility.GetCodeDefaultValue(field.DeclaringType, field);

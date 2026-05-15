@@ -107,6 +107,32 @@ internal static class BackgroundScripts {
         }
     }
 
+    public static IEnumerable<object?> GetRuntimeConfigFieldValues(ScriptAsset asset, FieldInfo field) {
+
+        foreach (var entry in Entries) {
+            if (entry.Asset?.ScriptType == null || entry.Instance == null || asset.ScriptType == null) continue;
+            if (!string.Equals(entry.Asset.GUID, asset.GUID, StringComparison.OrdinalIgnoreCase)
+                && !entry.Asset.ScriptType.IsSubclassOf(asset.ScriptType))
+                continue;
+            if (field.DeclaringType?.IsAssignableFrom(entry.Instance.GetType()) != true) continue;
+
+            yield return field.GetValue(entry.Instance);
+        }
+    }
+
+    public static void SetRuntimeConfigFieldValue(ScriptAsset asset, FieldInfo field, object? value) {
+
+        foreach (var entry in Entries) {
+            if (entry.Asset?.ScriptType == null || entry.Instance == null || asset.ScriptType == null) continue;
+            if (!string.Equals(entry.Asset.GUID, asset.GUID, StringComparison.OrdinalIgnoreCase)
+                && !entry.Asset.ScriptType.IsSubclassOf(asset.ScriptType))
+                continue;
+            if (field.DeclaringType?.IsAssignableFrom(entry.Instance.GetType()) != true) continue;
+
+            field.SetValue(entry.Instance, ScriptFieldUtility.ResolveStoredValueForAssignment(value, field.FieldType, entry.Instance.Obj));
+        }
+    }
+
     private static void RebuildEntries() {
 
         var guids = ProjectConfig.Current.BackgroundScripts ?? [];
