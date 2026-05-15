@@ -159,22 +159,11 @@ internal class Level {
                 GUID = rawData["GUID"]?.Value<string>() ?? GUID;
                 Skybox = rawData["Skybox"]?.Value<string>() ?? "";
                 SkyboxPath = rawData["SkyboxPath"]?.Value<string>() ?? "";
-                if (rawData["SkyboxTint"] is JObject skyboxTintJson) {
-                    var parsedSkyboxTint = skyboxTintJson.ToObject<Color?>();
-                    if (parsedSkyboxTint.HasValue) SkyboxTint = parsedSkyboxTint.Value;
-                }
+                SkyboxTint = ReadJsonValue(rawData, "SkyboxTint", SkyboxTint);
                 SkyboxAmbientEnabled = rawData["SkyboxAmbientEnabled"]?.Value<bool>() ?? false;
                 SkyboxAmbientIntensity = Math.Clamp(rawData["SkyboxAmbientIntensity"]?.Value<float>() ?? 1.0f, 0.0f, 1.0f);
-
-                if (rawData["BackgroundColor"] is JObject backgroundColorJson) {
-                    var parsedBackgroundColor = backgroundColorJson.ToObject<Color?>();
-                    if (parsedBackgroundColor.HasValue) BackgroundColor = parsedBackgroundColor.Value;
-                }
-
-                if (rawData["AmbientColor"] is JObject ambientColorJson) {
-                    var parsedAmbientColor = ambientColorJson.ToObject<Color?>();
-                    if (parsedAmbientColor.HasValue) AmbientColor = parsedAmbientColor.Value;
-                }
+                BackgroundColor = ReadJsonValue(rawData, "BackgroundColor", BackgroundColor);
+                AmbientColor = ReadJsonValue(rawData, "AmbientColor", AmbientColor);
 
                 foreach (var (childName, childToken) in EnumerateChildTokens(rawData["Root"]?["Children"]))
                     BuildHierarchy(childToken, Root, childName);
@@ -341,15 +330,7 @@ internal class Level {
         // Load transform
         if (data["Transform"] is JObject transformData) {
             JsonConvert.PopulateObject(transformData.ToString(), obj.Transform);
-
-            if (transformData["PrefabOverrides"] is JArray transformOverrides) {
-                obj.Transform.PrefabOverrides.Clear();
-
-                foreach (var value in transformOverrides.Values<string>().Where(value => !string.IsNullOrWhiteSpace(value))) {
-                    var overrideName = value == nameof(Transform.Euler) ? nameof(Transform.Rot) : value!;
-                    obj.Transform.PrefabOverrides.Add(overrideName);
-                }
-            }
+            ApplyOverrides(transformData["PrefabOverrides"], obj.Transform.PrefabOverrides, value => value == nameof(Transform.Euler) ? nameof(Transform.Rot) : value);
         }
 
         // Load components
@@ -367,12 +348,7 @@ internal class Level {
 
             JsonConvert.PopulateObject(componentData.ToString(), component);
 
-            if (componentToken["PrefabOverrides"] is JArray componentOverrides) {
-                    component.PrefabOverrides.Clear();
-
-                    foreach (var value in componentOverrides.Values<string>().Where(value => !string.IsNullOrWhiteSpace(value)))
-                        component.PrefabOverrides.Add(value!);
-                }
+            ApplyOverrides(componentToken["PrefabOverrides"], component.PrefabOverrides);
 
             components.Add(component);
         }
@@ -382,12 +358,7 @@ internal class Level {
         obj.Prefab = data["Prefab"]?.Value<string>() ?? "";
         obj.PrefabPath = data["PrefabPath"]?.Value<string>() ?? "";
 
-        if (data["PrefabOverrides"] is JArray prefabOverrides) {
-            obj.PrefabOverrides.Clear();
-
-            foreach (var value in prefabOverrides.Values<string>().Where(value => !string.IsNullOrWhiteSpace(value)))
-                obj.PrefabOverrides.Add(value!);
-        }
+        ApplyOverrides(data["PrefabOverrides"], obj.PrefabOverrides);
 
         foreach (var (childName, childToken) in EnumerateChildTokens(data["Children"]))
             BuildHierarchy(childToken, obj, childName);
@@ -521,6 +492,26 @@ internal class Level {
 
                 break;
         }
+    }
+
+    private static T ReadJsonValue<T>(JObject source, string propertyName, T fallback) {
+
+        if (source[propertyName] is not JObject propertyJson)
+            return fallback;
+
+        var parsed = propertyJson.ToObject<T?>();
+        return parsed is null ? fallback : parsed;
+    }
+
+    private static void ApplyOverrides(JToken? overridesToken, ISet<string> destination, Func<string, string>? normalize = null) {
+
+        if (overridesToken is not JArray overrides)
+            return;
+
+        destination.Clear();
+
+        foreach (var value in overrides.Values<string>().Where(value => !string.IsNullOrWhiteSpace(value)))
+            destination.Add(normalize?.Invoke(value!) ?? value!);
     }
 }
 

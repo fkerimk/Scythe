@@ -367,27 +367,7 @@ internal class Collections : Viewport {
         PopFont();
 
         SameLine(startX + iconWidth + 5f);
-        var clicked = false;
-
-        if (string.Equals(_renamingPath, path, StringComparison.OrdinalIgnoreCase)) {
-
-            SetNextItemWidth(GetContentRegionAvail().X);
-
-            if (_requestRenameFocus) {
-                SetKeyboardFocusHere();
-                _requestRenameFocus = false;
-            }
-
-            var submitted = InputText($"##rename_{path}", ref _renameName, 128, ImGuiInputTextFlags.EnterReturnsTrue | ImGuiInputTextFlags.AutoSelectAll);
-            if (submitted) ApplyRename();
-            if (IsItemActive() && IsKeyPressed(ImGuiKey.Escape)) _renamingPath = null;
-            if (IsItemDeactivated() && !submitted) _renamingPath = null;
-
-        } else {
-            PushStyleColor(ImGuiCol.Text, color);
-            clicked = Selectable($"{name}##{path}", false, ImGuiSelectableFlags.None, new Vector2(GetContentRegionAvail().X, 0f));
-            PopStyleColor();
-        }
+        var clicked = DrawRenamableEntry(path, name, color, isSelected: false);
 
         if (!isBuiltIn) DrawEntryContextMenu(path, isDirectory: true);
 
@@ -492,28 +472,7 @@ internal class Collections : Viewport {
         SameLine(startX + iconWidth + 5f);
         var isSelected = string.Equals(_selectedPath, path, StringComparison.OrdinalIgnoreCase);
         var color = GetFileColor(path);
-
-        var clicked = false;
-
-        if (string.Equals(_renamingPath, path, StringComparison.OrdinalIgnoreCase)) {
-
-            SetNextItemWidth(GetContentRegionAvail().X);
-
-            if (_requestRenameFocus) {
-                SetKeyboardFocusHere();
-                _requestRenameFocus = false;
-            }
-
-            var submitted = InputText($"##rename_{path}", ref _renameName, 128, ImGuiInputTextFlags.EnterReturnsTrue | ImGuiInputTextFlags.AutoSelectAll);
-            if (submitted) ApplyRename();
-            if (IsItemActive() && IsKeyPressed(ImGuiKey.Escape)) _renamingPath = null;
-            if (IsItemDeactivated() && !submitted) _renamingPath = null;
-
-        } else {
-            PushStyleColor(ImGuiCol.Text, color);
-            clicked = Selectable($"{name}##{path}", isSelected, ImGuiSelectableFlags.None, new Vector2(GetContentRegionAvail().X, 0f));
-            PopStyleColor();
-        }
+        var clicked = DrawRenamableEntry(path, name, color, isSelected);
         DrawEntryContextMenu(path, isDirectory: false);
         var doubleClicked = IsItemHovered() && IsMouseDoubleClicked(ImGuiMouseButton.Left);
 
@@ -612,11 +571,7 @@ internal class Collections : Viewport {
             if (IsWindowAppearing()) SetKeyboardFocusHere();
 
             if (InputText("##name", ref _newItemName, 64, ImGuiInputTextFlags.EnterReturnsTrue)) {
-
-                if (CreateItem(_createItemType, _newItemName)) {
-                    _showAddPopup = false;
-                    CloseCurrentPopup();
-                }
+                TryCreatePopupItem();
             }
 
             Spacing();
@@ -624,11 +579,7 @@ internal class Collections : Viewport {
             Spacing();
 
             if (Button("Create", new Vector2(120, 0))) {
-
-                if (CreateItem(_createItemType, _newItemName)) {
-                    _showAddPopup = false;
-                    CloseCurrentPopup();
-                }
+                TryCreatePopupItem();
             }
 
             SameLine();
@@ -701,6 +652,34 @@ internal class Collections : Viewport {
         _requestRenameFocus = true;
     }
 
+    private bool DrawRenamableEntry(string path, string displayName, Vector4 color, bool isSelected) {
+
+        if (string.Equals(_renamingPath, path, StringComparison.OrdinalIgnoreCase)) {
+            DrawRenameInput(path);
+            return false;
+        }
+
+        PushStyleColor(ImGuiCol.Text, color);
+        var clicked = Selectable($"{displayName}##{path}", isSelected, ImGuiSelectableFlags.None, new Vector2(GetContentRegionAvail().X, 0f));
+        PopStyleColor();
+        return clicked;
+    }
+
+    private void DrawRenameInput(string path) {
+
+        SetNextItemWidth(GetContentRegionAvail().X);
+
+        if (_requestRenameFocus) {
+            SetKeyboardFocusHere();
+            _requestRenameFocus = false;
+        }
+
+        var submitted = InputText($"##rename_{path}", ref _renameName, 128, ImGuiInputTextFlags.EnterReturnsTrue | ImGuiInputTextFlags.AutoSelectAll);
+        if (submitted) ApplyRename();
+        if (IsItemActive() && IsKeyPressed(ImGuiKey.Escape)) _renamingPath = null;
+        if (IsItemDeactivated() && !submitted) _renamingPath = null;
+    }
+
     private void OpenCreatePopup(CreateItemType type) {
 
         _createItemType = type;
@@ -717,6 +696,14 @@ internal class Collections : Viewport {
             ? GetMainViewport().GetCenter()
             : GetMousePos() + new Vector2(0f, 4f);
         _openDeletePopup = true;
+    }
+
+    private void TryCreatePopupItem() {
+
+        if (!CreateItem(_createItemType, _newItemName)) return;
+
+        _showAddPopup = false;
+        CloseCurrentPopup();
     }
 
     private void SetCollectionTarget(string path) {
