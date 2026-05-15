@@ -213,9 +213,10 @@ internal partial class ObjectBrowser : Viewport {
         }
 
         var resetButtonSize = GetFrameHeight();
+        var useInlineArrayActions = isArrayField && highlightOverride;
         var availableWidth = GetContentRegionAvail().X;
-        if (showResetButton) availableWidth = MathF.Max(1f, availableWidth - resetButtonSize - 4f);
-        if (applyOverride != null) availableWidth = MathF.Max(1f, availableWidth - resetButtonSize - 4f);
+        if (!useInlineArrayActions && showResetButton) availableWidth = MathF.Max(1f, availableWidth - resetButtonSize - 4f);
+        if (!useInlineArrayActions && applyOverride != null) availableWidth = MathF.Max(1f, availableWidth - resetButtonSize - 4f);
         SetNextItemWidth(availableWidth);
 
         if (highlightOverride) {
@@ -224,7 +225,19 @@ internal partial class ObjectBrowser : Viewport {
             PushStyleColor(ImGuiCol.FrameBgActive, Colors.GuiFieldOverrideActive.ToVector4());
         }
 
-        changed |= DrawFieldControl(id, ref value, type, targets, propName, pickerType, ref deactivated);
+        changed |= DrawFieldControl(
+            id,
+            ref value,
+            type,
+            targets,
+            propName,
+            pickerType,
+            ref deactivated,
+            inlineResetVisible: useInlineArrayActions && showResetButton,
+            resetValue: resetValue,
+            inlineApplyAction: useInlineArrayActions ? applyOverride : null,
+            inlineApplyWithHistoryAction: useInlineArrayActions ? applyOverrideWithHistory : null
+        );
 
         _labelDragDelta = 0;
 
@@ -243,7 +256,7 @@ internal partial class ObjectBrowser : Viewport {
 
         if (highlightOverride) PopStyleColor(3);
 
-        if (showResetButton && highlightOverride) {
+        if (!useInlineArrayActions && showResetButton && highlightOverride) {
 
             SameLine();
             BeginDisabled(!highlightOverride);
@@ -264,7 +277,7 @@ internal partial class ObjectBrowser : Viewport {
                 SetTooltip("Reset override");
         }
 
-        if (applyOverride != null && highlightOverride) {
+        if (!useInlineArrayActions && applyOverride != null && highlightOverride) {
 
             SameLine();
             BeginDisabled(!highlightOverride);
@@ -352,10 +365,10 @@ internal partial class ObjectBrowser : Viewport {
         return (changed, deactivated);
     }
 
-    private bool DrawFieldControl(string id, ref object? value, Type type, List<object> targets, string? propName, string? pickerType, ref bool deactivated) {
+    private bool DrawFieldControl(string id, ref object? value, Type type, List<object> targets, string? propName, string? pickerType, ref bool deactivated, bool inlineResetVisible = false, object? resetValue = null, Action? inlineApplyAction = null, Action? inlineApplyWithHistoryAction = null) {
 
         if (type.IsArray && type.GetArrayRank() == 1 && type.GetElementType() is { } elementType && ScriptFieldUtility.IsSupportedScalarFieldType(elementType))
-            return DrawArrayField(id, ref value, elementType, targets, propName, pickerType, ref deactivated);
+            return DrawArrayField(id, ref value, elementType, targets, propName, pickerType, ref deactivated, inlineResetVisible, resetValue, inlineApplyAction, inlineApplyWithHistoryAction);
 
         if (type.IsEnum)
             return DrawEnumField(id, ref value, type);
@@ -363,7 +376,7 @@ internal partial class ObjectBrowser : Viewport {
         return _fieldRenderers.TryGetValue(type, out var renderer) && renderer(id, ref value, pickerType);
     }
 
-    private bool DrawArrayField(string id, ref object? value, Type elementType, List<object> targets, string? propName, string? pickerType, ref bool deactivated) {
+    private bool DrawArrayField(string id, ref object? value, Type elementType, List<object> targets, string? propName, string? pickerType, ref bool deactivated, bool inlineResetVisible, object? resetValue, Action? inlineApplyAction, Action? inlineApplyWithHistoryAction) {
 
         var items = value is Array array
             ? array.Cast<object?>().ToList()
@@ -372,6 +385,7 @@ internal partial class ObjectBrowser : Viewport {
         const float actionSpacing = 8f;
         const float indexWidth = 28f;
         var actionButtonSize = GetFrameHeight();
+        var actionButtonCount = 1 + (inlineResetVisible ? 1 : 0) + (inlineApplyAction != null ? 1 : 0);
         var mousePos = GetMousePos();
         var isDraggingThisArray = string.Equals(_draggingArrayId, id, StringComparison.Ordinal) && _draggingArrayIndex >= 0;
         var hoverInsertIndex = -1;
@@ -384,7 +398,7 @@ internal partial class ObjectBrowser : Viewport {
         BeginGroup();
 
         var count = items.Count;
-        var countWidth = MathF.Max(1f, GetContentRegionAvail().X - actionButtonSize - actionSpacing);
+        var countWidth = MathF.Max(1f, GetContentRegionAvail().X - actionButtonCount * actionButtonSize - actionSpacing * actionButtonCount);
         SetNextItemWidth(countWidth);
         if (DragInt($"##{id}_count", ref count, 0.2f)) {
             StartHistoryCapture(targets, propName);
@@ -410,6 +424,43 @@ internal partial class ObjectBrowser : Viewport {
             items.Add(ScriptFieldUtility.GetTypeDefault(elementType));
             changed = true;
             deactivated = true;
+        }
+
+        if (inlineResetVisible) {
+            SameLine(0, actionSpacing);
+            if (Button($"{Icons.FaRotateLeft}##{id}_reset", new Vector2(actionButtonSize, actionButtonSize))) {
+                if (propName != null) targets.ForEach(t => History.StartRecording(t, propName));
+                items = resetValue is Array resetArray
+                    ? resetArray.Cast<object?>().ToList()
+                    : [];
+                changed = true;
+                deactivated = true;
+            }
+
+            if (IsItemHovered())
+                SetTooltip("Reset override");
+        }
+
+        if (inlineApplyAction != null) {
+            SameLine(0, actionSpacing);
+            if (Button($"{Icons.FaCheck}##{id}_apply", new Vector2(actionButtonSize, actionButtonSize))) {
+                if (inlineApplyWithHistoryAction != null) {
+                    if (propName != null)
+                        History.StopRecording();
+
+                    inlineApplyWithHistoryAction.Invoke();
+                } else {
+                    if (propName != null)
+                        History.StopRecording();
+
+                    inlineApplyAction.Invoke();
+                }
+
+                deactivated = true;
+            }
+
+            if (IsItemHovered())
+                SetTooltip("Apply override to prefab");
         }
         PopFont();
 
