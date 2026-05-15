@@ -5,7 +5,7 @@ using ImGuiNET;
 using Raylib_cs;
 using static ImGuiNET.ImGui;
 
-internal class ObjectBrowser : Viewport {
+internal partial class ObjectBrowser : Viewport {
 
     private delegate bool InspectorFieldRenderer(string id, ref object? value, string? pickerType);
 
@@ -164,20 +164,6 @@ internal class ObjectBrowser : Viewport {
         EndPopup();
     }
 
-    private static void DrawShadowedLabel(string label, bool highlighted = false) {
-
-        AlignTextToFramePadding();
-        PushFont(Fonts.ImMontserratRegular);
-        if (highlighted) PushStyleColor(ImGuiCol.Text, Colors.Primary.ToVector4());
-        var cleanLabel = Generators.SplitCamelCase(label);
-        var screenPos = GetCursorScreenPos();
-        var shadowColor = ColorConvertFloat4ToU32(new Vector4(0f, 0f, 0f, 0.2f));
-        GetWindowDrawList().AddText(screenPos + new Vector2(1f, 1f), shadowColor, cleanLabel);
-        TextUnformatted(cleanLabel);
-        if (highlighted) PopStyleColor();
-        PopFont();
-        NextColumn();
-    }
 
     private (bool changed, bool deactivated) DrawInspectorField(string id, ref object? value, Type type, List<object> targets, string? propName, string? pickerType = null, bool showResetButton = false, bool highlightOverride = false, object? resetValue = null, Action? applyOverride = null, Action? applyOverrideWithHistory = null) {
 
@@ -357,58 +343,6 @@ internal class ObjectBrowser : Viewport {
         return (changed, deactivated);
     }
 
-    private static void DrawSectionHeader(string title, string icon, Color color, out bool open, bool showRemove = false, Action? onRemove = null, bool defaultOpen = true, Component? comp = null) {
-
-        var flags = ImGuiTreeNodeFlags.AllowOverlap | ImGuiTreeNodeFlags.SpanFullWidth;
-        if (defaultOpen) flags |= ImGuiTreeNodeFlags.DefaultOpen;
-
-        Spacing();
-        var headerPos = GetCursorScreenPos();
-        var headerSize = new Vector2(GetContentRegionAvail().X, GetFrameHeight());
-        GetWindowDrawList().AddRectFilled(headerPos, headerPos + headerSize, GetColorU32(ImGuiCol.Header, 0.45f), 2.0f);
-
-        PushStyleVar(ImGuiStyleVar.FramePadding, new Vector2(4, 3));
-        PushStyleColor(ImGuiCol.Header, new Vector4(0, 0, 0, 0));
-        open = TreeNodeEx($"##{title}", flags);
-
-        if (comp != null && BeginDragDropSource()) {
-
-            LevelBrowser.DragComponent = comp;
-            SetDragDropPayload("component", IntPtr.Zero, 0);
-            Text(title);
-            EndDragDropSource();
-        }
-
-        PopStyleColor();
-        PopStyleVar();
-
-        SameLine();
-        SetCursorPosX(GetCursorPosX() - 7.5f);
-        SetCursorPosY(GetCursorPosY() + 2.5f);
-        PushFont(Fonts.ImFontAwesomeSmall);
-        TextColored(color.ToVector4(), icon);
-        PopFont();
-        SameLine();
-        PushFont(Fonts.ImMontserratRegular);
-        Text(title);
-        PopFont();
-
-        if (showRemove && onRemove != null) {
-
-            SameLine();
-            var removeBtnX = GetContentRegionAvail().X + GetCursorPosX() - 22;
-            SetCursorPosX(removeBtnX);
-            if (SmallButton($"X##rem_{title}")) onRemove();
-        }
-
-        if (open) {
-
-            Spacing();
-            PushStyleVar(ImGuiStyleVar.ItemSpacing, new Vector2(8, 8));
-            Columns(2, $"##{title}_cols", false);
-            SetColumnWidth(0, GetWindowWidth() * 0.3f); // Reduced label width
-        }
-    }
 
     private static Dictionary<Type, InspectorFieldRenderer> CreateFieldRenderers() => new() {
         [typeof(string)] = DrawStringField,
@@ -421,132 +355,15 @@ internal class ObjectBrowser : Viewport {
         [typeof(Bool3)] = DrawBool3Field
     };
 
-    private static bool DrawStringField(string id, ref object? value, string? pickerType) {
 
-        var val = (string)(value ?? "");
-        var display = GetAssetDisplayValue(val, pickerType);
 
-        if (string.IsNullOrEmpty(display)) display = val;
 
-        if (!InputTextWithHint($"##{id}", "None", ref display, 512, string.IsNullOrEmpty(pickerType) ? ImGuiInputTextFlags.None : ImGuiInputTextFlags.ReadOnly) || !string.IsNullOrEmpty(pickerType))
-            return false;
 
-        value = display;
-        return true;
-    }
 
-    private static bool DrawFloatField(string id, ref object? value, string? _) {
 
-        var val = (float)(value ?? 0f);
-        if (!InputFloat($"##{id}", ref val)) return false;
 
-        value = val;
-        return true;
-    }
 
-    private static bool DrawIntField(string id, ref object? value, string? _) {
 
-        var val = (int)(value ?? 0);
-        if (id.Contains("is_")) {
-            var boolValue = val == 1;
-            if (!Checkbox($"##{id}", ref boolValue)) return false;
-
-            value = boolValue ? 1 : 0;
-            return true;
-        }
-
-        if (!InputInt($"##{id}", ref val)) return false;
-
-        value = val;
-        return true;
-    }
-
-    private static bool DrawBoolField(string id, ref object? value, string? _) {
-
-        var val = (bool)(value ?? false);
-        if (!Checkbox($"##{id}", ref val)) return false;
-
-        value = val;
-        return true;
-    }
-
-    private static bool DrawVector2Field(string id, ref object? value, string? _) {
-
-        var val = (Vector2)(value ?? Vector2.Zero);
-        if (!InputFloat2($"##{id}", ref val)) return false;
-
-        value = val;
-        return true;
-    }
-
-    private static bool DrawVector3Field(string id, ref object? value, string? _) {
-
-        var val = (Vector3)(value ?? Vector3.Zero);
-        if (!InputFloat3($"##{id}", ref val)) return false;
-
-        value = val;
-        return true;
-    }
-
-    private static bool DrawColorField(string id, ref object? value, string? _) {
-
-        var col = (Color)(value ?? Color.White);
-        var v4 = col.ToVector4();
-        if (!ColorEdit4($"##{id}", ref v4, ImGuiColorEditFlags.AlphaBar | ImGuiColorEditFlags.NoInputs)) return false;
-
-        value = v4.ToColor();
-        return true;
-    }
-
-    private static bool DrawBool3Field(string id, ref object? value, string? _) {
-
-        var val = (Bool3)(value ?? new Bool3(false, false, false));
-        var changed = false;
-
-        PushStyleVar(ImGuiStyleVar.ItemSpacing, new Vector2(4, 0));
-
-        if (Checkbox($"##{id}_x", ref val.X)) changed = true;
-        SameLine();
-        Text("X");
-        SameLine();
-
-        if (Checkbox($"##{id}_y", ref val.Y)) changed = true;
-        SameLine();
-        Text("Y");
-        SameLine();
-
-        if (Checkbox($"##{id}_z", ref val.Z)) changed = true;
-        SameLine();
-        Text("Z");
-
-        PopStyleVar();
-
-        if (!changed) return false;
-
-        value = val;
-        return true;
-    }
-
-    private static bool DrawEnumField(string id, ref object? value, Type type) {
-
-        var val = (Enum)(value ?? Activator.CreateInstance(type)!);
-        var names = Enums.GetNames(type, EnumMemberSelection.All).ToArray();
-        var index = Array.IndexOf(names, val.ToString());
-        if (!Combo($"##{id}", ref index, names, names.Length)) return false;
-
-        value = Enums.Parse(type, names[index]);
-        return true;
-    }
-
-    private static void EndSection(bool open) {
-
-        if (!open) return;
-
-        Columns(1);
-        PopStyleVar();
-        TreePop();
-        Spacing();
-    }
 
     private void DrawProjectSettings() {
 
@@ -642,290 +459,17 @@ internal class ObjectBrowser : Viewport {
         PopID();
     }
 
-    private void DrawFlatPickerPopup(ref object? value, List<object> targets, string? propName, ref bool changed, ref bool deactivated) {
 
-        BeginChild("##files", new Vector2(0, 400));
 
-        var nms = _foundAssets.Select(asset => asset.Name).ToList();
 
-        for (var i = 0; i < _foundAssets.Length; i++) {
 
-            var asset = _foundAssets[i];
-            var path = asset.Path;
-            var name = nms[i];
 
-            if (!string.IsNullOrEmpty(_searchFilter) && !path.Contains(_searchFilter, StringComparison.OrdinalIgnoreCase)) continue;
 
-            if (Selectable($"{name}##{asset.GUID}")) {
-                ApplyPickerValue(asset.GUID, ref value, targets, propName, ref changed, ref deactivated);
-                CloseCurrentPopup();
-            }
 
-            if (string.IsNullOrEmpty(name) || nms.Count(x => x == name) <= 1) continue;
 
-            SameLine();
-            TextDisabled(path);
-        }
 
-        EndChild();
-    }
 
-    private void DrawCollectionAwarePickerPopup(string id, string pickerType, ref object? value, List<object> targets, string? propName, ref bool changed, ref bool deactivated) {
 
-        if (!_pickerStates.TryGetValue(id, out var state)) {
-            state = new PickerBrowserState();
-            _pickerStates[id] = state;
-        }
-
-        if (!string.IsNullOrWhiteSpace(_searchFilter)) {
-
-            BeginChild("##picker_search", new Vector2(0, 400));
-
-            foreach (var entry in _pickerEntries.Where(entry =>
-                         entry.Label.Contains(_searchFilter, StringComparison.OrdinalIgnoreCase)
-                         || entry.Tooltip.Contains(_searchFilter, StringComparison.OrdinalIgnoreCase))) {
-
-                if (Selectable($"{entry.Label}##{entry.Value}")) {
-                    ApplyPickerValue(entry.Value, ref value, targets, propName, ref changed, ref deactivated);
-                    CloseCurrentPopup();
-                }
-
-                if (string.IsNullOrWhiteSpace(entry.Tooltip) || string.Equals(entry.Tooltip, entry.Label, StringComparison.OrdinalIgnoreCase)) continue;
-
-                SameLine();
-                TextDisabled(entry.Tooltip);
-            }
-
-            EndChild();
-            return;
-        }
-
-        DrawPickerNavigationBar(state);
-        BeginChild("##picker_browser", new Vector2(0, 400));
-
-        var pickerKind = CollectionData.GetKindForPickerType(pickerType);
-
-        if (pickerKind == null) {
-            EndChild();
-            return;
-        }
-
-        if (CollectionData.IsProjectRoot(state.CurrentPath)) {
-
-            foreach (var collectionPath in EnumerateVisiblePickerCollections(state.CurrentPath, pickerType, CollectionAssetKind.Collection))
-                DrawPickerCollectionEntry(collectionPath, pickerType, state, ref value, targets, propName, ref changed, ref deactivated);
-
-            EndChild();
-            return;
-        }
-
-        if (state.ShowChildCollections) {
-
-            foreach (var collectionPath in EnumerateVisiblePickerCollections(state.CurrentPath, pickerType, CollectionAssetKind.Collection))
-                DrawPickerCollectionEntry(collectionPath, pickerType, state, ref value, targets, propName, ref changed, ref deactivated);
-
-            EndChild();
-            return;
-        }
-
-        var childCollections = EnumerateVisiblePickerCollections(state.CurrentPath, pickerType, CollectionAssetKind.Collection).Count();
-        if (childCollections > 0)
-            DrawPickerVirtualEntry("Collections", childCollections, Colors.GuiCollection.ToVector4(), () => state.ShowChildCollections = true, Icons.FaArchive);
-
-        var activeCategory = state.ActiveCategory ?? pickerKind.Value;
-        var activePickerType = GetPickerTypeForKind(activeCategory);
-        var typedCollections = EnumerateVisiblePickerCollections(state.CurrentPath, pickerType, activeCategory).ToList();
-        var files = GetPickerFilesForCategory(state.CurrentPath, activePickerType);
-
-        foreach (var collectionPath in typedCollections)
-            DrawPickerCollectionEntry(collectionPath, pickerType, state, ref value, targets, propName, ref changed, ref deactivated);
-
-        foreach (var filePath in files)
-            DrawPickerFileEntry(filePath, activePickerType, ref value, targets, propName, ref changed, ref deactivated);
-
-        EndChild();
-    }
-
-    private void DrawPickerNavigationBar(PickerBrowserState state) {
-
-        var canGoUp = !CollectionData.IsProjectRoot(state.CurrentPath) || state.ShowChildCollections || state.ActiveCategory != null || state.NavigationStack.Count > 0;
-
-        BeginDisabled(!canGoUp);
-        PushFont(Fonts.ImFontAwesomeSmall);
-
-        if (Button($"{Icons.FaLevelUp}##picker_up")) {
-
-            if (state.ActiveCategory != null)
-                state.ActiveCategory = null;
-            else if (state.ShowChildCollections)
-                state.ShowChildCollections = false;
-            else if (state.NavigationStack.Count > 0) {
-                var nav = state.NavigationStack.Pop();
-                state.CurrentPath = nav.Path;
-                state.ShowChildCollections = nav.ShowChildCollections;
-                state.ActiveCategory = nav.ActiveCategory;
-            }
-            else if (CollectionData.IsBuiltInRoot(state.CurrentPath))
-                state.CurrentPath = CollectionData.RootPath;
-            else
-                state.CurrentPath = Directory.GetParent(state.CurrentPath)?.FullName ?? CollectionData.RootPath;
-        }
-
-        PopFont();
-        EndDisabled();
-
-        SameLine();
-        TextDisabled(GetPickerRelativePath(state));
-    }
-
-    private static string GetPickerRelativePath(PickerBrowserState state) {
-
-        if (CollectionData.IsBuiltInRoot(state.CurrentPath)) {
-            if (state.ShowChildCollections)
-                return $"{CollectionData.BuiltInCollectionLabel}/Collections";
-
-            if (state.ActiveCategory != null)
-                return $"{CollectionData.BuiltInCollectionLabel}/{CollectionData.GetKindName(state.ActiveCategory.Value)}";
-
-            return CollectionData.BuiltInCollectionLabel;
-        }
-
-        var relative = Path.GetRelativePath(CollectionData.RootPath, state.CurrentPath).Replace('\\', '/');
-        if (relative == ".") relative = "";
-
-        if (state.ShowChildCollections)
-            return string.IsNullOrEmpty(relative) ? "Collections" : $"{relative}/Collections";
-
-        if (state.ActiveCategory != null) {
-            var categoryName = CollectionData.GetKindName(state.ActiveCategory.Value);
-            return string.IsNullOrEmpty(relative) ? categoryName : $"{relative}/{categoryName}";
-        }
-
-        return string.IsNullOrEmpty(relative) ? "Collections" : relative;
-    }
-
-    private void DrawPickerVirtualEntry(string label, int count, Vector4 color, Action onClick, string icon) {
-
-        const float iconWidth = 20f;
-        var startX = GetCursorPosX();
-
-        PushFont(Fonts.ImFontAwesomeSmall);
-        DrawPickerIcon(icon, color, startX, iconWidth);
-        PopFont();
-
-        SameLine(startX + iconWidth + 5f);
-        PushStyleColor(ImGuiCol.Text, color);
-        var clicked = Selectable(label, false, ImGuiSelectableFlags.None, new Vector2(GetContentRegionAvail().X, 0f));
-        PopStyleColor();
-        DrawPickerRightAlignedCount(count, color);
-        if (!clicked) return;
-
-        onClick();
-    }
-
-    private void DrawPickerCollectionEntry(string collectionPath, string pickerType, PickerBrowserState state, ref object? value, List<object> targets, string? propName, ref bool changed, ref bool deactivated) {
-
-        const float iconWidth = 20f;
-        const float thumbnailSize = 16f;
-        var startX = GetCursorPosX();
-        var color = Vector4.One;
-
-        PushFont(Fonts.ImFontAwesomeSmall);
-        if (!TryDrawPickerCollectionThumbnail(collectionPath, startX, iconWidth, thumbnailSize))
-            DrawPickerIcon(Icons.FaArchive, color, startX, iconWidth);
-        PopFont();
-        SameLine(startX + iconWidth + 5f);
-
-        var label = CollectionData.GetCollectionDisplayName(collectionPath);
-        PushStyleColor(ImGuiCol.Text, color);
-
-        if (Selectable($"{label}##{collectionPath}", false, ImGuiSelectableFlags.None, new Vector2(GetContentRegionAvail().X, 0f))) {
-            PopStyleColor();
-
-            if (CollectionData.TryGetCollectionSelectionValue(collectionPath, pickerType, out var selectedValue)) {
-                ApplyPickerValue(selectedValue, ref value, targets, propName, ref changed, ref deactivated);
-                CloseCurrentPopup();
-                return;
-            }
-
-            state.NavigationStack.Push(new PickerNavigationState(state.CurrentPath, state.ActiveCategory, state.ShowChildCollections));
-            state.CurrentPath = collectionPath;
-            state.ShowChildCollections = false;
-            state.ActiveCategory = null;
-            return;
-        }
-
-        PopStyleColor();
-    }
-
-    private void DrawPickerFileEntry(string path, string pickerType, ref object? value, List<object> targets, string? propName, ref bool changed, ref bool deactivated) {
-
-        const float iconWidth = 20f;
-        const float thumbnailSize = 16f;
-        var startX = GetCursorPosX();
-        var color = GetPickerCategoryColor(CollectionData.GetKindForPickerType(pickerType) ?? CollectionAssetKind.Collection);
-
-        PushFont(Fonts.ImFontAwesomeSmall);
-        if (!TryDrawPickerFileThumbnail(path, startX, iconWidth, thumbnailSize))
-            DrawPickerIcon(GetPickerFileIcon(path), color, startX, iconWidth);
-        PopFont();
-        SameLine(startX + iconWidth + 5f);
-
-        var label = CollectionData.GetNameWithoutExtension(path);
-        if (!Selectable($"{label}##{path}", false, ImGuiSelectableFlags.None, new Vector2(GetContentRegionAvail().X, 0f))) return;
-
-        var selectedValue = ResolvePickerAssetValue(path, pickerType);
-
-        if (string.IsNullOrWhiteSpace(selectedValue)) return;
-
-        ApplyPickerValue(selectedValue, ref value, targets, propName, ref changed, ref deactivated);
-        CloseCurrentPopup();
-    }
-
-    private static void ApplyPickerValue(string selectedValue, ref object? value, List<object> targets, string? propName, ref bool changed, ref bool deactivated) {
-
-        if (propName != null) targets.ForEach(t => History.StartRecording(t, propName));
-
-        value = selectedValue;
-        changed = true;
-        deactivated = true;
-    }
-
-    private static List<string> GetPickerFilesForCategory(string currentPath, string pickerType) =>
-        !Directory.Exists(currentPath)
-            ? []
-            : Directory.EnumerateFiles(currentPath)
-                .Where(path => !CollectionData.IsSidecarMetaFile(path))
-                .Where(path => CollectionData.IsPathCompatibleWithPicker(path, pickerType))
-                .Where(path => !CollectionData.ShouldHideAssetPath(path, pickerType))
-                .OrderBy(CollectionData.GetNameWithoutExtension, new NaturalStringComparer()!)
-                .ToList();
-
-    private static IEnumerable<string> EnumerateVisiblePickerCollections(string currentPath, string pickerType, CollectionAssetKind kind) =>
-        GetPickerCollections(currentPath, kind).Where(collectionPath => CollectionHasPickerContent(collectionPath, pickerType));
-
-    private static IEnumerable<string> GetPickerCollections(string currentPath, CollectionAssetKind kind) =>
-        CollectionData.IsProjectRoot(currentPath)
-            ? CollectionData.EnumerateRootCollections(kind)
-            : CollectionData.EnumerateCollections(currentPath, kind);
-
-    private static bool CollectionHasPickerContent(string collectionPath, string pickerType) {
-
-        if (CollectionData.TryGetCollectionSelectionValue(collectionPath, pickerType, out _)) return true;
-
-        if (GetPickerFilesForCategory(collectionPath, pickerType).Count > 0) return true;
-
-        foreach (var childCollection in CollectionData.EnumerateCollections(collectionPath, CollectionAssetKind.Collection))
-            if (CollectionHasPickerContent(childCollection, pickerType))
-                return true;
-
-        if (CollectionData.GetKindForPickerType(pickerType) is { } pickerKind)
-            foreach (var typedCollection in CollectionData.EnumerateCollections(collectionPath, pickerKind))
-                if (CollectionHasPickerContent(typedCollection, pickerType))
-                    return true;
-
-        return false;
-    }
 
     private void DrawAnimationPreviewControls(Animation animation) {
 
@@ -987,298 +531,10 @@ internal class ObjectBrowser : Viewport {
     }
 
     // Asset inspectors
-    private void DrawAssetInspector(string path) {
 
-        var ext = Path.GetExtension(path).ToLowerInvariant();
 
-        if (CollectionData.IsLevel(path)) {
-            DrawImportedAsset<LevelAsset>(path, DrawLevelAssetInspector);
-            return;
-        }
 
-        if (CollectionData.IsMaterial(path)) {
-            DrawImportedAsset<MaterialAsset>(path, DrawMaterialAssetInspector);
-            return;
-        }
 
-        if (_assetInspectorByExtension.TryGetValue(ext, out var inspector))
-            inspector(this, path);
-    }
-
-    private void DrawLevelAssetInspector(LevelAsset levelAsset) {
-
-        var path = levelAsset.File;
-        var levelName = CollectionData.GetLevelDisplayName(path);
-
-        PushID(levelAsset.GUID);
-        DrawSectionHeader("Level Asset", Icons.FaMap, Colors.GuiCollectionLevel, out var open);
-
-        if (open) {
-
-            PushStyleVar(ImGuiStyleVar.ItemSpacing, new Vector2(8, 8));
-            Columns(2, "##level_asset_props", false);
-            SetColumnWidth(0, GetWindowWidth() * 0.32f);
-
-            DrawInfoRow("Name", levelName);
-
-            DrawShadowedLabel("Skybox");
-            object? skybox = levelAsset.Skybox;
-            var (skyboxChanged, skyboxDeactivated) = DrawInspectorField("LevelAssetSkybox", ref skybox, typeof(string), [levelAsset], nameof(LevelAsset.Skybox), "TextureAsset");
-
-            if (skyboxChanged) {
-                levelAsset.Skybox = (string)skybox!;
-                levelAsset.SkyboxPath = AssetManager.GetPath<TextureAsset>(levelAsset.Skybox) is { } resolvedPath
-                    ? AssetManager.GetStoredPath(resolvedPath)
-                    : "";
-                levelAsset.SaveSettings();
-                levelAsset.ApplyToActiveLevelIfOpen();
-            }
-
-            if (skyboxDeactivated) History.StopRecording();
-
-            DrawShadowedLabel("Skybox Tint");
-            object? tint = levelAsset.SkyboxTint;
-            var (skyboxTintChanged, skyboxTintDeactivated) = DrawInspectorField("LevelAssetSkyboxTint", ref tint, typeof(Color), [levelAsset], nameof(LevelAsset.SkyboxTint));
-
-            if (skyboxTintChanged) {
-                levelAsset.SkyboxTint = (Color)tint!;
-                levelAsset.SaveSettings();
-                levelAsset.ApplyToActiveLevelIfOpen();
-            }
-
-            if (skyboxTintDeactivated) History.StopRecording();
-
-            DrawShadowedLabel("Background Color");
-            object? background = levelAsset.BackgroundColor;
-            var (backgroundChanged, backgroundDeactivated) = DrawInspectorField("LevelAssetBackground", ref background, typeof(Color), [levelAsset], nameof(LevelAsset.BackgroundColor));
-
-            if (backgroundChanged) {
-                levelAsset.BackgroundColor = (Color)background!;
-                levelAsset.SaveSettings();
-                levelAsset.ApplyToActiveLevelIfOpen();
-            }
-
-            if (backgroundDeactivated) History.StopRecording();
-
-            DrawShadowedLabel("Ambient Color");
-            object? ambient = levelAsset.AmbientColor;
-            var (ambientChanged, ambientDeactivated) = DrawInspectorField("LevelAssetAmbient", ref ambient, typeof(Color), [levelAsset], nameof(LevelAsset.AmbientColor));
-
-            if (ambientChanged) {
-                levelAsset.AmbientColor = (Color)ambient!;
-                levelAsset.SaveSettings();
-                levelAsset.ApplyToActiveLevelIfOpen();
-            }
-
-            if (ambientDeactivated) History.StopRecording();
-
-            DrawShadowedLabel("Skybox Ambient");
-            object? skyboxAmbient = levelAsset.SkyboxAmbientEnabled;
-            var (skyboxAmbientChanged, skyboxAmbientDeactivated) = DrawInspectorField("LevelAssetSkyboxAmbientEnabled", ref skyboxAmbient, typeof(bool), [levelAsset], nameof(LevelAsset.SkyboxAmbientEnabled));
-
-            if (skyboxAmbientChanged) {
-                levelAsset.SkyboxAmbientEnabled = (bool)skyboxAmbient!;
-                levelAsset.SaveSettings();
-                levelAsset.ApplyToActiveLevelIfOpen();
-            }
-
-            if (skyboxAmbientDeactivated) History.StopRecording();
-
-            DrawShadowedLabel("Skybox Ambient Intensity");
-            object? skyboxAmbientIntensityValue = levelAsset.SkyboxAmbientIntensity;
-            var (skyboxAmbientIntensityChanged, skyboxAmbientIntensityDeactivated) = DrawInspectorField("LevelAssetSkyboxAmbientIntensity", ref skyboxAmbientIntensityValue, typeof(float), [levelAsset], nameof(LevelAsset.SkyboxAmbientIntensity));
-
-            if (skyboxAmbientIntensityChanged) {
-                levelAsset.SkyboxAmbientIntensity = Math.Clamp((float)skyboxAmbientIntensityValue!, 0.0f, 1.0f);
-                levelAsset.SaveSettings();
-                levelAsset.ApplyToActiveLevelIfOpen();
-            }
-
-            if (skyboxAmbientIntensityDeactivated) History.StopRecording();
-
-            Columns(1);
-            PopStyleVar();
-        }
-
-        EndSection(open);
-        PopID();
-    }
-
-    private void DrawModelAssetInspector(ModelAsset model) {
-
-        PushID(model.GetHashCode());
-        DrawSectionHeader("Model Asset", Icons.FaCube, Colors.GuiTypeModel, out var open);
-
-        if (open) {
-            PushStyleVar(ImGuiStyleVar.ItemSpacing, new Vector2(8, 8));
-            Columns(2, "##model_asset_props", false);
-            SetColumnWidth(0, GetWindowWidth() * 0.32f);
-
-            DrawInfoRow("Source Size", FormatFileSize(model.File));
-            DrawInfoRow("Imported Size", FormatFileSize(model.ImportedFile));
-
-            DrawShadowedLabel("Import Scale");
-
-            object? scale = model.Settings.ImportScale;
-
-            var (sChanged, sDeactivated) = DrawInspectorField("ImportScale", ref scale, typeof(float), [model], "Settings");
-
-            if (sChanged) {
-
-                model.Settings.ImportScale = (float)scale!;
-                model.SaveSettings();
-            }
-
-            if (sDeactivated) History.StopRecording();
-
-            for (var i = 0; i < model.Materials.Length; i++) {
-
-                var name = i < model.Meshes.Count && !string.IsNullOrEmpty(model.Meshes[i].Name) ? model.Meshes[i].Name : $"Mesh {i}";
-                DrawShadowedLabel(name);
-                object? val = model.MaterialPaths[i];
-
-                var (changed, deactivated) = DrawInspectorField($"MeshMat_{i}", ref val, typeof(string), [model], "Settings", "MaterialAsset");
-
-                if (changed) model.ApplyMaterial(i, (string)val!);
-
-                if (deactivated) History.StopRecording();
-            }
-
-            Columns(1);
-            PopStyleVar();
-        }
-
-        EndSection(open);
-        PopID();
-    }
-
-    private void DrawMaterialAssetInspector(MaterialAsset mat) {
-
-        PushID(mat.GetHashCode());
-        DrawSectionHeader("Material Asset", Icons.FaFileImage, Colors.GuiTypeModel, out var open);
-
-        if (open) {
-
-            DrawShadowedLabel("Shader");
-
-            object? shader = mat.Data.Shader;
-            var (shaderChanged, shaderDeactivated) = DrawInspectorField("Shader", ref shader, typeof(string), [mat], "Data", "ShaderAsset");
-
-            if (shaderChanged) {
-
-                mat.Data.Shader = (string)shader!;
-                mat.Save();
-                mat.ApplyChanges();
-            }
-
-            if (shaderDeactivated) History.StopRecording();
-
-            var shaderName = string.IsNullOrEmpty(mat.Data.Shader) ? "Collection/pbr.vs" : mat.Data.Shader;
-            var sa = AssetManager.Get<ShaderAsset>(shaderName);
-
-            if (sa != null) {
-
-                foreach (var prop in sa.Properties) {
-
-                    PushID(prop.Name);
-                    DrawShadowedLabel(prop.Name);
-
-                    object? val = null;
-                    var t = typeof(float);
-                    string? picker = null;
-
-                    switch (prop.Type) {
-
-                        case "sampler2D":
-                            val = mat.Data.Textures.GetValueOrDefault(prop.Name, mat == MaterialAsset.Default ? "" : MaterialAsset.Default.Data.Textures.GetValueOrDefault(prop.Name, ""));
-                            t = typeof(string);
-                            picker = "TextureAsset";
-
-                            break;
-
-                        case "float":
-                            val = mat.Data.Floats.GetValueOrDefault(prop.Name, mat == MaterialAsset.Default ? 0f : MaterialAsset.Default.Data.Floats.GetValueOrDefault(prop.Name, 0f));
-                            t = typeof(float);
-
-                            break;
-
-                        case "int":
-                            val = mat.Data.Ints.GetValueOrDefault(prop.Name, mat == MaterialAsset.Default ? 0 : MaterialAsset.Default.Data.Ints.GetValueOrDefault(prop.Name, 0));
-                            t = typeof(int);
-
-                            break;
-
-                        case "vec2":
-                            val = mat.Data.Vectors.GetValueOrDefault(prop.Name, mat == MaterialAsset.Default ? Vector2.Zero : MaterialAsset.Default.Data.Vectors.GetValueOrDefault(prop.Name, Vector2.Zero));
-                            t = typeof(Vector2);
-
-                            break;
-
-                        case "vec3":
-                        case "vec4": {
-
-                            if (prop.Name.Contains("color", StringComparison.OrdinalIgnoreCase) || prop.Name.Contains("albedo", StringComparison.OrdinalIgnoreCase) || prop.Name.Contains("emiss", StringComparison.OrdinalIgnoreCase)) {
-
-                                val = mat.Data.Colors.GetValueOrDefault(prop.Name, mat == MaterialAsset.Default ? Color.White : MaterialAsset.Default.Data.Colors.GetValueOrDefault(prop.Name, Color.White));
-                                t = typeof(Color);
-
-                            } else {
-
-                                val = prop.Type == "vec3" ? Vector3.Zero : Vector4.One;
-                                t = prop.Type == "vec3" ? typeof(Vector3) : typeof(Vector4);
-                            }
-
-                            break;
-                        }
-                    }
-
-                    var (propChanged, propDeactivated) = DrawInspectorField(prop.Name, ref val, t, [mat], "Data", picker);
-
-                    if (val != null && propChanged) {
-
-                        if (t == typeof(string))
-                            mat.Data.Textures[prop.Name] = (string)val;
-                        else if (t == typeof(float))
-                            mat.Data.Floats[prop.Name] = (float)val;
-                        else if (t == typeof(int))
-                            mat.Data.Ints[prop.Name] = (int)val;
-                        else if (t == typeof(Vector2))
-                            mat.Data.Vectors[prop.Name] = (Vector2)val;
-                        else if (t == typeof(Color)) mat.Data.Colors[prop.Name] = (Color)val;
-
-                        mat.Save();
-                        mat.ApplyChanges();
-                    }
-
-                    if (propDeactivated) History.StopRecording();
-
-                    PopID();
-                }
-            }
-        }
-
-        EndSection(open);
-        PopID();
-    }
-
-    private void DrawScriptAssetInspector(ScriptAsset scriptAsset) {
-
-        PushID(scriptAsset.GetHashCode());
-        DrawSectionHeader("Script Asset", Icons.FaCode, Color.White, out var open);
-
-        if (open) {
-
-            DrawInfoRow("Class", Path.GetFileNameWithoutExtension(scriptAsset.File));
-
-            if (scriptAsset.ScriptType == null)
-                DrawInfoRow("Status", "Type not loaded");
-            else
-                DrawScriptFieldRows([scriptAsset], scriptAsset, ScriptFieldStorageKind.Config);
-        }
-
-        EndSection(open);
-        PopID();
-    }
 
     private void DrawProperties(List<object> targets, bool separator, string title, bool defaultOpen = true) {
 
@@ -1450,87 +706,7 @@ internal class ObjectBrowser : Viewport {
         PopID();
     }
 
-    private void DrawScriptFieldRows(List<object> targets, ScriptAsset asset, ScriptFieldStorageKind kind) {
 
-        var fields = ScriptFieldUtility.GetFields(asset.ScriptType!, kind);
-        if (fields.Length == 0) return;
-
-        foreach (var field in fields) {
-
-            var defaultValue = ScriptFieldUtility.GetCodeDefaultValue(asset.ScriptType, field);
-
-            object? value;
-            var picker = field.GetCustomAttribute<FindAssetAttribute>()?.TypeName ?? field.GetCustomAttribute<FilePathAttribute>()?.Category;
-            var isOverridden = false;
-
-            if (kind == ScriptFieldStorageKind.Config) {
-
-                var assets = targets.Cast<ScriptAsset>().ToList();
-                var values = assets.Select(scriptAsset => scriptAsset.GetConfigFieldValue(field)).ToList();
-                value = values.All(val => ScriptFieldUtility.ValueEquals(val, values[0])) ? values[0] : null;
-                isOverridden = values.Any(val => !ScriptFieldUtility.ValueEquals(val, defaultValue));
-                DrawShadowedLabel(ScriptFieldUtility.GetLabel(field), isOverridden);
-
-                var (changed, deactivated) = DrawInspectorField($"##script_cfg_{_propIndex++}", ref value, field.FieldType, targets, field.Name, picker, showResetButton: true, highlightOverride: isOverridden, resetValue: defaultValue);
-
-                if (changed)
-                    foreach (var scriptAsset in assets)
-                        scriptAsset.SetConfigFieldValue(field, value);
-
-                if (deactivated) History.StopRecording();
-                continue;
-            }
-
-            var scripts = targets.Cast<Script>().ToList();
-            var exposedValues = scripts.Select(script => script.GetExposeFieldValue(field, asset)).ToList();
-            value = exposedValues.All(val => ScriptFieldUtility.ValueEquals(val, exposedValues[0])) ? exposedValues[0] : null;
-            var (prefabOverride, prefabResetValue) = GetScriptExposePrefabOverrideState(scripts, asset, field);
-            var resetValue = prefabOverride ? prefabResetValue : defaultValue;
-            isOverridden = scripts.All(script => script.Obj.FindPrefabRoot() != null)
-                ? prefabOverride
-                : exposedValues.Any(val => !ScriptFieldUtility.ValueEquals(val, defaultValue));
-            var applyOverride = GetScriptExposePrefabApplyAction(scripts, field);
-            var applyOverrideWithHistory = GetScriptExposePrefabApplyHistoryAction(scripts, asset, field, picker, value);
-            DrawShadowedLabel(ScriptFieldUtility.GetLabel(field), isOverridden);
-
-            var (fieldChanged, fieldDeactivated) = DrawInspectorField($"##script_exp_{_propIndex++}", ref value, field.FieldType, targets, field.Name, picker, showResetButton: isOverridden, highlightOverride: isOverridden, resetValue: resetValue, applyOverride: applyOverride, applyOverrideWithHistory: applyOverrideWithHistory);
-
-            if (fieldChanged)
-                foreach (var script in scripts)
-                    script.SetExposeFieldValue(field, value);
-
-            if (fieldDeactivated) History.StopRecording();
-        }
-    }
-
-    private static InspectableProperty[] GetInspectableProperties(Type type) {
-
-        if (_inspectablePropertyCache.TryGetValue(type, out var cached))
-            return cached;
-
-        var inspectableProperties = type
-            .GetProperties()
-            .SelectMany(property => {
-                var label = property.GetCustomAttribute<LabelAttribute>();
-                if (label == null) return Array.Empty<InspectableProperty>();
-
-                var filePath = property.GetCustomAttribute<FilePathAttribute>();
-                var findAsset = property.GetCustomAttribute<FindAssetAttribute>();
-
-                return [
-                    new InspectableProperty(
-                        property,
-                        label.Value,
-                        findAsset?.TypeName ?? filePath?.Category,
-                        filePath != null || findAsset != null
-                    )
-                ];
-            })
-            .ToArray();
-
-        _inspectablePropertyCache[type] = inspectableProperties;
-        return inspectableProperties;
-    }
 
     private static (bool HighlightOverride, object? ResetValue) GetPrefabOverrideState(object target, PropertyInfo property) {
 
@@ -1548,30 +724,6 @@ internal class ObjectBrowser : Viewport {
         return (false, null);
     }
 
-    private static (bool HighlightOverride, object? ResetValue) GetScriptExposePrefabOverrideState(List<Script> scripts, ScriptAsset asset, FieldInfo field) {
-
-        if (scripts.Count == 0) return (false, null);
-        if (!scripts.All(script => script.Obj.FindPrefabRoot() != null)) return (false, null);
-
-        var sourceValues = new List<object?>();
-
-        foreach (var script in scripts) {
-            if (!PrefabUtility.TryGetSourceScriptFieldValue(script, field, out var sourceValue))
-                return (false, null);
-
-            sourceValues.Add(sourceValue);
-        }
-
-        var resetValue = sourceValues.All(val => ScriptFieldUtility.ValueEquals(val, sourceValues[0])) ? sourceValues[0] : null;
-
-        for (var index = 0; index < scripts.Count; index++) {
-            var currentValue = scripts[index].GetExposeFieldValue(field, asset);
-            if (!ScriptFieldUtility.ValueEquals(currentValue, sourceValues[index]))
-                return (true, resetValue);
-        }
-
-        return (false, resetValue);
-    }
 
     private static bool TryGetPrefabSourceValue(Obj obj, PropertyInfo property, out object? sourceValue) {
 
@@ -1657,44 +809,7 @@ internal class ObjectBrowser : Viewport {
         };
     }
 
-    private static Action? GetScriptExposePrefabApplyAction(List<Script> scripts, FieldInfo field) {
 
-        if (scripts.Count != 1) return null;
-
-        var script = scripts[0];
-        return PrefabUtility.TryGetSourceScriptFieldValue(script, field, out _)
-            ? () => PrefabUtility.ApplyScriptExposeFieldToPrefab(script, field, script.GetAsset() is { } asset ? script.GetExposeFieldValue(field, asset) : null)
-            : null;
-    }
-
-    private static Action? GetScriptExposePrefabApplyHistoryAction(List<Script> scripts, ScriptAsset asset, FieldInfo field, string? pickerType, object? value) {
-
-        if (scripts.Count != 1) return null;
-
-        var script = scripts[0];
-        if (!PrefabUtility.TryGetSourcePrefabFile(script.Obj, out var prefabFile) || !File.Exists(prefabFile)) return null;
-        if (!PrefabUtility.TryGetSourceScriptFieldValue(script, field, out _)) return null;
-
-        return () => {
-            var beforeLocalValue = CloneApplyHistoryValue(script.GetExposeFieldValue(field, asset));
-            using var transaction = History.Begin($"Apply {field.Name} To Prefab");
-            transaction.CapturePath(prefabFile);
-            transaction.After(
-                redo: () => {
-                    if (!PrefabUtility.RefreshSourcePrefabFile(prefabFile)) return;
-                    script.SetExposeFieldValue(field, value);
-                    script.SetPrefabOverride(nameof(Script.ExposedValues), false);
-                },
-                undo: () => {
-                    if (!PrefabUtility.RefreshSourcePrefabFile(prefabFile)) return;
-                    script.SetExposeFieldValue(field, beforeLocalValue);
-                    script.SetPrefabOverride(nameof(Script.ExposedValues), true);
-                }
-            );
-            PrefabUtility.ApplyScriptExposeFieldToPrefab(script, field, value);
-            if (transaction.Commit()) Notifications.Show(transaction.Description);
-        };
-    }
 
     private static bool IsPrefabBoundTarget(object target) => target switch {
         Obj obj => obj.FindPrefabRoot() != null,
@@ -1703,135 +818,6 @@ internal class ObjectBrowser : Viewport {
         _ => false
     };
 
-    private void DrawTextureAssetInspector(TextureAsset texture) {
-
-        PushID(texture.GetHashCode());
-        DrawSectionHeader("Texture Asset", Icons.FaFileImage, Colors.GuiTypeModel, out var open);
-
-        if (open) {
-            var isBusy = AssetManager.IsTextureImportInProgress(texture.GUID);
-            PushStyleVar(ImGuiStyleVar.ItemSpacing, new Vector2(8, 8));
-            Columns(2, "##texture_asset_props", false);
-            SetColumnWidth(0, GetWindowWidth() * 0.32f);
-
-            DrawInfoRow("Source Resolution", $"{texture.SourceWidth} x {texture.SourceHeight}");
-            DrawInfoRow("Imported Resolution", $"{texture.ImportedWidth} x {texture.ImportedHeight}");
-            DrawInfoRow("Source Size", FormatFileSize(texture.SourceFileSize));
-            DrawInfoRow("Imported Size", FormatFileSize(texture.ImportedFileSize));
-            DrawInfoRow("Status", isBusy ? "Importing..." : "Ready");
-
-            BeginDisabled(isBusy);
-
-            DrawShadowedLabel("Format");
-            var formatOptions = new[] { "Source", "Png", "Jpeg", "WebP", "Avif" };
-            var selectedFormat = Array.IndexOf(formatOptions, texture.ImportSettings.Format);
-            if (selectedFormat < 0) selectedFormat = 0;
-            SetNextItemWidth(GetContentRegionAvail().X);
-            if (Combo("##texture_format", ref selectedFormat, formatOptions, formatOptions.Length)) {
-                History.StartRecording(texture, nameof(TextureAsset.ImportSettings));
-                texture.ImportSettings.Format = formatOptions[selectedFormat];
-                texture.SaveMeta();
-                AssetManager.ReimportTextureAsync(texture);
-                History.StopRecording();
-            }
-            NextColumn();
-
-            var effectiveFormat = TextureImportProcessor.GetEffectiveFormat(texture.File, texture.ImportSettings);
-            var usesResizeFilter = texture.ImportSettings.MaxSize > 0;
-            var usesCompression = TextureImportProcessor.UsesCompression(effectiveFormat);
-            var usesQuality = TextureImportProcessor.UsesQuality(effectiveFormat);
-
-            var maxSizeOptions = new[] { 0, 32, 64, 128, 256, 512, 1024, 2048, 4096 };
-            var maxSizeLabels = new[] { "Original", "32", "64", "128", "256", "512", "1024", "2048", "4096" };
-            var selectedMaxSize = Array.IndexOf(maxSizeOptions, texture.ImportSettings.MaxSize);
-            if (selectedMaxSize < 0) selectedMaxSize = 0;
-
-            DrawShadowedLabel("Max Size");
-            SetNextItemWidth(GetContentRegionAvail().X);
-            if (Combo("##texture_max_size", ref selectedMaxSize, maxSizeLabels, maxSizeLabels.Length)) {
-                History.StartRecording(texture, nameof(TextureAsset.ImportSettings));
-                texture.ImportSettings.MaxSize = maxSizeOptions[selectedMaxSize];
-                texture.SaveMeta();
-                AssetManager.ReimportTextureAsync(texture);
-                History.StopRecording();
-            }
-            NextColumn();
-
-            DrawShadowedLabel("Resize Filter");
-            BeginDisabled(!usesResizeFilter);
-            var resizeOptions = new[] { "Nearest", "Bilinear", "Bicubic", "Lanczos" };
-            var selectedResize = Array.IndexOf(resizeOptions, texture.ImportSettings.ResizeFilter);
-            if (selectedResize < 0) selectedResize = 1;
-            SetNextItemWidth(GetContentRegionAvail().X);
-            if (Combo("##texture_resize_filter", ref selectedResize, resizeOptions, resizeOptions.Length)) {
-                History.StartRecording(texture, nameof(TextureAsset.ImportSettings));
-                texture.ImportSettings.ResizeFilter = resizeOptions[selectedResize];
-                texture.SaveMeta();
-                AssetManager.ReimportTextureAsync(texture);
-                History.StopRecording();
-            }
-            EndDisabled();
-            NextColumn();
-
-            DrawShadowedLabel("Compression");
-            BeginDisabled(!usesCompression);
-            var compressionOptions = new[] { "Fast", "Balanced", "Best" };
-            var selectedCompression = Array.IndexOf(compressionOptions, texture.ImportSettings.Compression);
-            if (selectedCompression < 0) selectedCompression = 1;
-            SetNextItemWidth(GetContentRegionAvail().X);
-            if (Combo("##texture_compression", ref selectedCompression, compressionOptions, compressionOptions.Length)) {
-                History.StartRecording(texture, nameof(TextureAsset.ImportSettings));
-                texture.ImportSettings.Compression = compressionOptions[selectedCompression];
-                texture.SaveMeta();
-                AssetManager.ReimportTextureAsync(texture);
-                History.StopRecording();
-            }
-            EndDisabled();
-            NextColumn();
-
-            DrawShadowedLabel("Quality");
-            BeginDisabled(!usesQuality);
-            if (!_pendingTextureQuality.TryGetValue(texture.GUID, out var quality))
-                quality = texture.ImportSettings.Quality;
-            SetNextItemWidth(GetContentRegionAvail().X);
-            if (SliderInt("##texture_quality", ref quality, 1, 100))
-                _pendingTextureQuality[texture.GUID] = quality;
-
-            if (IsItemActivated()) History.StartRecording(texture, nameof(TextureAsset.ImportSettings));
-
-            if (IsItemDeactivatedAfterEdit()) {
-
-                texture.ImportSettings.Quality = quality;
-                _pendingTextureQuality[texture.GUID] = quality;
-                texture.SaveMeta();
-                AssetManager.ReimportTextureAsync(texture);
-                History.StopRecording();
-            }
-            EndDisabled();
-            NextColumn();
-
-            DrawShadowedLabel("Texture Filter");
-            var textureFilterOptions = new[] { "Point", "Bilinear", "Trilinear", "Anisotropic 4x", "Anisotropic 8x", "Anisotropic 16x" };
-            var selectedTextureFilter = Array.IndexOf(textureFilterOptions, texture.ImportSettings.TextureFilter);
-            if (selectedTextureFilter < 0) selectedTextureFilter = 1;
-            SetNextItemWidth(GetContentRegionAvail().X);
-            if (Combo("##texture_filter", ref selectedTextureFilter, textureFilterOptions, textureFilterOptions.Length)) {
-                History.StartRecording(texture, nameof(TextureAsset.ImportSettings));
-                texture.ImportSettings.TextureFilter = textureFilterOptions[selectedTextureFilter];
-                texture.SaveMeta();
-                AssetManager.ApplyTextureFilterAsync(texture);
-                History.StopRecording();
-            }
-            NextColumn();
-
-            EndDisabled();
-            Columns(1);
-            PopStyleVar();
-        }
-
-        EndSection(open);
-        PopID();
-    }
 
     private void DrawImportedAsset<TAsset>(string path, Action<TAsset> draw) where TAsset : Asset {
 
@@ -1840,40 +826,9 @@ internal class ObjectBrowser : Viewport {
             draw(asset);
     }
 
-    private void DrawModelAssetFromPath(string path) {
 
-        var asset = AssetManager.GetOrImport<ModelAsset>(path) ?? AssetManager.Get<ModelAsset>(Path.GetFileNameWithoutExtension(path));
-        if (asset != null)
-            DrawModelAssetInspector(asset);
-    }
 
-    private static string GetAssetDisplayValue(string value, string? pickerType) {
 
-        if (string.IsNullOrWhiteSpace(value)) return "";
-        if (string.IsNullOrWhiteSpace(pickerType)) return Path.GetFileNameWithoutExtension(value);
-        if (SupportsCollectionPicker(pickerType) && CollectionData.TryGetSelectionCollectionInfo(value, pickerType, out var display, out _)) return display;
-
-        return TryGetPickerTypeMetadata(pickerType, out var metadata)
-            ? metadata.GetDisplayValue(value)
-            : Path.GetFileNameWithoutExtension(value);
-    }
-
-    private static string GetAssetTooltip(string value, string? pickerType) {
-
-        if (string.IsNullOrWhiteSpace(pickerType)) return value;
-        if (SupportsCollectionPicker(pickerType) && CollectionData.TryGetSelectionCollectionInfo(value, pickerType, out _, out var tooltip)) return tooltip;
-
-        return TryGetPickerTypeMetadata(pickerType, out var metadata)
-            ? metadata.GetTooltip(value)
-            : value;
-    }
-
-    private static void DrawInfoRow(string label, string value) {
-
-        DrawShadowedLabel(label);
-        TextDisabled(value);
-        NextColumn();
-    }
 
     private static object? CloneApplyHistoryValue(object? value) {
 
@@ -1905,12 +860,6 @@ internal class ObjectBrowser : Viewport {
             componentTarget.UnloadAndQuit();
     }
 
-    private static string FormatFileSize(string path) {
-
-        if (string.IsNullOrWhiteSpace(path) || !File.Exists(path)) return "-";
-
-        return FormatFileSize(new FileInfo(path).Length);
-    }
 
     private static string FormatFileSize(long bytes) {
 
@@ -2002,12 +951,6 @@ internal class ObjectBrowser : Viewport {
         }
     }
 
-    private static string TrimPickerLabelExtension(string value) {
-
-        if (AssetPaths.IsMaterial(value) || AssetPaths.IsPrefab(value) || AssetPaths.IsLevel(value)) return value[..^4];
-
-        return Path.ChangeExtension(value, null) ?? value;
-    }
 
     private static string ResolvePickerAssetValue(string path, string pickerType) =>
         AssetManager.GetGuidForPickerType(path, pickerType);
@@ -2071,82 +1014,17 @@ internal class ObjectBrowser : Viewport {
         );
     }
 
-    private static bool TryGetPickerTypeMetadata(string? pickerType, out PickerTypeMetadata metadata) {
-
-        if (!string.IsNullOrWhiteSpace(pickerType) && _pickerTypeMetadata.TryGetValue(pickerType, out metadata))
-            return true;
-
-        metadata = default!;
-        return false;
-    }
 
     private static string ResolveStoredPath<TAsset>(string selectedValue) where TAsset : Asset =>
         AssetManager.GetPath<TAsset>(selectedValue) is { } path ? AssetManager.GetStoredPath(path) : "";
 
-    private static string GetPickerFileIcon(string path) {
 
-        if (CollectionData.IsScript(path)) return Icons.FaFileCode;
-        if (CollectionData.IsLevel(path)) return Icons.FaFlag;
-        if (CollectionData.IsMaterial(path) || CollectionData.IsTexture(path)) return Icons.FaFileImage;
-        if (CollectionData.IsModel(path)) return Icons.FaCube;
 
-        return Icons.FaFile;
-    }
 
-    private static void DrawPickerIcon(string icon, Vector4 color, float startX, float iconWidth) {
-
-        var iconSize = CalcTextSize(icon);
-        SetCursorPosX(startX + (iconWidth - iconSize.X) * 0.5f);
-        PushStyleColor(ImGuiCol.Text, color);
-        Text(icon);
-        PopStyleColor();
-    }
-
-    private static void DrawPickerRightAlignedCount(int count, Vector4 color) {
-
-        var text = count.ToString();
-        var textSize = CalcTextSize(text);
-        var min = GetItemRectMin();
-        var max = GetItemRectMax();
-        const float rightPadding = 10f;
-        const float countColumnWidth = 24f;
-        var columnLeft = max.X - rightPadding - countColumnWidth;
-        var pos = new Vector2(columnLeft + (countColumnWidth - textSize.X) * 0.5f, min.Y + (GetItemRectSize().Y - textSize.Y) * 0.5f);
-        color.W = 0.72f;
-
-        GetWindowDrawList().AddText(pos, ColorConvertFloat4ToU32(color), text);
-    }
-
-    private static bool TryDrawPickerCollectionThumbnail(string collectionPath, float startX, float iconWidth, float thumbnailSize) {
-
-        var targetPath = CollectionData.GetResolvedTargetPath(collectionPath);
-        if (string.IsNullOrWhiteSpace(targetPath)) return false;
-
-        return TryDrawPickerThumbnail(targetPath, startX, iconWidth, thumbnailSize);
-    }
 
     private static bool TryDrawPickerFileThumbnail(string path, float startX, float iconWidth, float thumbnailSize) =>
         TryDrawPickerThumbnail(path, startX, iconWidth, thumbnailSize);
 
-    private static bool TryDrawPickerThumbnail(string path, float startX, float iconWidth, float thumbnailSize) {
-
-        var tex = GetPickerThumbnail(path);
-        if (!tex.HasValue || tex.Value.Id == 0) return false;
-
-        var texture = tex.Value;
-        var ratio = texture.Width / (float)texture.Height;
-        var drawW = thumbnailSize;
-        var drawH = thumbnailSize;
-
-        if (texture.Width > texture.Height)
-            drawH = drawW / ratio;
-        else
-            drawW = drawH * ratio;
-
-        SetCursorPosX(startX + (iconWidth - drawW) * 0.5f);
-        Image((IntPtr)texture.Id, new Vector2(drawW, drawH));
-        return true;
-    }
 
     private static Texture2D? GetPickerThumbnail(string path) {
 
