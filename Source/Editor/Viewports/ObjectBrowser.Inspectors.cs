@@ -292,8 +292,18 @@ internal partial class ObjectBrowser {
 
             if (scriptAsset.ScriptType == null)
                 DrawInfoRow("Status", "Type not loaded");
-            else
+            else {
                 DrawScriptFieldRows([scriptAsset], scriptAsset, ScriptFieldStorageKind.Config);
+
+                var inheritedConfigFields = ScriptFieldUtility.GetFields(scriptAsset.ScriptType, ScriptFieldStorageKind.Config)
+                    .Where(field => field.DeclaringType != scriptAsset.ScriptType)
+                    .ToArray();
+
+                if (inheritedConfigFields.Length > 0) {
+                    Spacing();
+                    DrawInfoRow("Inherited Config", string.Join(", ", inheritedConfigFields.Select(field => $"{field.Name} ({field.DeclaringType?.Name})")));
+                }
+            }
         }
 
         EndSection(open);

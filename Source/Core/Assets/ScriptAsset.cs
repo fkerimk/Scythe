@@ -54,6 +54,10 @@ internal class ScriptAsset : Asset {
 
     public object? GetConfigFieldValue(FieldInfo field) {
 
+        var ownerAsset = ResolveConfigOwnerAsset(field);
+        if (ownerAsset != null && !ReferenceEquals(ownerAsset, this))
+            return ownerAsset.GetConfigFieldValue(field);
+
         var value = ScriptFieldUtility.GetCodeDefaultValue(ScriptType, field);
         if (ConfigValues.TryGetValue(field.Name, out var raw))
             value = ScriptFieldUtility.DeserializeStoredValue(raw, field.FieldType);
@@ -62,6 +66,12 @@ internal class ScriptAsset : Asset {
     }
 
     public void SetConfigFieldValue(FieldInfo field, object? value) {
+
+        var ownerAsset = ResolveConfigOwnerAsset(field);
+        if (ownerAsset != null && !ReferenceEquals(ownerAsset, this)) {
+            ownerAsset.SetConfigFieldValue(field, value);
+            return;
+        }
 
         var defaultValue = ScriptFieldUtility.GetCodeDefaultValue(ScriptType, field);
 
@@ -110,5 +120,14 @@ internal class ScriptAsset : Asset {
         var jsonPath = File + ".json";
         AssetManager.RegisterInternalWrite(jsonPath);
         JsonFile.WriteIndented(jsonPath, meta);
+    }
+
+    private ScriptAsset? ResolveConfigOwnerAsset(FieldInfo field) {
+
+        if (field.DeclaringType == null || field.DeclaringType == ScriptType)
+            return this;
+
+        return AssetManager.GetAll<ScriptAsset>()
+            .FirstOrDefault(asset => asset.IsLoaded && asset.ScriptType == field.DeclaringType);
     }
 }

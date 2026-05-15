@@ -19,9 +19,18 @@ internal enum ScriptFieldStorageKind {
 internal static class ScriptFieldUtility {
 
     private const BindingFlags FieldFlags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+    private const BindingFlags DeclaredFieldFlags = FieldFlags | BindingFlags.DeclaredOnly;
 
     public static FieldInfo[] GetFields(Type scriptType, ScriptFieldStorageKind kind) =>
         scriptType.GetFields(FieldFlags)
+                  .Where(field => !field.IsStatic && !field.IsInitOnly && !field.IsLiteral)
+                  .Where(field => Attribute.IsDefined(field, kind == ScriptFieldStorageKind.Expose ? typeof(ExposeAttribute) : typeof(ConfigAttribute)))
+                  .Where(field => IsSupportedFieldType(field.FieldType))
+                  .OrderBy(field => field.MetadataToken)
+                  .ToArray();
+
+    public static FieldInfo[] GetDeclaredFields(Type scriptType, ScriptFieldStorageKind kind) =>
+        scriptType.GetFields(DeclaredFieldFlags)
                   .Where(field => !field.IsStatic && !field.IsInitOnly && !field.IsLiteral)
                   .Where(field => Attribute.IsDefined(field, kind == ScriptFieldStorageKind.Expose ? typeof(ExposeAttribute) : typeof(ConfigAttribute)))
                   .Where(field => IsSupportedFieldType(field.FieldType))

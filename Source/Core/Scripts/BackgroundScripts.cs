@@ -97,10 +97,13 @@ internal static class BackgroundScripts {
     public static void ApplyConfigToScripts(ScriptAsset asset) {
 
         foreach (var entry in Entries) {
-            if (entry.Asset == null || !string.Equals(entry.Asset.GUID, asset.GUID, StringComparison.OrdinalIgnoreCase)) continue;
+            if (entry.Asset?.ScriptType == null || asset.ScriptType == null) continue;
+            if (!string.Equals(entry.Asset.GUID, asset.GUID, StringComparison.OrdinalIgnoreCase)
+                && !entry.Asset.ScriptType.IsSubclassOf(asset.ScriptType))
+                continue;
             if (entry.Instance == null || asset.ScriptType == null) continue;
 
-            ApplyConfigValues(entry.Instance, asset);
+            ApplyConfigValues(entry.Instance, entry.Asset);
         }
     }
 

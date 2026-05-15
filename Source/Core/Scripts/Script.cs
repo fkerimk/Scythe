@@ -91,6 +91,10 @@ internal class Script(Obj obj) : Component(obj) {
 
         var resolved = GetAsset();
         if (resolved == null) return false;
+
+        if (resolved.ScriptType != null && asset.ScriptType != null && resolved.ScriptType.IsSubclassOf(asset.ScriptType))
+            return true;
+
         return string.Equals(resolved.GUID, asset.GUID, StringComparison.OrdinalIgnoreCase)
             || string.Equals(System.IO.Path.GetFullPath(resolved.File), System.IO.Path.GetFullPath(asset.File), StringComparison.OrdinalIgnoreCase);
     }

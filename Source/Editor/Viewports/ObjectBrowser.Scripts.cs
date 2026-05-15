@@ -9,7 +9,9 @@ internal partial class ObjectBrowser {
 
     private void DrawScriptFieldRows(List<object> targets, ScriptAsset asset, ScriptFieldStorageKind kind) {
 
-        var fields = ScriptFieldUtility.GetFields(asset.ScriptType!, kind);
+        var fields = kind == ScriptFieldStorageKind.Config
+            ? ScriptFieldUtility.GetDeclaredFields(asset.ScriptType!, kind)
+            : ScriptFieldUtility.GetFields(asset.ScriptType!, kind);
         if (fields.Length == 0) return;
 
         foreach (var field in fields) {
