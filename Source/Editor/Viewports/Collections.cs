@@ -350,7 +350,7 @@ internal class Collections : Viewport {
         SameLine(startX + iconWidth + 5f);
 
         PushStyleColor(ImGuiCol.Text, color);
-        var clicked = Selectable(ProjectLabel, isSelected, ImGuiSelectableFlags.None, new Vector2(GetContentRegionAvail().X, 0f));
+        var clicked = Selectable(ProjectLabel, isSelected, ImGuiSelectableFlags.None, new Vector2(GetContentRegionAvail().X - 6f, 0f));
         PopStyleColor();
 
         if (isSelected) DrawSelectionHighlight();
@@ -414,7 +414,7 @@ internal class Collections : Viewport {
         if (count == 0) BeginDisabled();
 
         PushStyleColor(ImGuiCol.Text, color);
-        var clicked = Selectable(ChildCollectionsLabel, _showChildCollections, ImGuiSelectableFlags.None, new Vector2(GetContentRegionAvail().X, 0f));
+        var clicked = Selectable(ChildCollectionsLabel, _showChildCollections, ImGuiSelectableFlags.None, new Vector2(GetContentRegionAvail().X - 6f, 0f));
         PopStyleColor();
         DrawRightAlignedCount(count, color);
 
@@ -447,7 +447,7 @@ internal class Collections : Viewport {
 
         var isSelected = _activeCategory?.Name == state.Category.Name;
         PushStyleColor(ImGuiCol.Text, color);
-        var clicked = Selectable(state.Category.Name, isSelected, ImGuiSelectableFlags.None, new Vector2(GetContentRegionAvail().X, 0f));
+        var clicked = Selectable(state.Category.Name, isSelected, ImGuiSelectableFlags.None, new Vector2(GetContentRegionAvail().X - 6f, 0f));
         PopStyleColor();
 
         DrawRightAlignedCount(state.Count, color);
@@ -666,7 +666,7 @@ internal class Collections : Viewport {
         }
 
         PushStyleColor(ImGuiCol.Text, color);
-        var clicked = Selectable($"{displayName}##{path}", isSelected, ImGuiSelectableFlags.None, new Vector2(GetContentRegionAvail().X, 0f));
+        var clicked = Selectable($"{displayName}##{path}", isSelected, ImGuiSelectableFlags.None, new Vector2(GetContentRegionAvail().X - 6f, 0f));
         PopStyleColor();
 
         if (isSelected) DrawSelectionHighlight();
@@ -678,6 +678,10 @@ internal class Collections : Viewport {
         var drawList = GetWindowDrawList();
         var min = GetItemRectMin();
         var max = GetItemRectMax();
+
+        // Contract slightly to avoid edge clipping
+        min.X += 1f;
+        max.X -= 1f;
 
         var primaryColor = Colors.Primary.ToVector4();
         var bgColor = primaryColor;
