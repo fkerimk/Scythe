@@ -95,6 +95,7 @@ internal sealed class HistoryTransaction : IDisposable {
 }
 
 internal static class History {
+    private const BindingFlags InstanceFlags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
     private static readonly List<HistoryTransaction> Records = [];
     private static int _index = -1;
     private static HistoryTransaction? _activeTransaction;
@@ -247,42 +248,22 @@ internal static class History {
     }
 
     public static object?[] CaptureState(object target) {
-        const BindingFlags flags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
-        var type = target.GetType();
-
-        var props = type.GetProperties(flags)
-            .Where(property => Attribute.IsDefined(property, typeof(RecordHistoryAttribute)))
-            .OrderBy(property => property.Name)
+        var props = GetRecordedProperties(target.GetType())
             .Select(property => CloneValue(property.GetValue(target)));
 
-        var fields = type.GetFields(flags)
-            .Where(field => Attribute.IsDefined(field, typeof(RecordHistoryAttribute)))
-            .OrderBy(field => field.Name)
+        var fields = GetRecordedFields(target.GetType())
             .Select(field => CloneValue(field.GetValue(target)));
 
         return props.Concat(fields).ToArray();
     }
 
     public static void RestoreState(object target, object?[] state) {
-        const BindingFlags flags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
-        var type = target.GetType();
-
-        var props = type.GetProperties(flags)
-            .Where(property => Attribute.IsDefined(property, typeof(RecordHistoryAttribute)))
-            .OrderBy(property => property.Name)
-            .ToArray();
-
-        var fields = type.GetFields(flags)
-            .Where(field => Attribute.IsDefined(field, typeof(RecordHistoryAttribute)))
-            .OrderBy(field => field.Name)
-            .ToArray();
-
         var index = 0;
 
-        foreach (var property in props)
+        foreach (var property in GetRecordedProperties(target.GetType()))
             property.SetValue(target, state[index++]);
 
-        foreach (var field in fields)
+        foreach (var field in GetRecordedFields(target.GetType()))
             field.SetValue(target, state[index++]);
 
         ApplyPostRestoreEffects(target);
@@ -313,6 +294,18 @@ internal static class History {
         if (left == null || right == null) return false;
         return ObjectGraph.AreEqual(left, right);
     }
+
+    private static PropertyInfo[] GetRecordedProperties(Type type) =>
+        type.GetProperties(InstanceFlags)
+            .Where(property => Attribute.IsDefined(property, typeof(RecordHistoryAttribute)))
+            .OrderBy(property => property.Name)
+            .ToArray();
+
+    private static FieldInfo[] GetRecordedFields(Type type) =>
+        type.GetFields(InstanceFlags)
+            .Where(field => Attribute.IsDefined(field, typeof(RecordHistoryAttribute)))
+            .OrderBy(field => field.Name)
+            .ToArray();
 
     private static void ApplyPostRestoreEffects(object target) {
 

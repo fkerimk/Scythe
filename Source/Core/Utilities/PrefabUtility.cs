@@ -5,6 +5,7 @@ using Newtonsoft.Json;
 internal static class PrefabUtility {
     private const string AddedChildMarker = "__added_child";
     private const string AddedComponentMarker = "__added_component";
+    private const BindingFlags InstanceFlags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
 
     private static readonly Dictionary<string, Level?> SourceCache = new(StringComparer.OrdinalIgnoreCase);
 
@@ -48,8 +49,7 @@ internal static class PrefabUtility {
             return;
         }
 
-        var sourceProperty = sourceObj.GetType().GetProperty(propertyName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-        obj.SetPrefabOverride(propertyName, sourceProperty != null && !ValuesEqual(currentValue, sourceProperty.GetValue(sourceObj)));
+        obj.SetPrefabOverride(propertyName, TryGetPropertyValue(sourceObj, propertyName, out var sourceValue) && !ValuesEqual(currentValue, sourceValue));
     }
 
     public static void UpdateTransformOverrideState(Transform transform, string propertyName, object? currentValue) {
@@ -67,8 +67,7 @@ internal static class PrefabUtility {
                     return;
                 }
 
-                var rootSourceProperty = rootSourceObj.Transform.GetType().GetProperty(nameof(Transform.Scale), BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-                transform.SetPrefabOverride(overrideKey, rootSourceProperty != null && !ValuesEqual(currentValue, rootSourceProperty.GetValue(rootSourceObj.Transform)));
+                transform.SetPrefabOverride(overrideKey, TryGetPropertyValue(rootSourceObj.Transform, nameof(Transform.Scale), out var rootScale) && !ValuesEqual(currentValue, rootScale));
                 return;
             }
 
@@ -82,8 +81,7 @@ internal static class PrefabUtility {
         }
 
         var sourcePropertyName = propertyName == nameof(Transform.Euler) ? nameof(Transform.Euler) : overrideKey;
-        var sourceProperty = sourceObj.Transform.GetType().GetProperty(sourcePropertyName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-        transform.SetPrefabOverride(overrideKey, sourceProperty != null && !ValuesEqual(currentValue, sourceProperty.GetValue(sourceObj.Transform)));
+        transform.SetPrefabOverride(overrideKey, TryGetPropertyValue(sourceObj.Transform, sourcePropertyName, out var sourceValue) && !ValuesEqual(currentValue, sourceValue));
     }
 
     public static void UpdateComponentOverrideState(Component component, string propertyName, object? currentValue) {
@@ -101,8 +99,7 @@ internal static class PrefabUtility {
             return;
         }
 
-        var sourceProperty = sourceComponent.GetType().GetProperty(propertyName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-        component.SetPrefabOverride(propertyName, sourceProperty != null && !ValuesEqual(currentValue, sourceProperty.GetValue(sourceComponent)));
+        component.SetPrefabOverride(propertyName, TryGetPropertyValue(sourceComponent, propertyName, out var sourceValue) && !ValuesEqual(currentValue, sourceValue));
     }
 
     public static void RefreshOpenPrefabInstances(string prefabFile) {
@@ -274,20 +271,7 @@ internal static class PrefabUtility {
         var prefabRoot = obj.FindPrefabRoot();
         if (prefabRoot == null) return false;
 
-        var guid = prefabRoot.Prefab;
-        var path = prefabRoot.PrefabPath;
-        var asset = AssetManager.ResolveReference<PrefabAsset>(ref guid, ref path);
-        if (asset == null) return false;
-
-        prefabRoot.Prefab = guid;
-        prefabRoot.PrefabPath = path;
-
-        if (!SourceCache.TryGetValue(asset.File, out var prefabLevel)) {
-            TryLoadPrefabLevel(asset.File, out prefabLevel);
-            SourceCache[asset.File] = prefabLevel;
-        }
-
-        if (prefabLevel == null) return false;
+        if (!TryResolveSourceLevel(prefabRoot, out var prefabLevel) || prefabLevel == null) return false;
 
         var currentSource = GetPrefabRootObject(prefabLevel);
         if (currentSource == null) return false;
@@ -339,11 +323,7 @@ internal static class PrefabUtility {
         if (!obj.HasPrefabOverride(property.Name)) return false;
         if (!TryGetSourceObject(obj, out var sourceObj) || sourceObj == null) return false;
 
-        var sourceProp = sourceObj.GetType().GetProperty(property.Name, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-        if (sourceProp == null) return false;
-
-        sourceValue = sourceProp.GetValue(sourceObj);
-        return true;
+        return TryGetPropertyValue(sourceObj, property.Name, out sourceValue);
     }
 
     public static bool TryGetTransformPropertyOverride(Transform transform, PropertyInfo property, out object? sourceValue) {
@@ -354,11 +334,7 @@ internal static class PrefabUtility {
         if (!TryGetSourceObject(transform.Obj, out var sourceObj) || sourceObj == null) return false;
 
         var sourcePropertyName = property.Name == nameof(Transform.Euler) ? nameof(Transform.Euler) : overrideKey;
-        var sourceProp = sourceObj.Transform.GetType().GetProperty(sourcePropertyName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-        if (sourceProp == null) return false;
-
-        sourceValue = sourceProp.GetValue(sourceObj.Transform);
-        return true;
+        return TryGetPropertyValue(sourceObj.Transform, sourcePropertyName, out sourceValue);
     }
 
     public static bool TryGetComponentPropertyOverride(Component component, PropertyInfo property, out object? sourceValue) {
@@ -367,21 +343,14 @@ internal static class PrefabUtility {
         if (!component.HasPrefabOverride(property.Name)) return false;
         if (!TryGetSourceComponent(component, out var sourceComponent) || sourceComponent == null) return false;
 
-        var sourceProp = sourceComponent.GetType().GetProperty(property.Name, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-        if (sourceProp == null) return false;
-
-        sourceValue = sourceProp.GetValue(sourceComponent);
-        return true;
+        return TryGetPropertyValue(sourceComponent, property.Name, out sourceValue);
     }
 
     public static bool ApplyObjectPropertyToPrefab(Obj obj, PropertyInfo property, object? value) {
 
         if (!TryGetSourceObject(obj, out var sourceObj) || sourceObj == null) return false;
 
-        var sourceProperty = sourceObj.GetType().GetProperty(property.Name, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-        if (sourceProperty == null || !sourceProperty.CanWrite) return false;
-
-        sourceProperty.SetValue(sourceObj, value);
+        if (!TrySetPropertyValue(sourceObj, property.Name, value)) return false;
         obj.SetPrefabOverride(property.Name, false);
         return SaveSourcePrefab(obj);
     }
@@ -392,10 +361,7 @@ internal static class PrefabUtility {
         if (!TryGetSourceObject(transform.Obj, out var sourceObj) || sourceObj == null) return false;
 
         var sourcePropertyName = property.Name == nameof(Transform.Euler) ? nameof(Transform.Euler) : overrideKey;
-        var sourceProperty = sourceObj.Transform.GetType().GetProperty(sourcePropertyName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-        if (sourceProperty == null || !sourceProperty.CanWrite) return false;
-
-        sourceProperty.SetValue(sourceObj.Transform, value);
+        if (!TrySetPropertyValue(sourceObj.Transform, sourcePropertyName, value)) return false;
         transform.SetPrefabOverride(overrideKey, false);
         return SaveSourcePrefab(transform.Obj);
     }
@@ -404,10 +370,7 @@ internal static class PrefabUtility {
 
         if (!TryGetSourceComponent(component, out var sourceComponent) || sourceComponent == null) return false;
 
-        var sourceProperty = sourceComponent.GetType().GetProperty(property.Name, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-        if (sourceProperty == null || !sourceProperty.CanWrite) return false;
-
-        sourceProperty.SetValue(sourceComponent, value);
+        if (!TrySetPropertyValue(sourceComponent, property.Name, value)) return false;
         component.SetPrefabOverride(property.Name, false);
         return SaveSourcePrefab(component.Obj);
     }
@@ -594,15 +557,13 @@ internal static class PrefabUtility {
 
     private static void SyncComponentProperties(Component target, Component source) {
 
-        const BindingFlags flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
-
-        foreach (var prop in target.GetType().GetProperties(flags)) {
+        foreach (var prop in target.GetType().GetProperties(InstanceFlags)) {
 
             if (!prop.CanRead || !prop.CanWrite) continue;
             if (prop.Name is nameof(Component.Obj) or nameof(Component.PrefabOverrides) or nameof(Component.IsLoaded) or nameof(Component.IsSelected)) continue;
             if (target.HasPrefabOverride(prop.Name)) continue;
 
-            var sourceProp = source.GetType().GetProperty(prop.Name, flags);
+            var sourceProp = source.GetType().GetProperty(prop.Name, InstanceFlags);
             if (sourceProp == null || !sourceProp.CanRead) continue;
 
             prop.SetValue(target, sourceProp.GetValue(source));
@@ -656,20 +617,14 @@ internal static class PrefabUtility {
 
     private static void RefreshObjectOverrideState(Obj obj) {
 
-        if (obj.FindPrefabRoot() == null) {
-            obj.PrefabOverrides.Clear();
-            return;
-        }
+        if (ClearOverridesIfUnbound(obj, obj.PrefabOverrides)) return;
 
         UpdateObjectOverrideState(obj, nameof(Obj.Name), obj.Name);
     }
 
     private static void RefreshTransformOverrideState(Transform transform) {
 
-        if (transform.Obj.FindPrefabRoot() == null) {
-            transform.PrefabOverrides.Clear();
-            return;
-        }
+        if (ClearOverridesIfUnbound(transform.Obj, transform.PrefabOverrides)) return;
 
         UpdateTransformOverrideState(transform, nameof(Transform.Pos), transform.Pos);
         UpdateTransformOverrideState(transform, nameof(Transform.Rot), transform.Rot);
@@ -678,10 +633,7 @@ internal static class PrefabUtility {
 
     private static void RefreshComponentOverrideState(Component component) {
 
-        if (component.Obj.FindPrefabRoot() == null) {
-            component.PrefabOverrides.Clear();
-            return;
-        }
+        if (ClearOverridesIfUnbound(component.Obj, component.PrefabOverrides)) return;
 
         if (IsAddedComponent(component)) {
             component.PrefabOverrides.Clear();
@@ -689,9 +641,7 @@ internal static class PrefabUtility {
             return;
         }
 
-        const BindingFlags flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
-
-        foreach (var property in component.GetType().GetProperties(flags)) {
+        foreach (var property in component.GetType().GetProperties(InstanceFlags)) {
             if (!property.CanRead || property.GetIndexParameters().Length > 0) continue;
             if (property.Name is nameof(Component.Obj) or nameof(Component.PrefabOverrides) or nameof(Component.IsLoaded) or nameof(Component.IsSelected)) continue;
             if (!IsInspectablePrefabProperty(property)) continue;
@@ -731,16 +681,7 @@ internal static class PrefabUtility {
 
         var prefabRoot = obj.FindPrefabRoot();
         if (prefabRoot == null) return false;
-
-        var guid = prefabRoot.Prefab;
-        var path = prefabRoot.PrefabPath;
-        var asset = AssetManager.ResolveReference<PrefabAsset>(ref guid, ref path);
-        if (asset == null || string.IsNullOrWhiteSpace(asset.File)) return false;
-
-        prefabRoot.Prefab = guid;
-        prefabRoot.PrefabPath = path;
-        prefabFile = asset.File;
-        return true;
+        return TryResolveSourceFile(prefabRoot, out prefabFile);
     }
 
     public static bool RestoreSourcePrefabFile(string prefabFile, string json) {
@@ -769,21 +710,67 @@ internal static class PrefabUtility {
 
         var prefabRoot = obj.FindPrefabRoot();
         if (prefabRoot == null) return false;
-
-        var guid = prefabRoot.Prefab;
-        var path = prefabRoot.PrefabPath;
-        var asset = AssetManager.ResolveReference<PrefabAsset>(ref guid, ref path);
-        if (asset == null) return false;
-
-        prefabRoot.Prefab = guid;
-        prefabRoot.PrefabPath = path;
-
-        if (!SourceCache.TryGetValue(asset.File, out var prefabLevel) || prefabLevel == null)
+        if (!TryResolveSourceFile(prefabRoot, out var prefabFile)) return false;
+        if (!SourceCache.TryGetValue(prefabFile, out var prefabLevel) || prefabLevel == null)
             return false;
 
         prefabLevel.Save();
-        AssetManager.EnsureImported(asset.File);
-        RefreshOpenPrefabInstances(asset.File);
+        AssetManager.EnsureImported(prefabFile);
+        RefreshOpenPrefabInstances(prefabFile);
+        return true;
+    }
+
+    private static bool TryResolveSourceLevel(Obj prefabRoot, out Level? prefabLevel) {
+
+        prefabLevel = null;
+        if (!TryResolveSourceFile(prefabRoot, out var prefabFile)) return false;
+
+        if (!SourceCache.TryGetValue(prefabFile, out prefabLevel)) {
+            TryLoadPrefabLevel(prefabFile, out prefabLevel);
+            SourceCache[prefabFile] = prefabLevel;
+        }
+
+        return prefabLevel != null;
+    }
+
+    private static bool TryResolveSourceFile(Obj prefabRoot, out string prefabFile) {
+
+        prefabFile = "";
+        var guid = prefabRoot.Prefab;
+        var path = prefabRoot.PrefabPath;
+        var asset = AssetManager.ResolveReference<PrefabAsset>(ref guid, ref path);
+        if (asset == null || string.IsNullOrWhiteSpace(asset.File)) return false;
+
+        prefabRoot.Prefab = guid;
+        prefabRoot.PrefabPath = path;
+        prefabFile = asset.File;
+        return true;
+    }
+
+    private static bool TryGetPropertyValue(object target, string propertyName, out object? value) {
+
+        value = null;
+        var property = target.GetType().GetProperty(propertyName, InstanceFlags);
+        if (property == null || !property.CanRead) return false;
+
+        value = property.GetValue(target);
+        return true;
+    }
+
+    private static bool TrySetPropertyValue(object target, string propertyName, object? value) {
+
+        var property = target.GetType().GetProperty(propertyName, InstanceFlags);
+        if (property == null || !property.CanWrite) return false;
+
+        property.SetValue(target, value);
+        return true;
+    }
+
+    private static bool ClearOverridesIfUnbound(Obj owner, ISet<string> overrides) {
+
+        if (owner.FindPrefabRoot() != null) return false;
+
+        overrides.Clear();
         return true;
     }
 
