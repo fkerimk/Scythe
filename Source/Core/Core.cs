@@ -39,7 +39,9 @@ internal static class Core {
 
     public static unsafe void Init() {
 
-        if (!CommandLine.NoSplash) Splash.RenderSingleFrame();
+        var useInternalSplash = !CommandLine.NoSplash && !Splash.HasExternalHelper;
+
+        if (useInternalSplash) Splash.RenderSingleFrame();
 
         // Physics
         Physics.Init();
@@ -53,8 +55,7 @@ internal static class Core {
         // Assets
         AssetManager.Init();
 
-        // Let the splash screen play until AssetManager fully drains its import queue!
-        if (!CommandLine.NoSplash) Splash.ShowWhileLoading();
+        if (useInternalSplash) Splash.ShowWhileLoading();
         else while (Splash.IsLoading) Tasks.Update();
 
         // Setup Global PBR Uniforms
@@ -89,7 +90,8 @@ internal static class Core {
 
             BackgroundScripts.Initialize();
         }
-        
+
+        Splash.StopExternalHelper();
         Splash.Cleanup();
     }
 

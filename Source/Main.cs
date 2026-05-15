@@ -6,6 +6,13 @@ CommandLine.Init();
 NativeResolver.Init();
 if (BundleRuntime.TryActivate()) CommandLine.Runtime = true;
 
+if (CommandLine.SplashHelper) {
+    SetTraceLogLevel(TraceLogLevel.Error);
+    Splash.RunExternalHelperLoop();
+    if (IsWindowReady()) CloseWindow();
+    return 0;
+}
+
 // Initialize window
 SetTraceLogLevel(TraceLogLevel.Error);
 Window.Show(width: 1280, height: 720, maximize: false, flags: [ConfigFlags.ResizableWindow]);
@@ -46,6 +53,9 @@ JsonFile.PopulateInto(projectJson, ProjectConfig.Current);
 
 PathUtil.ValidateDir("Project", out _, true);
 
+if (!CommandLine.NoSplash)
+    Splash.StartExternalHelper();
+
 #if SCYTHE_RUNTIME_BUILD
 Runtime.Show();
 #else
@@ -54,6 +64,8 @@ if (!CommandLine.Runtime)
 else Runtime.Show();
 #endif
 
+Splash.StopExternalHelper();
+ 
 if (IsWindowReady()) CloseWindow();
 
 return 0;
