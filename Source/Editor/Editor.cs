@@ -29,6 +29,7 @@ internal static unsafe class Editor {
     // ReSharper restore MemberCanBePrivate.Global
 
     private static Level? _editorLevelRef;
+    internal static bool IsSynchronizingSelection { get; private set; }
     public static string? SelectedAssetPath { get; private set; }
     public static bool ProjectSettingsSelected { get; private set; }
     public static bool EditorUnlockedCursor;
@@ -55,17 +56,28 @@ internal static unsafe class Editor {
     public static void SetSelectedAsset(string? path) {
 
         AssetManager.EnsureImported(path);
-        SelectedAssetPath = path;
-        ProjectSettingsSelected = false;
-        Collections.SyncExternalSelection(path);
+        IsSynchronizingSelection = true;
+        try {
+            LevelBrowser.SelectObject(null);
+            SelectedAssetPath = path;
+            ProjectSettingsSelected = false;
+            Collections.SyncExternalSelection(path);
+        } finally {
+            IsSynchronizingSelection = false;
+        }
     }
 
     public static void SelectProjectSettings() {
 
-        LevelBrowser.SelectObject(null);
-        SelectedAssetPath = null;
-        Collections.SyncExternalSelection(null);
-        ProjectSettingsSelected = true;
+        IsSynchronizingSelection = true;
+        try {
+            LevelBrowser.SelectObject(null);
+            SelectedAssetPath = null;
+            Collections.SyncExternalSelection(null);
+            ProjectSettingsSelected = true;
+        } finally {
+            IsSynchronizingSelection = false;
+        }
     }
 
     public static void OnDocumentPathMoved(string oldPath, string newPath) {

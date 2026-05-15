@@ -531,7 +531,8 @@ internal class LevelBrowser : Viewport {
 
     public static void SelectObject(Obj? obj, bool multiSelect = false) {
 
-        if (obj != null || !multiSelect) Editor.SetSelectedAsset(null);
+        if (!Editor.IsSynchronizingSelection && (obj != null || !multiSelect))
+            Editor.SetSelectedAsset(null);
 
         if (!multiSelect) {
 

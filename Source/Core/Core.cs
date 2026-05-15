@@ -269,6 +269,8 @@ internal static class Core {
     public static void SetActiveLevel(int index, bool clearHistory = true) {
 
         if (index < 0 || index >= OpenLevels.Count) return;
+        if (ActiveLevelIndex != index)
+            LevelBrowser.SelectObject(null);
 
         ActiveLevelIndex = index;
 
@@ -337,6 +339,25 @@ internal static class Core {
             ActiveCamera = null;
             ApplyLevelVisualSettings();
         }
+    }
+
+    public static void MoveLevel(int fromIndex, int toIndex) {
+
+        if (fromIndex < 0 || fromIndex >= OpenLevels.Count) return;
+        if (toIndex < 0 || toIndex > OpenLevels.Count) return;
+        if (fromIndex == toIndex || fromIndex + 1 == toIndex) return;
+
+        var level = OpenLevels[fromIndex];
+        OpenLevels.RemoveAt(fromIndex);
+        if (toIndex > fromIndex) toIndex--;
+        OpenLevels.Insert(toIndex, level);
+
+        if (ActiveLevelIndex == fromIndex)
+            ActiveLevelIndex = toIndex;
+        else if (ActiveLevelIndex > fromIndex && ActiveLevelIndex <= toIndex)
+            ActiveLevelIndex--;
+        else if (ActiveLevelIndex < fromIndex && ActiveLevelIndex >= toIndex)
+            ActiveLevelIndex++;
     }
 
     public static Color GetActiveBackgroundColor() => ActiveLevel?.BackgroundColor ?? Colors.Game;
