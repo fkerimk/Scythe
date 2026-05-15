@@ -12,6 +12,7 @@ internal class Collections : Viewport {
     private const string ProjectLabel = "Project";
     private const string BuiltInLabel = CollectionData.BuiltInCollectionLabel;
     private const string AddPopupId = "Add Item";
+    private const string CollectionEntryDragDropType = "collection_entry";
 
     private string _currentPath;
     private string? _selectedPath;
@@ -33,6 +34,8 @@ internal class Collections : Viewport {
     private Vector2 _deletePopupPosition;
     private bool _entryClickedThisFrame;
     private bool _hideEmptyCategories = true;
+    private string? _draggedEntryPath;
+    private bool _draggedEntryIsDirectory;
 
     private string RelativePath {
         get {
@@ -193,6 +196,8 @@ internal class Collections : Viewport {
 
         EndDisabled();
 
+        HandleUpDropTarget();
+
         if (IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled)) SetTooltip("Up");
 
         SameLine();
@@ -237,6 +242,11 @@ internal class Collections : Viewport {
 
             Editor.SetSelectedAsset(null);
             LevelBrowser.SelectObject(null);
+        }
+
+        if (IsMouseReleased(ImGuiMouseButton.Left)) {
+            _draggedEntryPath = null;
+            _draggedEntryIsDirectory = false;
         }
 
         EndChild();
@@ -368,9 +378,12 @@ internal class Collections : Viewport {
 
         SameLine(startX + iconWidth + 5f);
         var clicked = DrawRenamableEntry(path, name, color, isSelected: false);
+        DrawEntryDragSource(path, name, isDirectory: true);
+        var dropped = HandleCollectionDropTarget(path);
 
         if (!isBuiltIn) DrawEntryContextMenu(path, isDirectory: true);
 
+        if (dropped) return;
         if (!clicked) return;
 
         _entryClickedThisFrame = true;
@@ -473,6 +486,7 @@ internal class Collections : Viewport {
         var isSelected = string.Equals(_selectedPath, path, StringComparison.OrdinalIgnoreCase);
         var color = GetFileColor(path);
         var clicked = DrawRenamableEntry(path, name, color, isSelected);
+        DrawEntryDragSource(path, name, isDirectory: false);
         DrawEntryContextMenu(path, isDirectory: false);
         var doubleClicked = IsItemHovered() && IsMouseDoubleClicked(ImGuiMouseButton.Left);
 
@@ -678,6 +692,58 @@ internal class Collections : Viewport {
         if (submitted) ApplyRename();
         if (IsItemActive() && IsKeyPressed(ImGuiKey.Escape)) _renamingPath = null;
         if (IsItemDeactivated() && !submitted) _renamingPath = null;
+    }
+
+    private void DrawEntryDragSource(string path, string displayName, bool isDirectory) {
+
+        if (!CanDragEntry(path)) return;
+        if (!BeginDragDropSource()) return;
+
+        _draggedEntryPath = path;
+        _draggedEntryIsDirectory = isDirectory;
+        DragDropPayload.Data = path;
+
+        SetDragDropPayload(CollectionEntryDragDropType, IntPtr.Zero, 0);
+        Text($"Move {displayName}");
+        EndDragDropSource();
+    }
+
+    private bool HandleCollectionDropTarget(string destinationCollectionPath) {
+
+        if (!CanAcceptEntryDrop(destinationCollectionPath)) return false;
+        if (!BeginDragDropTarget()) return false;
+
+        AcceptDragDropPayload(CollectionEntryDragDropType);
+
+        var dropped = false;
+
+        if (CanMoveDraggedEntryTo(destinationCollectionPath)) {
+            GetWindowDrawList().AddRect(GetItemRectMin(), GetItemRectMax(), GetColorU32(Colors.Primary.ToVector4()), 4f, ImDrawFlags.None, 1.5f);
+
+            if (IsMouseReleased(ImGuiMouseButton.Left))
+                dropped = MoveDraggedEntryTo(destinationCollectionPath);
+        }
+
+        EndDragDropTarget();
+        return dropped;
+    }
+
+    private void HandleUpDropTarget() {
+
+        var destinationDirectory = GetUpMoveDestinationDirectory();
+        if (string.IsNullOrWhiteSpace(destinationDirectory)) return;
+        if (!BeginDragDropTarget()) return;
+
+        AcceptDragDropPayload(CollectionEntryDragDropType);
+
+        if (CanMoveDraggedEntryTo(destinationDirectory)) {
+            GetWindowDrawList().AddRect(GetItemRectMin(), GetItemRectMax(), GetColorU32(Colors.Primary.ToVector4()), 4f, ImDrawFlags.None, 1.5f);
+
+            if (IsMouseReleased(ImGuiMouseButton.Left))
+                MoveDraggedEntryTo(destinationDirectory);
+        }
+
+        EndDragDropTarget();
     }
 
     private void OpenCreatePopup(CreateItemType type) {
@@ -1227,10 +1293,83 @@ internal class Collections : Viewport {
 
     private static bool HasCollectionTargetCandidate(string path) => CollectionData.IsTexture(path) || CollectionData.IsMaterial(path) || CollectionData.IsModel(path) || CollectionData.IsScript(path) || CollectionData.IsLevel(path) || CollectionData.IsPrefab(path);
 
+    private bool MoveDraggedEntryTo(string destinationDirectory) {
+
+        if (string.IsNullOrWhiteSpace(_draggedEntryPath)) return false;
+        return MoveEntryTo(_draggedEntryPath, _draggedEntryIsDirectory, destinationDirectory);
+    }
+
+    private bool CanMoveDraggedEntryTo(string destinationDirectory) {
+
+        if (string.IsNullOrWhiteSpace(_draggedEntryPath)) return false;
+        return CanMoveEntryTo(_draggedEntryPath, _draggedEntryIsDirectory, destinationDirectory);
+    }
+
+    private bool MoveEntryTo(string sourcePath, bool isDirectory, string destinationDirectory) =>
+        isDirectory
+            ? MoveDirectoryTo(sourcePath, destinationDirectory)
+            : MoveAssetTo(sourcePath, destinationDirectory);
+
+    private bool CanMoveEntryTo(string sourcePath, bool isDirectory, string destinationDirectory) {
+
+        if (string.IsNullOrWhiteSpace(sourcePath) || string.IsNullOrWhiteSpace(destinationDirectory)) return false;
+        if (!Directory.Exists(destinationDirectory)) return false;
+        if (IsBuiltInPath(sourcePath) || IsBuiltInPath(destinationDirectory)) return false;
+
+        var fullSourcePath = Path.GetFullPath(sourcePath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        var fullDestinationDirectory = Path.GetFullPath(destinationDirectory).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        var sourceParent = Path.GetDirectoryName(fullSourcePath);
+
+        if (string.Equals(sourceParent, fullDestinationDirectory, StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        if (!isDirectory) return File.Exists(sourcePath);
+        if (!Directory.Exists(sourcePath)) return false;
+        if (string.Equals(fullSourcePath, fullDestinationDirectory, StringComparison.OrdinalIgnoreCase)) return false;
+
+        return !fullDestinationDirectory.StartsWith(fullSourcePath + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
+               && !fullDestinationDirectory.StartsWith(fullSourcePath + Path.AltDirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private bool MoveDirectoryTo(string sourcePath, string destinationDirectory) {
+
+        try {
+            if (!CanMoveEntryTo(sourcePath, isDirectory: true, destinationDirectory)) return false;
+
+            var directoryName = Path.GetFileName(sourcePath);
+            var existingNames = Directory.EnumerateFileSystemEntries(destinationDirectory)
+                .Select(Path.GetFileName)
+                .OfType<string>()
+                .ToList();
+            var finalName = Directory.Exists(Path.Combine(destinationDirectory, directoryName))
+                ? Generators.AvailableName(directoryName, existingNames)
+                : directoryName;
+            var destinationPath = Path.Combine(destinationDirectory, finalName);
+
+            using var transaction = History.Begin($"Move {Path.GetFileName(sourcePath)}");
+            transaction.CapturePath(sourcePath);
+            transaction.CapturePath(destinationPath);
+            transaction.After(
+                redo: () => OnDirectoryPathMoved(sourcePath, destinationPath),
+                undo: () => OnDirectoryPathMoved(destinationPath, sourcePath)
+            );
+            MoveDirectoryFileSystem(sourcePath, destinationPath);
+            OnDirectoryPathMoved(sourcePath, destinationPath);
+            if (!transaction.Commit()) return false;
+
+            Notifications.Show($"Moved '{Path.GetFileName(sourcePath)}' to '{AssetManager.GetStoredPath(destinationDirectory)}'.");
+            return true;
+
+        } catch (Exception e) {
+            Notifications.Show($"Move failed: {e.Message}");
+            return false;
+        }
+    }
+
     private bool MoveAssetTo(string sourcePath, string destinationDirectory) {
 
         try {
-            if (!File.Exists(sourcePath) || !Directory.Exists(destinationDirectory)) return false;
+            if (!CanMoveEntryTo(sourcePath, isDirectory: false, destinationDirectory)) return false;
 
             var fileName = Path.GetFileName(sourcePath);
             var baseName = CollectionData.GetNameWithoutExtension(sourcePath);
@@ -1273,6 +1412,35 @@ internal class Collections : Viewport {
             Notifications.Show($"Move failed: {e.Message}");
             return false;
         }
+    }
+
+    private bool CanDragEntry(string path) =>
+        (File.Exists(path) || Directory.Exists(path))
+        && !CollectionData.IsRoot(path)
+        && !IsBuiltInPath(path);
+
+    private bool CanAcceptEntryDrop(string destinationDirectory) =>
+        Directory.Exists(destinationDirectory)
+        && !IsBuiltInPath(destinationDirectory);
+
+    private string? GetUpMoveDestinationDirectory() {
+
+        if (CollectionData.IsRoot(_currentPath)) return null;
+
+        var parent = Directory.GetParent(_currentPath);
+        return parent != null && IsUnderCollectionsRoot(parent.FullName) && !IsBuiltInPath(parent.FullName)
+            ? parent.FullName
+            : null;
+    }
+
+    private static bool IsBuiltInPath(string path) {
+
+        var fullPath = Path.GetFullPath(path).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        var builtInRootPath = Path.GetFullPath(CollectionData.BuiltInRootPath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+
+        return fullPath.Equals(builtInRootPath, StringComparison.OrdinalIgnoreCase)
+               || fullPath.StartsWith(builtInRootPath + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
+               || fullPath.StartsWith(builtInRootPath + Path.AltDirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
     }
 
     private readonly record struct CollectionCategory(string Name, Func<string, bool> Match, string Icon);
