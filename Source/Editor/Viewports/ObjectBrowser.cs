@@ -650,6 +650,7 @@ internal partial class ObjectBrowser : Viewport {
 
     private void DrawPickerPopup(string id, string? pickerType, ref object? value, List<object> targets, string? propName, ref bool changed, ref bool deactivated) {
 
+        SetNextWindowSizeConstraints(new Vector2(320, 100), new Vector2(320, 600));
         SetNextWindowSize(new Vector2(320, 0), ImGuiCond.Appearing);
         if (!BeginPopup($"Picker_{id}")) return;
 
