@@ -372,6 +372,14 @@ internal partial class ObjectBrowser : Viewport {
         const float actionSpacing = 8f;
         const float indexWidth = 28f;
         var actionButtonSize = GetFrameHeight();
+        var mousePos = GetMousePos();
+        var isDraggingThisArray = string.Equals(_draggingArrayId, id, StringComparison.Ordinal) && _draggingArrayIndex >= 0;
+        var hoverInsertIndex = -1;
+        var indicatorStart = Vector2.Zero;
+        var indicatorEnd = Vector2.Zero;
+        var firstRowMin = Vector2.Zero;
+        var lastRowMax = Vector2.Zero;
+        var hasRowBounds = false;
 
         BeginGroup();
 
@@ -409,9 +417,31 @@ internal partial class ObjectBrowser : Viewport {
             PushID($"{id}_{index}");
 
             var rowStart = GetCursorScreenPos();
-            InvisibleButton($"##reorder_{index}", new Vector2(indexWidth, GetFrameHeight()));
+            var rowWidth = MathF.Max(1f, GetContentRegionAvail().X);
+            var rowHeight = GetFrameHeight();
+            var rowMin = rowStart;
+            var rowMax = rowStart + new Vector2(rowWidth, rowHeight);
+
+            if (!hasRowBounds) {
+                firstRowMin = rowMin;
+                hasRowBounds = true;
+            }
+
+            lastRowMax = rowMax;
+
+            if (isDraggingThisArray
+                && mousePos.X >= rowMin.X
+                && mousePos.X <= rowMax.X
+                && mousePos.Y >= rowMin.Y
+                && mousePos.Y <= rowMax.Y) {
+                hoverInsertIndex = mousePos.Y < (rowMin.Y + rowMax.Y) * 0.5f ? index : index + 1;
+                var indicatorY = hoverInsertIndex == index ? rowMin.Y + 1f : rowMax.Y - 1f;
+                indicatorStart = new Vector2(rowMin.X, indicatorY);
+                indicatorEnd = new Vector2(rowMax.X, indicatorY);
+            }
+
+            InvisibleButton($"##reorder_{index}", new Vector2(indexWidth, rowHeight));
             var indexMin = GetItemRectMin();
-            var indexMax = GetItemRectMax();
             var indexHovered = IsItemHovered();
 
             if (indexHovered)
@@ -425,27 +455,9 @@ internal partial class ObjectBrowser : Viewport {
             );
             GetWindowDrawList().AddText(textPos, textColor, index.ToString());
 
-            if (BeginDragDropSource()) {
+            if (IsItemActive() && IsMouseDragging(ImGuiMouseButton.Left)) {
                 _draggingArrayId = id;
                 _draggingArrayIndex = index;
-                SetDragDropPayload("ARRAY_REORDER", IntPtr.Zero, 0);
-                TextUnformatted(index.ToString());
-                EndDragDropSource();
-            }
-
-            if (BeginDragDropTarget()) {
-                var payload = AcceptDragDropPayload("ARRAY_REORDER");
-                if (!payload.Equals(default(ImGuiPayloadPtr)) && string.Equals(_draggingArrayId, id, StringComparison.Ordinal) && _draggingArrayIndex >= 0 && _draggingArrayIndex != index) {
-                    StartHistoryCapture(targets, propName);
-                    var movedItem = items[_draggingArrayIndex];
-                    items.RemoveAt(_draggingArrayIndex);
-                    var targetIndex = _draggingArrayIndex < index ? index - 1 : index;
-                    items.Insert(targetIndex, movedItem);
-                    _draggingArrayIndex = targetIndex;
-                    changed = true;
-                    deactivated = true;
-                }
-                EndDragDropTarget();
             }
 
             SetCursorScreenPos(new Vector2(rowStart.X + indexWidth + actionSpacing, rowStart.Y));
@@ -472,6 +484,42 @@ internal partial class ObjectBrowser : Viewport {
 
             PopFont();
             PopID();
+        }
+
+        if (isDraggingThisArray && hasRowBounds) {
+            if (hoverInsertIndex < 0 && mousePos.X >= firstRowMin.X && mousePos.X <= lastRowMax.X) {
+                if (mousePos.Y < firstRowMin.Y) {
+                    hoverInsertIndex = 0;
+                    indicatorStart = new Vector2(firstRowMin.X, firstRowMin.Y + 1f);
+                    indicatorEnd = new Vector2(lastRowMax.X, firstRowMin.Y + 1f);
+                } else if (mousePos.Y > lastRowMax.Y) {
+                    hoverInsertIndex = items.Count;
+                    indicatorStart = new Vector2(firstRowMin.X, lastRowMax.Y - 1f);
+                    indicatorEnd = new Vector2(lastRowMax.X, lastRowMax.Y - 1f);
+                }
+            }
+
+            if (hoverInsertIndex >= 0)
+                GetWindowDrawList().AddLine(indicatorStart, indicatorEnd, ColorConvertFloat4ToU32(Colors.Primary.ToVector4()), 2f);
+        }
+
+        if (IsMouseReleased(ImGuiMouseButton.Left) && isDraggingThisArray) {
+            if (hoverInsertIndex >= 0) {
+                var targetIndex = hoverInsertIndex;
+                if (targetIndex > _draggingArrayIndex) targetIndex--;
+
+                if (targetIndex != _draggingArrayIndex) {
+                    StartHistoryCapture(targets, propName);
+                    var movedItem = items[_draggingArrayIndex];
+                    items.RemoveAt(_draggingArrayIndex);
+                    items.Insert(targetIndex, movedItem);
+                    changed = true;
+                    deactivated = true;
+                }
+            }
+
+            _draggingArrayId = null;
+            _draggingArrayIndex = -1;
         }
 
         EndGroup();
