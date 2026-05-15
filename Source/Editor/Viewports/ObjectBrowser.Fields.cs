@@ -72,7 +72,7 @@ internal partial class ObjectBrowser {
             var display = GetAssetDisplayValue(val, pickerType);
             if (string.IsNullOrEmpty(display)) display = "None";
 
-            var clicked = Button(display, new Vector2(GetContentRegionAvail().X, 0f));
+            var clicked = Button(display, new Vector2(CalcItemWidth(), 0f));
 
             if (clicked && !string.IsNullOrWhiteSpace(val))
                 NavigateToPickerReference(val, pickerType, typeof(string));
@@ -96,7 +96,7 @@ internal partial class ObjectBrowser {
         var display = GetSceneReferenceDisplayValue(value, type);
         if (string.IsNullOrEmpty(display)) display = "None";
 
-        var clicked = Button(display, new Vector2(GetContentRegionAvail().X, 0f));
+        var clicked = Button(display, new Vector2(CalcItemWidth(), 0f));
 
         if (clicked && value != null)
             NavigateToPickerReference(value, null, type);
