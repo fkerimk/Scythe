@@ -180,7 +180,17 @@ internal class Script(Obj obj) : Component(obj) {
             if (!sourceFields.TryGetValue(targetField.Name, out var sourceField)) continue;
             if (!string.Equals(sourceField.FieldType.FullName, targetField.FieldType.FullName, StringComparison.Ordinal)) continue;
 
-            targetField.SetValue(target, sourceField.GetValue(source));
+            var sourceValue = sourceField.GetValue(source);
+            if (!CanAssignHotReloadValue(targetField.FieldType, sourceValue)) continue;
+
+            targetField.SetValue(target, sourceValue);
         }
+    }
+
+    private static bool CanAssignHotReloadValue(Type targetType, object? value) {
+
+        if (value == null) return !targetType.IsValueType || Nullable.GetUnderlyingType(targetType) != null;
+
+        return targetType.IsInstanceOfType(value);
     }
 }

@@ -222,7 +222,7 @@ internal partial class ObjectBrowser : Viewport {
             PushStyleColor(ImGuiCol.FrameBgActive, Colors.GuiFieldOverrideActive.ToVector4());
         }
 
-        changed = DrawFieldControl(id, ref value, type, targets, propName, pickerType, ref deactivated);
+        changed |= DrawFieldControl(id, ref value, type, targets, propName, pickerType, ref deactivated);
 
         _labelDragDelta = 0;
 

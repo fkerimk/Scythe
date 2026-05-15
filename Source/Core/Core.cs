@@ -196,6 +196,43 @@ internal static class Core {
         Load();
     }
 
+    public static bool SwitchLevel(string levelReference) {
+
+        if (string.IsNullOrWhiteSpace(levelReference)) return false;
+
+        var resolvedPath = ResolveLevelReferencePath(levelReference);
+        if (string.IsNullOrWhiteSpace(resolvedPath)) {
+            TraceLog(TraceLogLevel.Error, $"CORE: Could not resolve level {levelReference}");
+            return false;
+        }
+
+        var previousLevel = ActiveLevel;
+        OpenLevel(CollectionData.GetLevelDisplayName(resolvedPath), resolvedPath);
+
+        if (previousLevel == null || ReferenceEquals(previousLevel, ActiveLevel)) return false;
+
+        var previousIndex = OpenLevels.IndexOf(previousLevel);
+        if (previousIndex >= 0)
+            CloseLevel(previousIndex);
+
+        return true;
+    }
+
+    private static string? ResolveLevelReferencePath(string levelReference) {
+
+        var guid = levelReference.Replace('\\', '/');
+        var path = guid;
+        var asset = AssetManager.ResolveReference<LevelAsset>(ref guid, ref path)
+            ?? AssetManager.Get<LevelAsset>(levelReference)
+            ?? AssetManager.GetOrImport<LevelAsset>(levelReference);
+        if (asset != null && File.Exists(asset.File)) return asset.File;
+
+        if (PathUtil.GetPath(levelReference, out var fullPath) && File.Exists(fullPath)) return fullPath;
+        if (File.Exists(levelReference)) return Path.GetFullPath(levelReference);
+
+        return null;
+    }
+
     private static string? ResolveStartupLevelPath() {
 
         var guid = ProjectConfig.Current.StartupLevel?.Replace('\\', '/');

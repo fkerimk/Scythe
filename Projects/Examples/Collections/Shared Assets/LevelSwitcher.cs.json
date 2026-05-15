@@ -8,5 +8,7 @@
     "Quality": 90,
     "TextureFilter": "Bilinear"
   },
-  "ScriptConfig": {}
+  "ScriptConfig": {
+    "levels": "[\"1a1ba6d01f0e4ddabcfa301ed352494d\",\"162de7ccbedf4cfe88fb4611bd60319c\",\"573f8a086abd43ecbea13ed3c2b15fa7\",\"6ff2407524f149a6a81f04f73e7ee5fc\"]"
+  }
 }
