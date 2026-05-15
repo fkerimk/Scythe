@@ -31,7 +31,7 @@ internal static class ScriptFieldUtility {
     public static bool IsSupportedFieldType(Type type) {
 
         if (type.IsArray && type.GetArrayRank() == 1 && type.GetElementType() is { } elementType)
-            return IsSupportedScalarFieldType(elementType);
+            return !IsSceneReferenceType(elementType) && IsSupportedScalarFieldType(elementType);
 
         return IsSupportedScalarFieldType(type);
     }
@@ -45,7 +45,13 @@ internal static class ScriptFieldUtility {
         || type == typeof(Vector3)
         || type == typeof(Bool3)
         || type == typeof(Color)
+        || IsSceneReferenceType(type)
         || type.IsEnum;
+
+    public static bool IsSceneReferenceType(Type type) =>
+        type == typeof(Obj)
+        || typeof(Component).IsAssignableFrom(type)
+        || typeof(ScytheScript).IsAssignableFrom(type);
 
     public static string GetLabel(FieldInfo field) =>
         field.GetCustomAttribute<LabelAttribute>()?.Value ?? field.Name;
@@ -67,7 +73,19 @@ internal static class ScriptFieldUtility {
 
     public static object? GetTypeDefault(Type type) => type.IsValueType ? Activator.CreateInstance(type) : null;
 
-    public static object? DeserializeStoredValue(string raw, Type type) {
+    public static object? DeserializeStoredValue(string raw, Type type, Obj? contextRoot = null) {
+
+        if (IsSceneReferenceType(type)) {
+            try {
+                var reference = JsonConvert.DeserializeObject<SceneReferenceValue>(raw);
+                if (reference == null) return null;
+
+                reference.ResolvedValue = ResolveSceneReference(reference, type, contextRoot);
+                return reference;
+            } catch {
+                return null;
+            }
+        }
 
         try {
             return JsonConvert.DeserializeObject(raw, type);
@@ -76,13 +94,40 @@ internal static class ScriptFieldUtility {
         }
     }
 
-    public static string SerializeStoredValue(object? value) =>
-        JsonConvert.SerializeObject(value, Formatting.None);
+    public static string SerializeStoredValue(object? value) {
+
+        if (value == null) return JsonConvert.SerializeObject(null, Formatting.None);
+
+        if (value is SceneReferenceValue sceneReference)
+            return JsonConvert.SerializeObject(sceneReference, Formatting.None);
+
+        var valueType = value.GetType();
+        if (IsSceneReferenceType(valueType)) {
+            var sceneValue = SceneReferenceValue.FromTarget(value);
+            return JsonConvert.SerializeObject(sceneValue, Formatting.None);
+        }
+
+        return JsonConvert.SerializeObject(value, Formatting.None);
+    }
+
+    public static object? ResolveStoredValueForAssignment(object? value, Type type, Obj? contextRoot = null) {
+
+        if (!IsSceneReferenceType(type)) return value;
+        if (value == null) return null;
+
+        if (value is SceneReferenceValue sceneReference)
+            return ResolveSceneReference(sceneReference, type, contextRoot);
+
+        if (type.IsInstanceOfType(value)) return value;
+        return null;
+    }
 
     public static bool ValueEquals(object? left, object? right) {
 
         if (left == null && right == null) return true;
         if (left == null || right == null) return false;
+        if (left is SceneReferenceValue leftReference && right is SceneReferenceValue rightReference)
+            return leftReference.EqualsReference(rightReference);
         if (Equals(left, right)) return true;
 
         try {
@@ -91,4 +136,135 @@ internal static class ScriptFieldUtility {
             return false;
         }
     }
+
+    private static object? ResolveSceneReference(SceneReferenceValue reference, Type targetType, Obj? contextRoot) {
+
+        if (contextRoot == null) return null;
+
+        var obj = ResolveTargetObject(reference, contextRoot);
+        if (obj == null) return null;
+
+        if (targetType == typeof(Obj)) return obj;
+        if (typeof(ScytheScript).IsAssignableFrom(targetType))
+            return ResolveTargetScript(reference, obj, targetType);
+        if (typeof(Component).IsAssignableFrom(targetType))
+            return ResolveTargetComponent(reference, obj, targetType);
+
+        return null;
+    }
+
+    private static Obj? ResolveTargetObject(SceneReferenceValue reference, Obj contextRoot) {
+
+        var current = contextRoot;
+
+        foreach (var segment in reference.Path) {
+            if (!current.ChildEntries.TryGetValue(segment.Name, segment.Occurrence, out var next))
+                return null;
+
+            current = next;
+        }
+
+        return current;
+    }
+
+    private static Component? ResolveTargetComponent(SceneReferenceValue reference, Obj obj, Type targetType) {
+
+        if (string.IsNullOrWhiteSpace(reference.ComponentType)) return null;
+        if (!obj.ComponentEntries.TryGetValue(reference.ComponentType, reference.ComponentOccurrence, out var component)) return null;
+
+        return targetType.IsInstanceOfType(component) ? component : null;
+    }
+
+    private static ScytheScript? ResolveTargetScript(SceneReferenceValue reference, Obj obj, Type targetType) {
+
+        if (!string.Equals(reference.ComponentType, nameof(Script), StringComparison.Ordinal)) return null;
+        if (!obj.ComponentEntries.TryGetValue(nameof(Script), reference.ComponentOccurrence, out var component)) return null;
+        if (component is not Script script) return null;
+
+        return script.Instance != null && targetType.IsInstanceOfType(script.Instance)
+            ? script.Instance
+            : null;
+    }
+}
+
+internal sealed class SceneReferenceValue {
+    public List<SceneReferencePathSegment> Path { get; set; } = [];
+    public string? ComponentType { get; set; }
+    public int ComponentOccurrence { get; set; }
+    public string? ScriptType { get; set; }
+    [JsonIgnore] public object? ResolvedValue { get; set; }
+
+    public static SceneReferenceValue FromTarget(object target) => target switch {
+        Obj obj => BuildForObject(obj),
+        ScytheScript script => BuildForScript(script),
+        Script script => BuildForScriptComponent(script),
+        Component component => BuildForComponent(component),
+        _ => throw new InvalidOperationException($"Unsupported scene reference target type: {target.GetType().FullName}")
+    };
+
+    public bool EqualsReference(SceneReferenceValue other) =>
+        ComponentOccurrence == other.ComponentOccurrence
+        && string.Equals(ComponentType, other.ComponentType, StringComparison.Ordinal)
+        && string.Equals(ScriptType, other.ScriptType, StringComparison.Ordinal)
+        && Path.Count == other.Path.Count
+        && Path.Zip(other.Path, (left, right) =>
+            string.Equals(left.Name, right.Name, StringComparison.Ordinal) && left.Occurrence == right.Occurrence).All(equal => equal);
+
+    private static SceneReferenceValue BuildForObject(Obj obj) =>
+        new() { Path = BuildPath(obj) };
+
+    private static SceneReferenceValue BuildForComponent(Component component) =>
+        new() {
+            Path = BuildPath(component.Obj),
+            ComponentType = component.GetType().Name,
+            ComponentOccurrence = component.Obj.ComponentEntries.GetOccurrenceIndex(component),
+            ScriptType = component is Script script ? script.GetAsset()?.ScriptType?.FullName : null
+        };
+
+    private static SceneReferenceValue BuildForScriptComponent(Script script) =>
+        new() {
+            Path = BuildPath(script.Obj),
+            ComponentType = nameof(Script),
+            ComponentOccurrence = script.Obj.ComponentEntries.GetOccurrenceIndex(script),
+            ScriptType = script.GetAsset()?.ScriptType?.FullName
+        };
+
+    private static SceneReferenceValue BuildForScript(ScytheScript script) {
+
+        var component = script.Obj.ComponentEntries.Values
+            .OfType<Script>()
+            .FirstOrDefault(candidate => ReferenceEquals(candidate.Instance, script));
+
+        if (component == null)
+            throw new InvalidOperationException($"Script instance '{script.GetType().FullName}' is not attached to an Obj.");
+
+        return new SceneReferenceValue {
+            Path = BuildPath(component.Obj),
+            ComponentType = nameof(Script),
+            ComponentOccurrence = component.Obj.ComponentEntries.GetOccurrenceIndex(component),
+            ScriptType = script.GetType().FullName
+        };
+    }
+
+    private static List<SceneReferencePathSegment> BuildPath(Obj obj) {
+
+        var path = new List<SceneReferencePathSegment>();
+        var current = obj;
+
+        while (current.Parent != null) {
+            path.Add(new SceneReferencePathSegment {
+                Name = current.Name,
+                Occurrence = current.Parent.ChildEntries.GetOccurrenceIndex(current)
+            });
+            current = current.Parent;
+        }
+
+        path.Reverse();
+        return path;
+    }
+}
+
+internal sealed class SceneReferencePathSegment {
+    public string Name { get; set; } = "";
+    public int Occurrence { get; set; }
 }

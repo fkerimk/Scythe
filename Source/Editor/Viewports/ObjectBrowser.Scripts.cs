@@ -17,7 +17,9 @@ internal partial class ObjectBrowser {
             var defaultValue = ScriptFieldUtility.GetCodeDefaultValue(asset.ScriptType, field);
 
             object? value;
-            var picker = field.GetCustomAttribute<FindAssetAttribute>()?.TypeName ?? field.GetCustomAttribute<FilePathAttribute>()?.Category;
+            var picker = field.GetCustomAttribute<FindAssetAttribute>()?.TypeName
+                         ?? field.GetCustomAttribute<FilePathAttribute>()?.Category
+                         ?? GetScenePickerType(field.FieldType);
             var isOverridden = false;
 
             if (kind == ScriptFieldStorageKind.Config) {

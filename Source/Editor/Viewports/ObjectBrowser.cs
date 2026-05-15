@@ -329,6 +329,9 @@ internal partial class ObjectBrowser : Viewport {
         if (type.IsArray && type.GetArrayRank() == 1 && type.GetElementType() is { } elementType && ScriptFieldUtility.IsSupportedScalarFieldType(elementType))
             return DrawArrayField(id, ref value, elementType, targets, propName, pickerType, ref deactivated, inlineResetVisible, resetValue, inlineApplyAction, inlineApplyWithHistoryAction);
 
+        if (ScriptFieldUtility.IsSceneReferenceType(type))
+            return DrawSceneReferenceField(id, ref value, type);
+
         if (type.IsEnum)
             return DrawEnumField(id, ref value, type);
 
@@ -556,7 +559,9 @@ internal partial class ObjectBrowser : Viewport {
         if (DrawPickerButtons(id, pickerType, ref value, targets, propName, trackActivation: false))
             changed = deactivated = true;
 
-        if (type.IsEnum)
+        if (ScriptFieldUtility.IsSceneReferenceType(type))
+            changed |= DrawSceneReferenceField(id, ref value, type);
+        else if (type.IsEnum)
             changed |= DrawEnumField(id, ref value, type);
         else if (_fieldRenderers.TryGetValue(type, out var renderer))
             changed |= renderer(id, ref value, pickerType);
@@ -607,7 +612,7 @@ internal partial class ObjectBrowser : Viewport {
         var cleared = false;
         if (Button($"{Icons.FaXMark}##{id}_clear")) {
             StartHistoryCapture(targets, propName);
-            value = "";
+            value = IsScenePickerType(pickerType) ? null : "";
             cleared = true;
         }
 
@@ -619,6 +624,12 @@ internal partial class ObjectBrowser : Viewport {
     }
 
     private void OpenPicker(string id, string pickerType) {
+
+        if (IsScenePickerType(pickerType)) {
+            _searchFilter = "";
+            OpenPopup($"Picker_{id}");
+            return;
+        }
 
         _foundAssets = AssetManager.GetNames(pickerType).ToArray();
         _pickerEntries = BuildPickerEntries(pickerType);
@@ -643,7 +654,9 @@ internal partial class ObjectBrowser : Viewport {
         SetNextItemWidth(-1);
         InputTextWithHint("##filter", "Search...", ref _searchFilter, 128);
 
-        if (SupportsCollectionPicker(pickerType))
+        if (IsScenePickerType(pickerType))
+            DrawScenePickerPopup(pickerType!, ref value, targets, propName, ref changed, ref deactivated);
+        else if (SupportsCollectionPicker(pickerType))
             DrawCollectionAwarePickerPopup(id, pickerType!, ref value, targets, propName, ref changed, ref deactivated);
         else
             DrawFlatPickerPopup(ref value, targets, propName, ref changed, ref deactivated);
@@ -662,6 +675,19 @@ internal partial class ObjectBrowser : Viewport {
         [typeof(Color)] = DrawColorField,
         [typeof(Bool3)] = DrawBool3Field
     };
+
+    private static string? GetScenePickerType(Type type) =>
+        ScriptFieldUtility.IsSceneReferenceType(type)
+            ? $"SceneRef:{type.AssemblyQualifiedName}"
+            : null;
+
+    private static bool IsScenePickerType(string? pickerType) =>
+        !string.IsNullOrWhiteSpace(pickerType) && pickerType.StartsWith("SceneRef:", StringComparison.Ordinal);
+
+    private static Type? GetScenePickerTargetType(string pickerType) =>
+        !IsScenePickerType(pickerType)
+            ? null
+            : Type.GetType(pickerType["SceneRef:".Length..], throwOnError: false);
 
 
 

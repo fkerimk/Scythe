@@ -78,6 +78,13 @@ internal partial class ObjectBrowser {
         return true;
     }
 
+    private static bool DrawSceneReferenceField(string id, ref object? value, Type type) {
+
+        var display = GetSceneReferenceDisplayValue(value, type);
+        InputTextWithHint($"##{id}", "None", ref display, 512, ImGuiInputTextFlags.ReadOnly);
+        return false;
+    }
+
     private static bool DrawFloatField(string id, ref object? value, string? _) {
 
         var val = (float)(value ?? 0f);
@@ -210,6 +217,44 @@ internal partial class ObjectBrowser {
 
         value = Enums.Parse(type, names[index]);
         return true;
+    }
+
+    private static string GetSceneReferenceDisplayValue(object? value, Type type) {
+
+        if (value == null) return "";
+
+        if (value is SceneReferenceValue reference)
+            return FormatSceneReferenceDisplay(reference, type);
+
+        return value switch {
+            Obj obj => string.Join("/", obj.GetPathFromRoot()),
+            ScytheScript script => $"{string.Join("/", script.Obj.GetPathFromRoot())}/{script.GetType().Name}",
+            Component component => $"{string.Join("/", component.Obj.GetPathFromRoot())}/{component.GetType().Name}",
+            _ => ""
+        };
+    }
+
+    private static string FormatSceneReferenceDisplay(SceneReferenceValue reference, Type type) {
+
+        var path = reference.Path.Count == 0
+            ? "Level"
+            : string.Join("/", reference.Path.Select(segment => segment.Name));
+
+        if (type == typeof(Obj)) return path;
+
+        if (typeof(ScytheScript).IsAssignableFrom(type))
+            return $"{path}/{GetSceneReferenceTypeLabel(reference.ScriptType, type.Name)}";
+
+        var componentName = string.IsNullOrWhiteSpace(reference.ComponentType) ? type.Name : reference.ComponentType;
+        return $"{path}/{componentName}";
+    }
+
+    private static string GetSceneReferenceTypeLabel(string? typeName, string fallback) {
+
+        if (string.IsNullOrWhiteSpace(typeName)) return fallback;
+
+        var lastDot = typeName.LastIndexOf('.');
+        return lastDot >= 0 && lastDot < typeName.Length - 1 ? typeName[(lastDot + 1)..] : typeName;
     }
 
     private static void EndSection(bool open) {

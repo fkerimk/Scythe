@@ -111,6 +111,42 @@ internal partial class ObjectBrowser {
         EndChild();
     }
 
+    private void DrawScenePickerPopup(string pickerType, ref object? value, List<object> targets, string? propName, ref bool changed, ref bool deactivated) {
+
+        var targetType = GetScenePickerTargetType(pickerType);
+        if (targetType == null || Core.ActiveLevel == null) {
+            TextDisabled("No active level.");
+            return;
+        }
+
+        BeginChild("##scene_picker", new Vector2(0, 400));
+
+        if (!string.IsNullOrWhiteSpace(_searchFilter)) {
+            foreach (var entry in EnumerateScenePickerEntries(Core.ActiveLevel.Root, targetType)
+                         .Where(entry => entry.Label.Contains(_searchFilter, StringComparison.OrdinalIgnoreCase)
+                                         || entry.Tooltip.Contains(_searchFilter, StringComparison.OrdinalIgnoreCase))) {
+                if (Selectable($"{entry.Label}##{entry.Id}")) {
+                    ApplyPickerValue(SceneReferenceValue.FromTarget(entry.Target), ref value, targets, propName, ref changed, ref deactivated);
+                    CloseCurrentPopup();
+                }
+
+                if (string.IsNullOrWhiteSpace(entry.Tooltip) || string.Equals(entry.Tooltip, entry.Label, StringComparison.OrdinalIgnoreCase)) continue;
+
+                SameLine();
+                TextDisabled(entry.Tooltip);
+            }
+
+            EndChild();
+            return;
+        }
+
+        TextDisabled("Level");
+        Indent();
+        DrawScenePickerObjectNode(Core.ActiveLevel.Root, targetType, ref value, targets, propName, ref changed, ref deactivated);
+        Unindent();
+        EndChild();
+    }
+
     private void DrawPickerNavigationBar(PickerBrowserState state) {
 
         var canGoUp = !CollectionData.IsProjectRoot(state.CurrentPath) || state.ShowChildCollections || state.ActiveCategory != null || state.NavigationStack.Count > 0;
@@ -247,13 +283,126 @@ internal partial class ObjectBrowser {
         CloseCurrentPopup();
     }
 
-    private static void ApplyPickerValue(string selectedValue, ref object? value, List<object> targets, string? propName, ref bool changed, ref bool deactivated) {
+    private static void ApplyPickerValue(object? selectedValue, ref object? value, List<object> targets, string? propName, ref bool changed, ref bool deactivated) {
 
         if (propName != null) targets.ForEach(t => History.StartRecording(t, propName));
 
         value = selectedValue;
         changed = true;
         deactivated = true;
+    }
+
+    private void DrawScenePickerObjectNode(Obj obj, Type targetType, ref object? value, List<object> targets, string? propName, ref bool changed, ref bool deactivated) {
+
+        foreach (var child in obj.ChildEntries.Values.Where(child => SceneObjectHasPickerContent(child, targetType))) {
+            var childHasComponents = GetSceneComponentTargets(child, targetType).Any();
+            var childHasObjects = child.ChildEntries.Values.Any(grandChild => SceneObjectHasPickerContent(grandChild, targetType));
+            var flags = (childHasComponents || childHasObjects ? ImGuiTreeNodeFlags.None : ImGuiTreeNodeFlags.Leaf)
+                        | ImGuiTreeNodeFlags.SpanFullWidth;
+            var open = TreeNodeEx($"{child.Name}##tree_{GetSceneReferenceId(child)}", flags);
+
+            if (IsItemClicked() && targetType == typeof(Obj)) {
+                ApplyPickerValue(SceneReferenceValue.FromTarget(child), ref value, targets, propName, ref changed, ref deactivated);
+                CloseCurrentPopup();
+                if (open && (flags & ImGuiTreeNodeFlags.Leaf) == 0)
+                    TreePop();
+                return;
+            }
+
+            if (!open || (flags & ImGuiTreeNodeFlags.Leaf) != 0) continue;
+
+            foreach (var componentTarget in GetSceneComponentTargets(child, targetType)) {
+                if (!Selectable($"{GetSceneTargetLabel(componentTarget)}##cmp_pick_{GetSceneReferenceId(componentTarget)}", false, ImGuiSelectableFlags.None, new Vector2(GetContentRegionAvail().X, 0f))) continue;
+
+                ApplyPickerValue(SceneReferenceValue.FromTarget(componentTarget), ref value, targets, propName, ref changed, ref deactivated);
+                CloseCurrentPopup();
+                TreePop();
+                return;
+            }
+
+            DrawScenePickerObjectNode(child, targetType, ref value, targets, propName, ref changed, ref deactivated);
+            TreePop();
+        }
+    }
+
+    private static bool SceneObjectHasPickerContent(Obj obj, Type targetType) =>
+        targetType == typeof(Obj)
+        || GetSceneComponentTargets(obj, targetType).Any()
+        || obj.ChildEntries.Values.Any(child => SceneObjectHasPickerContent(child, targetType));
+
+    private static IEnumerable<object> GetSceneComponentTargets(Obj obj, Type targetType) {
+
+        foreach (var component in obj.ComponentEntries.Values) {
+            if (targetType.IsInstanceOfType(component)) {
+                yield return component;
+                continue;
+            }
+
+            if (component is not Script script) continue;
+            var scriptType = script.GetAsset()?.ScriptType;
+
+            if (scriptType != null && typeof(ScytheScript).IsAssignableFrom(targetType) && targetType.IsAssignableFrom(scriptType))
+                yield return script;
+        }
+    }
+
+    private static IEnumerable<(string Id, string Label, string Tooltip, object Target)> EnumerateScenePickerEntries(Obj root, Type targetType) {
+
+        foreach (var child in root.ChildEntries.Values)
+            foreach (var entry in EnumerateScenePickerEntriesRecursive(child, targetType))
+                yield return entry;
+    }
+
+    private static IEnumerable<(string Id, string Label, string Tooltip, object Target)> EnumerateScenePickerEntriesRecursive(Obj obj, Type targetType) {
+
+        if (targetType == typeof(Obj)) {
+            var path = string.Join("/", obj.GetPathFromRoot());
+            yield return (GetSceneReferenceId(obj), obj.Name, path, obj);
+        }
+
+        foreach (var componentTarget in GetSceneComponentTargets(obj, targetType)) {
+            var label = GetSceneTargetLabel(componentTarget);
+            var tooltip = GetSceneTargetTooltip(componentTarget);
+            yield return (GetSceneReferenceId(componentTarget), label, tooltip, componentTarget);
+        }
+
+        foreach (var child in obj.ChildEntries.Values)
+            foreach (var entry in EnumerateScenePickerEntriesRecursive(child, targetType))
+                yield return entry;
+    }
+
+    private static string GetSceneReferenceId(object target) => target switch {
+        Obj obj => string.Join("/", obj.GetPathFromRoot()),
+        ScytheScript script => $"{string.Join("/", script.Obj.GetPathFromRoot())}/{script.GetType().FullName}",
+        Script script => $"{string.Join("/", script.Obj.GetPathFromRoot())}/Script:{script.Obj.ComponentEntries.GetOccurrenceIndex(script)}:{script.GetAsset()?.ScriptType?.FullName}",
+        Component component => $"{string.Join("/", component.Obj.GetPathFromRoot())}/{component.GetType().FullName}:{component.Obj.ComponentEntries.GetOccurrenceIndex(component)}",
+        SceneReferenceValue reference => $"{string.Join("/", reference.Path.Select(segment => segment.Name))}/{reference.ComponentType}:{reference.ComponentOccurrence}:{reference.ScriptType}",
+        _ => target.GetHashCode().ToString()
+    };
+
+    private static string GetSceneTargetLabel(object target) => target switch {
+        ScytheScript script => script.GetType().Name,
+        Script script => script.GetAsset()?.ScriptType?.Name ?? "Script",
+        Component component => component.GetType().Name,
+        SceneReferenceValue reference when !string.IsNullOrWhiteSpace(reference.ScriptType) => GetSceneScriptTypeName(reference.ScriptType),
+        SceneReferenceValue reference => reference.ComponentType ?? "Component",
+        _ => "Target"
+    };
+
+    private static string GetSceneTargetTooltip(object target) => target switch {
+        ScytheScript script => $"{string.Join("/", script.Obj.GetPathFromRoot())}/{script.GetType().Name}",
+        Script script => $"{string.Join("/", script.Obj.GetPathFromRoot())}/{GetSceneTargetLabel(script)}",
+        Component component => $"{string.Join("/", component.Obj.GetPathFromRoot())}/{component.GetType().Name}",
+        SceneReferenceValue reference => $"{string.Join("/", reference.Path.Select(segment => segment.Name))}/{GetSceneTargetLabel(reference)}",
+        _ => ""
+    };
+
+    private static string GetSceneScriptTypeName(string? typeName) {
+
+        if (string.IsNullOrWhiteSpace(typeName)) return "Script";
+
+        var lastDot = typeName.LastIndexOf('.');
+        return lastDot >= 0 && lastDot < typeName.Length - 1 ? typeName[(lastDot + 1)..] : typeName;
     }
 
     private static List<string> GetPickerFilesForCategory(string currentPath, string pickerType) =>

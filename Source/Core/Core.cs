@@ -451,11 +451,16 @@ internal static class Core {
 
         IsLoadingLevel = true;
 
+        var anyLoaded = false;
+
         try {
             LoadObj(activeLevel.Root);
         } finally {
             IsLoadingLevel = false;
         }
+
+        if (anyLoaded)
+            ReapplyScriptFields(activeLevel.Root);
 
         if (CommandLine.Runtime || IsPlaying)
             BackgroundScripts.HandlePendingLevelLoad();
@@ -466,10 +471,23 @@ internal static class Core {
 
             foreach (var component in obj.ComponentEntries.Values) {
 
-                if (!component.IsLoaded && component.Load()) component.IsLoaded = true;
+                if (!component.IsLoaded && component.Load()) {
+                    component.IsLoaded = true;
+                    anyLoaded = true;
+                }
             }
 
             foreach (var child in obj.ChildEntries.Values.ToArray()) LoadObj(child);
+        }
+
+        static void ReapplyScriptFields(Obj obj) {
+
+            foreach (var component in obj.ComponentEntries.Values)
+                if (component is Script script)
+                    script.ReapplyStoredFieldValues();
+
+            foreach (var child in obj.ChildEntries.Values)
+                ReapplyScriptFields(child);
         }
     }
 
