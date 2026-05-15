@@ -1,6 +1,6 @@
-#if SCYTHE_RUNTIME_BUILD
 using System.Numerics;
 using Raylib_cs;
+using static Raylib_cs.Raylib;
 
 internal struct VertexBoneData {
 
@@ -50,16 +50,15 @@ internal class AssimpMesh {
     public Vector2[] TexCoords = null!;
     public uint[] Indices = null!;
     public VertexBoneData[] BoneData = null!;
-    public Raylib_cs.Mesh RlMesh;
+    public Mesh RlMesh;
     public int MaterialIndex;
     public bool UsesSkinning;
 
     public Vector3[] AnimatedVertices = null!;
     public Vector3[] AnimatedNormals = null!;
 
-    public unsafe AssimpMesh Clone() {
-
-        var am = new AssimpMesh {
+    public AssimpMesh Clone() =>
+        new() {
             Name = Name,
             Vertices = (Vector3[])Vertices.Clone(),
             Normals = (Vector3[])Normals.Clone(),
@@ -70,26 +69,33 @@ internal class AssimpMesh {
             BoneData = (VertexBoneData[])BoneData.Clone(),
             MaterialIndex = MaterialIndex,
             UsesSkinning = UsesSkinning,
-            RlMesh = new Raylib_cs.Mesh {
-                VertexCount = Vertices.Length,
-                TriangleCount = Indices.Length / 3,
-                Vertices = (float*)Raylib.MemAlloc((uint)(Vertices.Length * 3 * sizeof(float))),
-                Normals = (float*)Raylib.MemAlloc((uint)(Vertices.Length * 3 * sizeof(float))),
-                TexCoords = (float*)Raylib.MemAlloc((uint)(Vertices.Length * 2 * sizeof(float))),
-                Indices = (ushort*)Raylib.MemAlloc((uint)(Indices.Length * sizeof(ushort)))
-            }
+            RlMesh = CreateUploadedMesh(Vertices, Normals, TexCoords, Indices)
         };
 
-        fixed (Vector3* v = Vertices) Buffer.MemoryCopy(v, am.RlMesh.Vertices, (long)Vertices.Length * 3 * sizeof(float), (long)Vertices.Length * 3 * sizeof(float));
-        fixed (Vector3* n = Normals) Buffer.MemoryCopy(n, am.RlMesh.Normals, (long)Vertices.Length * 3 * sizeof(float), (long)Vertices.Length * 3 * sizeof(float));
-        fixed (Vector2* t = TexCoords) Buffer.MemoryCopy(t, am.RlMesh.TexCoords, (long)Vertices.Length * 2 * sizeof(float), (long)Vertices.Length * 2 * sizeof(float));
+    public static unsafe Mesh CreateUploadedMesh(Vector3[] vertices, Vector3[] normals, Vector2[] texCoords, uint[] indices) {
 
-        for (var i = 0; i < Indices.Length; i++) am.RlMesh.Indices[i] = (ushort)Indices[i];
+        var mesh = new Mesh {
+            VertexCount = vertices.Length,
+            TriangleCount = indices.Length / 3,
+            Vertices = (float*)MemAlloc((uint)(vertices.Length * 3 * sizeof(float))),
+            Normals = (float*)MemAlloc((uint)(normals.Length * 3 * sizeof(float))),
+            TexCoords = (float*)MemAlloc((uint)(texCoords.Length * 2 * sizeof(float))),
+            Indices = (ushort*)MemAlloc((uint)(indices.Length * sizeof(ushort)))
+        };
 
-        Raylib.GenMeshTangents(ref am.RlMesh);
-        Raylib.UploadMesh(ref am.RlMesh, false);
+        fixed (Vector3* v = vertices)
+            Buffer.MemoryCopy(v, mesh.Vertices, (long)vertices.Length * 3 * sizeof(float), (long)vertices.Length * 3 * sizeof(float));
+        fixed (Vector3* n = normals)
+            Buffer.MemoryCopy(n, mesh.Normals, (long)normals.Length * 3 * sizeof(float), (long)normals.Length * 3 * sizeof(float));
+        fixed (Vector2* t = texCoords)
+            Buffer.MemoryCopy(t, mesh.TexCoords, (long)texCoords.Length * 2 * sizeof(float), (long)texCoords.Length * 2 * sizeof(float));
 
-        return am;
+        for (var i = 0; i < indices.Length; i++)
+            mesh.Indices[i] = (ushort)indices[i];
+
+        GenMeshTangents(ref mesh);
+        UploadMesh(ref mesh, false);
+        return mesh;
     }
 }
 
@@ -110,13 +116,14 @@ internal class AnimationClip {
     public readonly Dictionary<string, AnimationChannel> ChannelMap = [];
 }
 
-internal static class AssimpLoader {
+internal static partial class AssimpLoader {
 
     public static void UpdateAnimation(ModelNode node, AnimationClip clip, double time, in Matrix4x4 parentTransform, in Matrix4x4 globalInverse, Dictionary<string, List<BoneInfo>> boneMap) {
 
         var nodeTransform = node.Transformation;
 
-        if (clip.ChannelMap.TryGetValue(node.Name, out var channel)) nodeTransform = GetInterpolatedTransform(channel, time, node.Transformation);
+        if (clip.ChannelMap.TryGetValue(node.Name, out var channel))
+            nodeTransform = GetInterpolatedTransform(channel, time, node.Transformation);
 
         var globalTransform = nodeTransform * parentTransform;
 
@@ -124,7 +131,8 @@ internal static class AssimpLoader {
             foreach (var bone in bones)
                 bone.FinalTransformation = bone.Offset * globalTransform * globalInverse;
 
-        foreach (var child in node.Children) UpdateAnimation(child, clip, time, globalTransform, globalInverse, boneMap);
+        foreach (var child in node.Children)
+            UpdateAnimation(child, clip, time, globalTransform, globalInverse, boneMap);
     }
 
     public static void ApplyBindPose(ModelNode node, in Matrix4x4 parentTransform, in Matrix4x4 globalInverse, Dictionary<string, List<BoneInfo>> boneMap) {
@@ -135,12 +143,20 @@ internal static class AssimpLoader {
             foreach (var bone in bones)
                 bone.FinalTransformation = bone.Offset * globalTransform * globalInverse;
 
-        foreach (var child in node.Children) ApplyBindPose(child, globalTransform, globalInverse, boneMap);
+        foreach (var child in node.Children)
+            ApplyBindPose(child, globalTransform, globalInverse, boneMap);
     }
 
     public static void UpdateAnimationBlended(ModelNode node, AnimationClip clipA, double timeA, AnimationClip clipB, double timeB, float blend, in Matrix4x4 parentTransform, in Matrix4x4 globalInverse, Dictionary<string, List<BoneInfo>> boneMap) {
 
-        var nodeTransform = GetBlendedTransform(clipA.ChannelMap.GetValueOrDefault(node.Name), timeA, clipB.ChannelMap.GetValueOrDefault(node.Name), timeB, blend, node.Transformation);
+        var nodeTransform = GetBlendedTransform(
+            clipA.ChannelMap.GetValueOrDefault(node.Name),
+            timeA,
+            clipB.ChannelMap.GetValueOrDefault(node.Name),
+            timeB,
+            blend,
+            node.Transformation
+        );
 
         var globalTransform = nodeTransform * parentTransform;
 
@@ -148,128 +164,15 @@ internal static class AssimpLoader {
             foreach (var bone in bones)
                 bone.FinalTransformation = bone.Offset * globalTransform * globalInverse;
 
-        foreach (var child in node.Children) UpdateAnimationBlended(child, clipA, timeA, clipB, timeB, blend, globalTransform, globalInverse, boneMap);
-    }
-
-    private static Matrix4x4 GetInterpolatedTransform(AnimationChannel channel, double time, Matrix4x4 bindPose) {
-
-        Matrix4x4.Decompose(bindPose, out var bScale, out var bRot, out var bPos);
-
-        var pos = InterpolatePosition(channel.PositionKeys, time, bPos);
-        var rot = InterpolateRotation(channel.RotationKeys, time, bRot);
-        var scale = InterpolateScale(channel.ScaleKeys, time, bScale);
-
-        return Matrix4x4.CreateScale(scale) * Matrix4x4.CreateFromQuaternion(rot) * Matrix4x4.CreateTranslation(pos);
-    }
-
-    private static Matrix4x4 GetBlendedTransform(AnimationChannel? channelA, double timeA, AnimationChannel? channelB, double timeB, float blend, Matrix4x4 bindPose) {
-
-        Matrix4x4.Decompose(bindPose, out var bScale, out var bRot, out var bPos);
-        Vector3 posA, posB, scaleA, scaleB;
-        Quaternion rotA, rotB;
-
-        if (channelA != null) {
-            posA = InterpolatePosition(channelA.PositionKeys, timeA, bPos);
-            rotA = InterpolateRotation(channelA.RotationKeys, timeA, bRot);
-            scaleA = InterpolateScale(channelA.ScaleKeys, timeA, bScale);
-        } else {
-            posA = bPos;
-            rotA = bRot;
-            scaleA = bScale;
-        }
-
-        if (channelB != null) {
-            posB = InterpolatePosition(channelB.PositionKeys, timeB, bPos);
-            rotB = InterpolateRotation(channelB.RotationKeys, timeB, bRot);
-            scaleB = InterpolateScale(channelB.ScaleKeys, timeB, bScale);
-        } else {
-            posB = bPos;
-            rotB = bRot;
-            scaleB = bScale;
-        }
-
-        var pos = Vector3.Lerp(posA, posB, blend);
-        var rot = Quaternion.Slerp(rotA, rotB, blend);
-        var scale = Vector3.Lerp(scaleA, scaleB, blend);
-
-        return Matrix4x4.CreateScale(scale) * Matrix4x4.CreateFromQuaternion(rot) * Matrix4x4.CreateTranslation(pos);
-    }
-
-    private static Vector3 InterpolatePosition(List<(double Time, Vector3 Position)> keys, double time, Vector3 fallback) {
-
-        switch (keys.Count) {
-            case 0: return fallback;
-            case 1: return keys[0].Position;
-        }
-
-        var i = 0;
-
-        for (; i < keys.Count - 1; i++)
-            if (time < keys[i + 1].Time)
-                break;
-
-        var next = (i + 1) % keys.Count;
-        var t1 = keys[i].Time;
-        var t2 = keys[next].Time;
-
-        if (t2 <= t1) return keys[i].Position;
-
-        var factor = (float)((time - t1) / (t2 - t1));
-        return Vector3.Lerp(keys[i].Position, keys[next].Position, Math.Clamp(factor, 0f, 1f));
-    }
-
-    private static Quaternion InterpolateRotation(List<(double Time, Quaternion Rotation)> keys, double time, Quaternion fallback) {
-
-        switch (keys.Count) {
-            case 0: return fallback;
-            case 1: return keys[0].Rotation;
-        }
-
-        var i = 0;
-
-        for (; i < keys.Count - 1; i++)
-            if (time < keys[i + 1].Time)
-                break;
-
-        var next = (i + 1) % keys.Count;
-        var t1 = keys[i].Time;
-        var t2 = keys[next].Time;
-
-        if (t2 <= t1) return keys[i].Rotation;
-
-        var factor = (float)((time - t1) / (t2 - t1));
-        return Quaternion.Slerp(keys[i].Rotation, keys[next].Rotation, Math.Clamp(factor, 0f, 1f));
-    }
-
-    private static Vector3 InterpolateScale(List<(double Time, Vector3 Scale)> keys, double time, Vector3 fallback) {
-
-        switch (keys.Count) {
-            case 0: return fallback;
-            case 1: return keys[0].Scale;
-        }
-
-        var i = 0;
-
-        for (; i < keys.Count - 1; i++)
-            if (time < keys[i + 1].Time)
-                break;
-
-        var next = (i + 1) % keys.Count;
-        var t1 = keys[i].Time;
-        var t2 = keys[next].Time;
-
-        if (t2 <= t1) return keys[i].Scale;
-
-        var factor = (float)((time - t1) / (t2 - t1));
-        return Vector3.Lerp(keys[i].Scale, keys[next].Scale, Math.Clamp(factor, 0f, 1f));
+        foreach (var child in node.Children)
+            UpdateAnimationBlended(child, clipA, timeA, clipB, timeB, blend, globalTransform, globalInverse, boneMap);
     }
 
     public static unsafe void SkinMesh(AssimpMesh mesh, List<BoneInfo> bones) {
 
         Parallel.For(0, mesh.Vertices.Length, i => {
-
-            var bd = mesh.BoneData[i];
-            var totalWeight = bd.Weight0 + bd.Weight1 + bd.Weight2 + bd.Weight3;
+            var boneData = mesh.BoneData[i];
+            var totalWeight = boneData.Weight0 + boneData.Weight1 + boneData.Weight2 + boneData.Weight3;
 
             if (totalWeight < 0.001f) {
                 mesh.AnimatedVertices[i] = mesh.Vertices[i];
@@ -277,45 +180,110 @@ internal static class AssimpLoader {
                 return;
             }
 
-            var v = mesh.Vertices[i];
-            var n = mesh.Normals[i];
+            var vertex = mesh.Vertices[i];
+            var normal = mesh.Normals[i];
+            var finalVertex = Vector3.Zero;
+            var finalNormal = Vector3.Zero;
 
-            var finalV = Vector3.Zero;
-            var finalN = Vector3.Zero;
+            AccumulateWeight(boneData.Bone0, boneData.Weight0);
+            AccumulateWeight(boneData.Bone1, boneData.Weight1);
+            AccumulateWeight(boneData.Bone2, boneData.Weight2);
+            AccumulateWeight(boneData.Bone3, boneData.Weight3);
 
-            if (bd.Weight0 > 0) {
-                var m = bones[bd.Bone0].FinalTransformation;
-                finalV += Vector3.Transform(v, m) * bd.Weight0;
-                finalN += Vector3.TransformNormal(n, m) * bd.Weight0;
+            mesh.AnimatedVertices[i] = finalVertex;
+            mesh.AnimatedNormals[i] = Vector3.Normalize(finalNormal);
+
+            void AccumulateWeight(int boneIndex, float weight) {
+                if (weight <= 0) return;
+
+                var matrix = bones[boneIndex].FinalTransformation;
+                finalVertex += Vector3.Transform(vertex, matrix) * weight;
+                finalNormal += Vector3.TransformNormal(normal, matrix) * weight;
             }
-
-            if (bd.Weight1 > 0) {
-                var m = bones[bd.Bone1].FinalTransformation;
-                finalV += Vector3.Transform(v, m) * bd.Weight1;
-                finalN += Vector3.TransformNormal(n, m) * bd.Weight1;
-            }
-
-            if (bd.Weight2 > 0) {
-                var m = bones[bd.Bone2].FinalTransformation;
-                finalV += Vector3.Transform(v, m) * bd.Weight2;
-                finalN += Vector3.TransformNormal(n, m) * bd.Weight2;
-            }
-
-            if (bd.Weight3 > 0) {
-                var m = bones[bd.Bone3].FinalTransformation;
-                finalV += Vector3.Transform(v, m) * bd.Weight3;
-                finalN += Vector3.TransformNormal(n, m) * bd.Weight3;
-            }
-
-            mesh.AnimatedVertices[i] = finalV;
-            mesh.AnimatedNormals[i] = Vector3.Normalize(finalN);
         });
 
-        fixed (Vector3* v = mesh.AnimatedVertices) Buffer.MemoryCopy(v, mesh.RlMesh.Vertices, (long)mesh.AnimatedVertices.Length * 3 * sizeof(float), (long)mesh.AnimatedVertices.Length * 3 * sizeof(float));
-        fixed (Vector3* n = mesh.AnimatedNormals) Buffer.MemoryCopy(n, mesh.RlMesh.Normals, (long)mesh.AnimatedNormals.Length * 3 * sizeof(float), (long)mesh.AnimatedNormals.Length * 3 * sizeof(float));
+        fixed (Vector3* v = mesh.AnimatedVertices)
+            Buffer.MemoryCopy(v, mesh.RlMesh.Vertices, (long)mesh.AnimatedVertices.Length * 3 * sizeof(float), (long)mesh.AnimatedVertices.Length * 3 * sizeof(float));
+        fixed (Vector3* n = mesh.AnimatedNormals)
+            Buffer.MemoryCopy(n, mesh.RlMesh.Normals, (long)mesh.AnimatedNormals.Length * 3 * sizeof(float), (long)mesh.AnimatedNormals.Length * 3 * sizeof(float));
 
-        Raylib.UpdateMeshBuffer(mesh.RlMesh, 0, mesh.RlMesh.Vertices, mesh.AnimatedVertices.Length * 3 * sizeof(float), 0);
-        Raylib.UpdateMeshBuffer(mesh.RlMesh, 2, mesh.RlMesh.Normals, mesh.AnimatedNormals.Length * 3 * sizeof(float), 0);
+        UpdateMeshBuffer(mesh.RlMesh, 0, mesh.RlMesh.Vertices, mesh.AnimatedVertices.Length * 3 * sizeof(float), 0);
+        UpdateMeshBuffer(mesh.RlMesh, 2, mesh.RlMesh.Normals, mesh.AnimatedNormals.Length * 3 * sizeof(float), 0);
+    }
+
+    private static Matrix4x4 GetInterpolatedTransform(AnimationChannel channel, double time, Matrix4x4 bindPose) {
+
+        Matrix4x4.Decompose(bindPose, out var bindScale, out var bindRotation, out var bindPosition);
+        var position = InterpolatePosition(channel.PositionKeys, time, bindPosition);
+        var rotation = InterpolateRotation(channel.RotationKeys, time, bindRotation);
+        var scale = InterpolateScale(channel.ScaleKeys, time, bindScale);
+
+        return Matrix4x4.CreateScale(scale) * Matrix4x4.CreateFromQuaternion(rotation) * Matrix4x4.CreateTranslation(position);
+    }
+
+    private static Matrix4x4 GetBlendedTransform(AnimationChannel? channelA, double timeA, AnimationChannel? channelB, double timeB, float blend, Matrix4x4 bindPose) {
+
+        Matrix4x4.Decompose(bindPose, out var bindScale, out var bindRotation, out var bindPosition);
+
+        var positionA = channelA != null ? InterpolatePosition(channelA.PositionKeys, timeA, bindPosition) : bindPosition;
+        var rotationA = channelA != null ? InterpolateRotation(channelA.RotationKeys, timeA, bindRotation) : bindRotation;
+        var scaleA = channelA != null ? InterpolateScale(channelA.ScaleKeys, timeA, bindScale) : bindScale;
+
+        var positionB = channelB != null ? InterpolatePosition(channelB.PositionKeys, timeB, bindPosition) : bindPosition;
+        var rotationB = channelB != null ? InterpolateRotation(channelB.RotationKeys, timeB, bindRotation) : bindRotation;
+        var scaleB = channelB != null ? InterpolateScale(channelB.ScaleKeys, timeB, bindScale) : bindScale;
+
+        var position = Vector3.Lerp(positionA, positionB, blend);
+        var rotation = Quaternion.Slerp(rotationA, rotationB, blend);
+        var scale = Vector3.Lerp(scaleA, scaleB, blend);
+
+        return Matrix4x4.CreateScale(scale) * Matrix4x4.CreateFromQuaternion(rotation) * Matrix4x4.CreateTranslation(position);
+    }
+
+    private static Vector3 InterpolatePosition(List<(double Time, Vector3 Position)> keys, double time, Vector3 fallback) =>
+        keys.Count switch {
+            0 => fallback,
+            1 => keys[0].Position,
+            _ => Vector3.Lerp(keys[FindKeyIndex(keys, time)].Position, keys[FindNextKeyIndex(keys, time)].Position, GetBlendFactor(keys, time))
+        };
+
+    private static Quaternion InterpolateRotation(List<(double Time, Quaternion Rotation)> keys, double time, Quaternion fallback) =>
+        keys.Count switch {
+            0 => fallback,
+            1 => keys[0].Rotation,
+            _ => Quaternion.Slerp(keys[FindKeyIndex(keys, time)].Rotation, keys[FindNextKeyIndex(keys, time)].Rotation, GetBlendFactor(keys, time))
+        };
+
+    private static Vector3 InterpolateScale(List<(double Time, Vector3 Scale)> keys, double time, Vector3 fallback) =>
+        keys.Count switch {
+            0 => fallback,
+            1 => keys[0].Scale,
+            _ => Vector3.Lerp(keys[FindKeyIndex(keys, time)].Scale, keys[FindNextKeyIndex(keys, time)].Scale, GetBlendFactor(keys, time))
+        };
+
+    private static int FindKeyIndex<T>(List<(double Time, T Value)> keys, double time) {
+
+        for (var i = 0; i < keys.Count - 1; i++)
+            if (time < keys[i + 1].Time)
+                return i;
+
+        return keys.Count - 1;
+    }
+
+    private static int FindNextKeyIndex<T>(List<(double Time, T Value)> keys, double time) {
+
+        var index = FindKeyIndex(keys, time);
+        return (index + 1) % keys.Count;
+    }
+
+    private static float GetBlendFactor<T>(List<(double Time, T Value)> keys, double time) {
+
+        var index = FindKeyIndex(keys, time);
+        var nextIndex = (index + 1) % keys.Count;
+        var currentTime = keys[index].Time;
+        var nextTime = keys[nextIndex].Time;
+
+        if (nextTime <= currentTime) return 0f;
+        return Math.Clamp((float)((time - currentTime) / (nextTime - currentTime)), 0f, 1f);
     }
 }
-#endif

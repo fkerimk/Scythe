@@ -305,7 +305,7 @@ internal static partial class CompiledAssetCache {
         Array.Copy(mesh.Vertices, mesh.AnimatedVertices, vertexCount);
         Array.Copy(mesh.Normals, mesh.AnimatedNormals, vertexCount);
 
-        mesh.RlMesh = CreateUploadedMesh(mesh.Vertices, mesh.Normals, mesh.TexCoords, mesh.Indices);
+        mesh.RlMesh = AssimpMesh.CreateUploadedMesh(mesh.Vertices, mesh.Normals, mesh.TexCoords, mesh.Indices);
 
         return mesh;
     }
@@ -334,29 +334,6 @@ internal static partial class CompiledAssetCache {
             writer.Write(value.Weight2);
             writer.Write(value.Weight3);
         }
-    }
-
-    private static unsafe Mesh CreateUploadedMesh(Vector3[] vertices, Vector3[] normals, Vector2[] texCoords, uint[] indices) {
-
-        var rlMesh = new Mesh {
-            VertexCount = vertices.Length,
-            TriangleCount = indices.Length / 3,
-            Vertices = (float*)MemAlloc((uint)(vertices.Length * 3 * sizeof(float))),
-            Normals = (float*)MemAlloc((uint)(normals.Length * 3 * sizeof(float))),
-            TexCoords = (float*)MemAlloc((uint)(texCoords.Length * 2 * sizeof(float))),
-            Indices = (ushort*)MemAlloc((uint)(indices.Length * sizeof(ushort)))
-        };
-
-        fixed (Vector3* v = vertices) Buffer.MemoryCopy(v, rlMesh.Vertices, (long)vertices.Length * 3 * sizeof(float), (long)vertices.Length * 3 * sizeof(float));
-        fixed (Vector3* n = normals) Buffer.MemoryCopy(n, rlMesh.Normals, (long)normals.Length * 3 * sizeof(float), (long)normals.Length * 3 * sizeof(float));
-        fixed (Vector2* t = texCoords) Buffer.MemoryCopy(t, rlMesh.TexCoords, (long)texCoords.Length * 2 * sizeof(float), (long)texCoords.Length * 2 * sizeof(float));
-
-        for (var i = 0; i < indices.Length; i++) rlMesh.Indices[i] = (ushort)indices[i];
-
-        GenMeshTangents(ref rlMesh);
-        UploadMesh(ref rlMesh, false);
-
-        return rlMesh;
     }
 
     private static void WriteNode(BinaryWriter writer, ModelNode node) {
