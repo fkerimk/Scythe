@@ -48,10 +48,12 @@ internal sealed class HistoryTransaction : IDisposable {
         _committed = true;
 
         if (!HasChanges) {
+            History.OnTransactionCommitted(this);
             DisposeOperations();
             return false;
         }
 
+        History.OnTransactionCommitted(this);
         History.Push(this);
         return true;
     }
@@ -216,6 +218,7 @@ internal static class History {
 
     public static void Undo() {
 
+        StopRecording();
         if (!CanUndo) return;
 
         var record = Records[_index];
@@ -226,6 +229,7 @@ internal static class History {
 
     public static void Redo() {
 
+        StopRecording();
         if (!CanRedo) return;
 
         _index++;
@@ -245,6 +249,12 @@ internal static class History {
 
         Records.Add(transaction);
         _index = Records.Count - 1;
+    }
+
+    internal static void OnTransactionCommitted(HistoryTransaction transaction) {
+
+        if (ReferenceEquals(_activeTransaction, transaction))
+            _activeTransaction = null;
     }
 
     public static object?[] CaptureState(object target) {
