@@ -319,9 +319,17 @@ internal static class Core {
 
         if (index < 0 || index >= OpenLevels.Count) return;
 
+        var level = OpenLevels[index];
+        var wasActiveLevel = index == ActiveLevelIndex;
+
+        level.Root.Dispose();
         OpenLevels.RemoveAt(index);
 
-        if (ActiveLevelIndex >= OpenLevels.Count) ActiveLevelIndex = OpenLevels.Count - 1;
+        if (ActiveLevelIndex > index)
+            ActiveLevelIndex--;
+
+        if (wasActiveLevel && ActiveLevelIndex >= OpenLevels.Count)
+            ActiveLevelIndex = OpenLevels.Count - 1;
 
         if (ActiveLevelIndex >= 0)
             SetActiveLevel(ActiveLevelIndex);
