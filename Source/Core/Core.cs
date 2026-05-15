@@ -86,6 +86,8 @@ internal static class Core {
 
             if (!string.IsNullOrWhiteSpace(startupLevel))
                 OpenLevel(CollectionData.GetLevelDisplayName(startupLevel), startupLevel);
+
+            BackgroundScripts.Initialize();
         }
         
         Splash.Cleanup();
@@ -249,6 +251,9 @@ internal static class Core {
 
         ApplyLevelVisualSettings();
 
+        if (CommandLine.Runtime || IsPlaying)
+            BackgroundScripts.ScheduleLevelLoad(ActiveLevel.Root);
+
         if (CommandLine.Runtime) return;
 
         if (ActiveLevel.EditorCamera != null) {
@@ -407,6 +412,9 @@ internal static class Core {
             IsLoadingLevel = false;
         }
 
+        if (CommandLine.Runtime || IsPlaying)
+            BackgroundScripts.HandlePendingLevelLoad();
+
         return;
 
         void LoadObj(Obj obj) {
@@ -441,7 +449,12 @@ internal static class Core {
         if ((IsPlaying || CommandLine.Runtime) && shouldRunRuntimeLogic) Physics.Update();
 
         // Behavior & Logic (Scripts, Physics Sync) This pass determines WHERE objects want to be in this frame.
-        if (shouldRunRuntimeLogic) RunLogic(ActiveLevel.Root);
+        if (shouldRunRuntimeLogic) {
+            RunLogic(ActiveLevel.Root);
+
+            if (IsPlaying || CommandLine.Runtime)
+                BackgroundScripts.Logic(Raylib.GetFrameTime());
+        }
 
         // Hierarchy Sync & Visuals (World Matrices + Cartoon Bounce) his pass settles the physical truth and prepares the visual state for rendering.
         SyncHierarchy(ActiveLevel.Root);
@@ -452,6 +465,8 @@ internal static class Core {
     }
 
     private static void RefreshPlayModeAfterScriptHotReload() {
+
+        BackgroundScripts.RefreshAfterHotReload();
 
         foreach (var level in OpenLevels) {
             StartScripts(level.Root);
@@ -739,6 +754,7 @@ internal static class Core {
 
         Fonts.UnloadRlFonts();
         AssetManager.UnloadAll();
+        BackgroundScripts.Shutdown();
 
         if (ActiveLevel == null) return;
 

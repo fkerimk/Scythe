@@ -173,9 +173,10 @@ internal partial class ObjectBrowser : Viewport {
         var changed = false;
         var deactivated = false;
         PushItemWidth(-1); // Fill the entire column
+        var isArrayField = type.IsArray && type.GetArrayRank() == 1;
 
         // Asset Picker Logic
-        if (!string.IsNullOrEmpty(pickerType)) {
+        if (!string.IsNullOrEmpty(pickerType) && !isArrayField) {
 
             PushFont(Fonts.ImFontAwesomeSmall);
 
@@ -221,11 +222,7 @@ internal partial class ObjectBrowser : Viewport {
             PushStyleColor(ImGuiCol.FrameBgActive, Colors.GuiFieldOverrideActive.ToVector4());
         }
 
-        // Field drawing
-        if (type.IsEnum)
-            changed = DrawEnumField(id, ref value, type);
-        else if (_fieldRenderers.TryGetValue(type, out var renderer))
-            changed = renderer(id, ref value, pickerType);
+        changed = DrawFieldControl(id, ref value, type, targets, propName, pickerType, ref deactivated);
 
         _labelDragDelta = 0;
 
@@ -335,8 +332,154 @@ internal partial class ObjectBrowser : Viewport {
         // Picker Popup logic
         SetNextWindowSize(new Vector2(320, 0), ImGuiCond.Appearing);
 
-        if (BeginPopup($"Picker_{id}")) {
+        if (!isArrayField && BeginPopup($"Picker_{id}")) {
 
+            SetNextItemWidth(-1);
+            InputTextWithHint("##filter", "Search...", ref _searchFilter, 128);
+
+            if (SupportsCollectionPicker(pickerType))
+                DrawCollectionAwarePickerPopup(id, pickerType!, ref value, targets, propName, ref changed, ref deactivated);
+            else
+                DrawFlatPickerPopup(ref value, targets, propName, ref changed, ref deactivated);
+            EndPopup();
+        }
+
+        PopItemWidth();
+        NextColumn();
+
+        return (changed, deactivated);
+    }
+
+    private bool DrawFieldControl(string id, ref object? value, Type type, List<object> targets, string? propName, string? pickerType, ref bool deactivated) {
+
+        if (type.IsArray && type.GetArrayRank() == 1 && type.GetElementType() is { } elementType && ScriptFieldUtility.IsSupportedScalarFieldType(elementType))
+            return DrawArrayField(id, ref value, elementType, targets, propName, pickerType, ref deactivated);
+
+        if (type.IsEnum)
+            return DrawEnumField(id, ref value, type);
+
+        return _fieldRenderers.TryGetValue(type, out var renderer) && renderer(id, ref value, pickerType);
+    }
+
+    private bool DrawArrayField(string id, ref object? value, Type elementType, List<object> targets, string? propName, string? pickerType, ref bool deactivated) {
+
+        var items = value is Array array
+            ? array.Cast<object?>().ToList()
+            : new List<object?>();
+        var changed = false;
+
+        BeginGroup();
+
+        var count = items.Count;
+        SetNextItemWidth(MathF.Min(90f, MathF.Max(1f, GetContentRegionAvail().X)));
+        if (DragInt($"##{id}_count", ref count, 0.2f)) {
+            StartHistoryCapture(targets, propName);
+            count = Math.Max(0, count);
+
+            while (items.Count < count)
+                items.Add(ScriptFieldUtility.GetTypeDefault(elementType));
+
+            if (items.Count > count)
+                items.RemoveRange(count, items.Count - count);
+
+            changed = true;
+            deactivated = true;
+        }
+
+        if (IsItemHovered())
+            SetTooltip("Array length");
+
+        for (var index = 0; index < items.Count; index++) {
+            PushID($"{id}_{index}");
+
+            AlignTextToFramePadding();
+            TextDisabled($"[{index}]");
+            SameLine();
+
+            var elementValue = items[index];
+            var availableWidth = MathF.Max(1f, GetContentRegionAvail().X - GetFrameHeight() - 8f);
+            SetNextItemWidth(availableWidth);
+
+            if (DrawInlineFieldControl($"##value_{index}", ref elementValue, elementType, targets, propName, pickerType, ref deactivated)) {
+                items[index] = elementValue;
+                changed = true;
+            }
+
+            SameLine();
+            PushFont(Fonts.ImFontAwesomeSmall);
+
+            if (Button($"{Icons.FaXMark}##remove", new Vector2(GetFrameHeight(), GetFrameHeight()))) {
+                StartHistoryCapture(targets, propName);
+                items.RemoveAt(index);
+                index--;
+                changed = true;
+                deactivated = true;
+            }
+
+            PopFont();
+            PopID();
+        }
+
+        PushFont(Fonts.ImFontAwesomeSmall);
+        if (Button($"{Icons.FaPlus}##{id}_add", new Vector2(GetFrameHeight(), GetFrameHeight()))) {
+            StartHistoryCapture(targets, propName);
+            items.Add(ScriptFieldUtility.GetTypeDefault(elementType));
+            changed = true;
+            deactivated = true;
+        }
+        PopFont();
+
+        EndGroup();
+
+        if (!changed) return false;
+
+        value = BuildArrayValue(items, elementType);
+        return true;
+    }
+
+    private bool DrawInlineFieldControl(string id, ref object? value, Type type, List<object> targets, string? propName, string? pickerType, ref bool deactivated) {
+
+        var changed = false;
+
+        if (!string.IsNullOrEmpty(pickerType)) {
+            PushFont(Fonts.ImFontAwesomeSmall);
+
+            if (Button($"{Icons.FaSearch}##{id}_btn")) {
+                _foundAssets = AssetManager.GetNames(pickerType).ToArray();
+                _pickerEntries = BuildPickerEntries(pickerType);
+                _searchFilter = "";
+                _pickerStates[id] = new PickerBrowserState();
+                OpenPopup($"Picker_{id}");
+            }
+
+            PopFont();
+            SameLine();
+
+            PushFont(Fonts.ImFontAwesomeSmall);
+            if (Button($"{Icons.FaXMark}##{id}_clear")) {
+                StartHistoryCapture(targets, propName);
+                value = "";
+                changed = true;
+                deactivated = true;
+            }
+            PopFont();
+            SameLine();
+        }
+
+        if (type.IsEnum)
+            changed |= DrawEnumField(id, ref value, type);
+        else if (_fieldRenderers.TryGetValue(type, out var renderer))
+            changed |= renderer(id, ref value, pickerType);
+
+        if (IsItemDeactivated())
+            deactivated = true;
+
+        if (IsItemHovered() && type == typeof(string) && value is string stringValue && !string.IsNullOrEmpty(stringValue))
+            SetTooltip(GetAssetTooltip(stringValue, pickerType));
+
+        SetNextWindowSize(new Vector2(320, 0), ImGuiCond.Appearing);
+
+        if (BeginPopup($"Picker_{id}")) {
             SetNextItemWidth(-1);
             InputTextWithHint("##filter", "Search...", ref _searchFilter, 128);
 
@@ -348,10 +491,25 @@ internal partial class ObjectBrowser : Viewport {
             EndPopup();
         }
 
-        PopItemWidth();
-        NextColumn();
+        return changed;
+    }
 
-        return (changed, deactivated);
+    private static Array BuildArrayValue(List<object?> items, Type elementType) {
+
+        var array = Array.CreateInstance(elementType, items.Count);
+
+        for (var i = 0; i < items.Count; i++)
+            array.SetValue(items[i] ?? ScriptFieldUtility.GetTypeDefault(elementType), i);
+
+        return array;
+    }
+
+    private static void StartHistoryCapture(List<object> targets, string? propName) {
+
+        if (propName == null) return;
+
+        foreach (var target in targets)
+            History.StartRecording(target, propName);
     }
 
 
@@ -407,6 +565,18 @@ internal partial class ObjectBrowser : Viewport {
             }
 
             if (levelDeactivated) History.StopRecording();
+
+            DrawShadowedLabel("Background Scripts");
+            object? backgroundScripts = ProjectConfig.Current.BackgroundScripts;
+            var (backgroundScriptsChanged, backgroundScriptsDeactivated) = DrawInspectorField("ProjectBackgroundScripts", ref backgroundScripts, typeof(string[]), [ProjectConfig.Current], nameof(ProjectConfig.BackgroundScripts), "ScriptAsset");
+
+            if (backgroundScriptsChanged) {
+                ProjectConfig.Current.BackgroundScripts = (string[]?)backgroundScripts ?? [];
+                SyncProjectBackgroundScriptPaths();
+                ProjectConfig.Current.Save();
+            }
+
+            if (backgroundScriptsDeactivated) History.StopRecording();
         }
 
         EndSection(open);
@@ -887,6 +1057,37 @@ internal partial class ObjectBrowser : Viewport {
         }
 
         return $"{value:0.##} {units[unitIndex]}";
+    }
+
+    private static void SyncProjectBackgroundScriptPaths() {
+
+        ProjectConfig.Current.BackgroundScripts ??= [];
+        ProjectConfig.Current.BackgroundScriptPaths ??= [];
+
+        var paths = new string[ProjectConfig.Current.BackgroundScripts.Length];
+
+        for (var i = 0; i < ProjectConfig.Current.BackgroundScripts.Length; i++) {
+            var guid = ProjectConfig.Current.BackgroundScripts[i] ?? "";
+            var path = i < ProjectConfig.Current.BackgroundScriptPaths.Length ? ProjectConfig.Current.BackgroundScriptPaths[i] ?? "" : "";
+
+            if (string.IsNullOrWhiteSpace(guid) && string.IsNullOrWhiteSpace(path)) {
+                ProjectConfig.Current.BackgroundScripts[i] = "";
+                paths[i] = "";
+                continue;
+            }
+
+            var lookupGuid = guid;
+            var lookupPath = path;
+            var asset = AssetManager.ResolveReference<ScriptAsset>(ref lookupGuid, ref lookupPath)
+                ?? AssetManager.Get<ScriptAsset>(guid)
+                ?? AssetManager.Get<ScriptAsset>(path)
+                ?? AssetManager.GetOrImport<ScriptAsset>(path);
+
+            ProjectConfig.Current.BackgroundScripts[i] = lookupGuid;
+            paths[i] = asset != null ? AssetManager.GetStoredPath(asset.File) : lookupPath;
+        }
+
+        ProjectConfig.Current.BackgroundScriptPaths = paths;
     }
 
     private static bool SupportsCollectionPicker(string? pickerType) =>

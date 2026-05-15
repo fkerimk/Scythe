@@ -28,7 +28,15 @@ internal static class ScriptFieldUtility {
                   .OrderBy(field => field.MetadataToken)
                   .ToArray();
 
-    public static bool IsSupportedFieldType(Type type) =>
+    public static bool IsSupportedFieldType(Type type) {
+
+        if (type.IsArray && type.GetArrayRank() == 1 && type.GetElementType() is { } elementType)
+            return IsSupportedScalarFieldType(elementType);
+
+        return IsSupportedScalarFieldType(type);
+    }
+
+    public static bool IsSupportedScalarFieldType(Type type) =>
         type == typeof(string)
         || type == typeof(float)
         || type == typeof(int)

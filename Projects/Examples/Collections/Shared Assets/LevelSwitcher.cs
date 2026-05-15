@@ -4,25 +4,20 @@ namespace SharedAssets;
 
 internal class LevelSwitcher : ScytheScript {
 
-    [Expose] private string previousLevelName;
-    [Expose] private string nextLevelName;
+    private string[] _levels = [ "FPS", "Dwarf", "Blocks", "Cube" ];
+    private int levelId = 0;
     
     public override void Loop(float dt) {
 
         if (Raylib.IsKeyPressed(KeyboardKey.Left))
-            SwitchLevel(previousLevelName);
+            SwitchLevel(levelId + 1);
         
         if (Raylib.IsKeyPressed(KeyboardKey.Right))
-            SwitchLevel(nextLevelName);
+            SwitchLevel(levelId - 1);
     }
 
-    private void SwitchLevel(string name) {
-        
-        var oldLevelIndex = Core.ActiveLevelIndex;
+    private void SwitchLevel(int id) {
 
-        Core.OpenLevel("name"); 
-
-        if (oldLevelIndex != -1)
-            Core.CloseLevel(oldLevelIndex);
+        levelId = (int)Raymath.Repeat(id, _levels.Length);
     }
 }

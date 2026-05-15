@@ -86,6 +86,8 @@ internal class ScriptAsset : Asset {
 
         foreach (var level in Core.OpenLevels)
             ApplyConfigToScripts(level.Root);
+
+        BackgroundScripts.ApplyConfigToScripts(this);
     }
 
     private void ApplyConfigToScripts(Obj obj) {

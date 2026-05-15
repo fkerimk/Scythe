@@ -176,6 +176,7 @@ internal static class ScriptCompiler {
 
             // Hot reload: force all Script components to recreate their instances from the new assembly
             if (Core.IsPlaying) {
+                BackgroundScripts.PrepareForHotReload();
                 ReloadAllScriptInstances();
                 _pendingPlayModeRefresh = true;
                 Notifications.Show("Scripts Hot Reloaded");

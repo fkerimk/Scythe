@@ -415,6 +415,7 @@ internal static unsafe class Editor {
             Core.OpenLevels[Core.ActiveLevelIndex] = CloneLevelForPlayMode(_editorLevelRef);
             Core.SetActiveLevel(Core.ActiveLevelIndex, clearHistory: false);
             Core.Load();
+            BackgroundScripts.Initialize();
 
             if (mouseCenter.HasValue && IsCursorHidden())
                 SetMousePosition((int)mouseCenter.Value.X, (int)mouseCenter.Value.Y);
@@ -427,6 +428,7 @@ internal static unsafe class Editor {
             EditorUnlockedCursor = false;
             EnableCursor();
             ShowCursor();
+            BackgroundScripts.Shutdown();
 
             // Re-init physics to clear runtime bodies
             Physics.Init();

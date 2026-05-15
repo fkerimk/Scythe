@@ -10,6 +10,10 @@ internal class ProjectConfig {
     public string StartupLevel = "";
     [RecordHistory]
     public string StartupLevelPath = "";
+    [RecordHistory]
+    public string[] BackgroundScripts = [];
+    [RecordHistory]
+    public string[] BackgroundScriptPaths = [];
 
     public static string GetPath() => Path.Combine(ScytheConfig.Current.Project, "Project.json");
 
