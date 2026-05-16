@@ -1,8 +1,11 @@
 using System.Numerics;
+using System.IO.Compression;
 using ImGuiNET;
+using NativeFileDialogNET;
 using Newtonsoft.Json;
 using Raylib_cs;
 using static ImGuiNET.ImGui;
+using static Raylib_cs.Raylib;
 
 namespace Viewports;
 
@@ -36,6 +39,7 @@ internal class Collections : Viewport {
     private bool _hideEmptyCategories = true;
     private string? _draggedEntryPath;
     private bool _draggedEntryIsDirectory;
+    private string? _externalDropTargetPath;
 
     private string RelativePath {
         get {
@@ -67,6 +71,7 @@ internal class Collections : Viewport {
         new("Levels", CollectionData.IsLevel, Icons.FaMap),
         new("Materials", CollectionData.IsMaterial, Icons.FaFileImage),
         new("Models", CollectionData.IsModel, Icons.FaCube),
+        new("Other", IsOtherFile, Icons.FaFile),
         new("Prefabs", CollectionData.IsPrefab, Icons.FaFile),
         new("Scripts", CollectionData.IsScript, Icons.FaFileCode),
         new("Shaders", CollectionData.IsShader, Icons.FaCode),
@@ -149,6 +154,9 @@ internal class Collections : Viewport {
             if (MenuItem("Material")) OpenCreatePopup(CreateItemType.Material);
             if (MenuItem("Script")) OpenCreatePopup(CreateItemType.Script);
             if (MenuItem("Prefab")) OpenCreatePopup(CreateItemType.Prefab);
+            Separator();
+            if (MenuItem("Import File/Zip...")) ImportWithDialog(selectFolder: false);
+            if (MenuItem("Import Folder...")) ImportWithDialog(selectFolder: true);
 
             EndDisabled();
             _showAddTypePopup = false;
@@ -219,6 +227,7 @@ internal class Collections : Viewport {
 
     private void DrawBrowser() {
         _entryClickedThisFrame = false;
+        _externalDropTargetPath = null;
 
         PushStyleVar(ImGuiStyleVar.WindowPadding, new Vector2(8, 4));
         if (!BeginChild("Browser", new Vector2(0, 0), ImGuiChildFlags.None, ImGuiWindowFlags.None)) {
@@ -253,6 +262,8 @@ internal class Collections : Viewport {
             _draggedEntryPath = null;
             _draggedEntryIsDirectory = false;
         }
+
+        HandleExternalDrop();
 
         EndChild();
         PopStyleVar();
@@ -292,7 +303,7 @@ internal class Collections : Viewport {
             .OrderBy(Path.GetFileName, new NaturalStringComparer()!);
 
     private IEnumerable<string> GetCollectionEntriesForCategory(CollectionCategory category) =>
-        GetCollectionEntryKind(category) == CollectionEntryKind.Collection && (category.Name is "Fonts" or "Shaders")
+        category.Name == "Other" || GetCollectionEntryKind(category) == CollectionEntryKind.Collection && (category.Name is "Fonts" or "Shaders")
             ? []
             : GetCollectionEntries(GetCollectionEntryKind(category));
 
@@ -307,7 +318,7 @@ internal class Collections : Viewport {
     private IEnumerable<string> GetFilesForCategory(CollectionCategory category) {
 
         return Directory.EnumerateFiles(_currentPath)
-            .Where(path => !IsSidecarMetaFile(path))
+            .Where(IsVisibleCollectionFile)
             .Where(category.Match)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderBy(GetNameWithoutExtension, new NaturalStringComparer()!);
@@ -381,6 +392,7 @@ internal class Collections : Viewport {
         var clicked = DrawRenamableEntry(path, name, color, isSelected);
         DrawEntryDragSource(path, name, isDirectory: true);
         var dropped = HandleCollectionDropTarget(path);
+        if (IsItemHovered()) _externalDropTargetPath = path;
 
         if (!isBuiltIn) DrawEntryContextMenu(path, isDirectory: true);
 
@@ -1140,6 +1152,28 @@ internal class Collections : Viewport {
         return File.Exists(assetPath);
     }
 
+    private static bool IsEditorCollectionFile(string path) {
+
+        var fileName = Path.GetFileName(path);
+        return string.Equals(fileName, "Collection.json", StringComparison.OrdinalIgnoreCase)
+               || fileName.StartsWith(".", StringComparison.Ordinal);
+    }
+
+    private static bool IsVisibleCollectionFile(string path) =>
+        !IsSidecarMetaFile(path) && !IsEditorCollectionFile(path);
+
+    private static bool IsKnownFile(string path) =>
+        CollectionData.IsShader(path)
+        || CollectionData.IsFont(path)
+        || CollectionData.IsLevel(path)
+        || CollectionData.IsMaterial(path)
+        || CollectionData.IsTexture(path)
+        || CollectionData.IsScript(path)
+        || CollectionData.IsPrefab(path)
+        || CollectionData.IsModel(path);
+
+    private static bool IsOtherFile(string path) => IsVisibleCollectionFile(path) && !IsKnownFile(path);
+
     private static string? GetSidecarMetaPath(string path) => Directory.Exists(path) ? null : File.Exists(GetSidecarMetaPathFor(path)) ? GetSidecarMetaPathFor(path) : null;
 
     private static string GetSidecarMetaPathFor(string path) => path + ".json";
@@ -1182,6 +1216,7 @@ internal class Collections : Viewport {
         "Scripts" => Colors.GuiCollectionScript.ToVector4(),
         "Prefabs" => Colors.GuiCollectionPrefab.ToVector4(),
         "Models" => Colors.GuiCollectionModel.ToVector4(),
+        "Other" => Colors.GuiText.ToVector4(),
         "Shaders" => Colors.Primary.ToVector4(),
         _ => Colors.GuiText.ToVector4()
     };
@@ -1434,6 +1469,243 @@ internal class Collections : Viewport {
     private bool CanAcceptEntryDrop(string destinationDirectory) =>
         Directory.Exists(destinationDirectory)
         && !IsBuiltInPath(destinationDirectory);
+
+    private void HandleExternalDrop() {
+
+        if (!IsWindowHovered(ImGuiHoveredFlags.RootAndChildWindows) || !IsFileDropped()) return;
+
+        var targetDirectory = ResolveExternalDropTargetDirectory();
+
+        try {
+            var droppedPaths = GetDroppedFiles();
+
+            if (string.IsNullOrWhiteSpace(targetDirectory)) {
+                Notifications.Show("Import failed: Open a writable collection first.");
+                return;
+            }
+
+            if (droppedPaths.Length == 0) return;
+
+            ImportPathsIntoDirectory(droppedPaths, targetDirectory);
+
+        } catch (Exception e) {
+            Notifications.Show($"Import failed: {e.Message}");
+        }
+    }
+
+    private string? ResolveExternalDropTargetDirectory() {
+
+        var target = !string.IsNullOrWhiteSpace(_externalDropTargetPath) && Directory.Exists(_externalDropTargetPath)
+            ? _externalDropTargetPath
+            : _currentPath;
+
+        if (string.IsNullOrWhiteSpace(target) || !Directory.Exists(target) || IsBuiltInPath(target)) return null;
+
+        return target;
+    }
+
+    private void ImportWithDialog(bool selectFolder) {
+
+        var destinationDirectory = ResolveExternalDropTargetDirectory();
+        if (string.IsNullOrWhiteSpace(destinationDirectory)) {
+            Notifications.Show("Import failed: Open a writable collection first.");
+            return;
+        }
+
+        try {
+            using var dialog = selectFolder
+                ? new NativeFileDialog().SelectFolder()
+                : new NativeFileDialog().SelectFile().AddFilter("All Files", "*").AddFilter("Zip Archives", "zip");
+            var result = dialog.Open(out string[]? output, _currentPath);
+
+            if (result != DialogResult.Okay || output == null || output.Length == 0) return;
+
+            ImportPathsIntoDirectory(output, destinationDirectory);
+
+        } catch (Exception e) {
+            Notifications.Show($"Import failed: {e.Message}");
+        }
+    }
+
+    private void ImportPathsIntoDirectory(IEnumerable<string> sourcePaths, string destinationDirectory) {
+
+        var importedNames = new List<string>();
+
+        foreach (var sourcePath in sourcePaths.Where(path => !string.IsNullOrWhiteSpace(path))) {
+
+            foreach (var importedPath in ImportPathIntoDirectory(sourcePath, destinationDirectory))
+                importedNames.Add(Path.GetFileName(importedPath));
+        }
+
+        if (importedNames.Count == 0) return;
+
+        var summary = importedNames.Count == 1
+            ? importedNames[0]
+            : $"{importedNames.Count} item(s)";
+        Notifications.Show($"Imported {summary} into '{AssetManager.GetStoredPath(destinationDirectory)}'.");
+    }
+
+    private IEnumerable<string> ImportPathIntoDirectory(string sourcePath, string destinationDirectory) {
+
+        var fullSourcePath = Path.GetFullPath(sourcePath);
+
+        if (Directory.Exists(fullSourcePath)) {
+            yield return ImportDirectoryIntoCollection(fullSourcePath, destinationDirectory, Path.GetFileName(fullSourcePath));
+            yield break;
+        }
+
+        if (!File.Exists(fullSourcePath)) yield break;
+
+        if (string.Equals(Path.GetExtension(fullSourcePath), ".zip", StringComparison.OrdinalIgnoreCase)) {
+            yield return ImportZipIntoCollection(fullSourcePath, destinationDirectory);
+            yield break;
+        }
+
+        yield return MoveExternalFileTo(fullSourcePath, destinationDirectory);
+    }
+
+    private string ImportZipIntoCollection(string zipPath, string destinationDirectory) {
+
+        var tempRoot = Path.Combine(Path.GetTempPath(), $"ScytheImport_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempRoot);
+
+        try {
+            ZipFile.ExtractToDirectory(zipPath, tempRoot, overwriteFiles: true);
+            ExpandNestedZipArchives(tempRoot);
+            return ImportDirectoryIntoCollection(tempRoot, destinationDirectory, Path.GetFileNameWithoutExtension(zipPath), deleteSourceDirectory: false);
+
+        } finally {
+            if (Directory.Exists(tempRoot)) Directory.Delete(tempRoot, recursive: true);
+        }
+    }
+
+    private string ImportDirectoryIntoCollection(string sourceDirectory, string destinationDirectory, string collectionName, bool deleteSourceDirectory = true) {
+
+        var collectionPath = CreateImportCollection(destinationDirectory, collectionName);
+        ImportDirectoryContentsToCollection(sourceDirectory, collectionPath);
+
+        if (deleteSourceDirectory && Directory.Exists(sourceDirectory))
+            Directory.Delete(sourceDirectory, recursive: true);
+
+        return collectionPath;
+    }
+
+    private string CreateImportCollection(string destinationDirectory, string collectionName) {
+
+        var collectionPath = GetAvailableDirectoryPath(destinationDirectory, collectionName);
+        Directory.CreateDirectory(collectionPath);
+        EnsureCollectionSettings(collectionPath);
+        return collectionPath;
+    }
+
+    private void ImportDirectoryContentsToCollection(string sourceDirectory, string collectionPath) {
+
+        var files = Directory.EnumerateFiles(sourceDirectory, "*", SearchOption.AllDirectories)
+            .Where(IsVisibleCollectionFile)
+            .OrderBy(path => path, new NaturalStringComparer()!)
+            .ToList();
+
+        foreach (var file in files)
+            MoveExternalFileTo(file, collectionPath);
+    }
+
+    private static void ExpandNestedZipArchives(string rootDirectory) {
+
+        while (true) {
+
+            var zipFiles = Directory.EnumerateFiles(rootDirectory, "*.zip", SearchOption.AllDirectories).ToList();
+            if (zipFiles.Count == 0) return;
+
+            foreach (var zipFile in zipFiles) {
+
+                var parentDirectory = Path.GetDirectoryName(zipFile)!;
+                var extractDirectory = GetAvailableDirectoryPath(parentDirectory, Path.GetFileNameWithoutExtension(zipFile));
+                Directory.CreateDirectory(extractDirectory);
+                ZipFile.ExtractToDirectory(zipFile, extractDirectory, overwriteFiles: true);
+                File.Delete(zipFile);
+            }
+        }
+    }
+
+    private string MoveExternalDirectoryTo(string sourceDirectory, string destinationDirectory) {
+
+        var destinationPath = GetAvailableDirectoryPath(destinationDirectory, Path.GetFileName(sourceDirectory));
+        MoveDirectoryCrossVolume(sourceDirectory, destinationPath);
+        return destinationPath;
+    }
+
+    private string MoveExternalFileTo(string sourceFile, string destinationDirectory) {
+
+        var destinationPath = GetAvailableFilePath(destinationDirectory, sourceFile);
+        MoveFileCrossVolume(sourceFile, destinationPath);
+        return destinationPath;
+    }
+
+    private static string GetAvailableDirectoryPath(string destinationDirectory, string name) {
+
+        var existingNames = Directory.EnumerateFileSystemEntries(destinationDirectory)
+            .Select(Path.GetFileName)
+            .OfType<string>()
+            .ToList();
+        var finalName = Directory.Exists(Path.Combine(destinationDirectory, name)) || File.Exists(Path.Combine(destinationDirectory, name))
+            ? Generators.AvailableName(name, existingNames)
+            : name;
+
+        return Path.Combine(destinationDirectory, finalName);
+    }
+
+    private static string GetAvailableFilePath(string destinationDirectory, string sourceFile) {
+
+        var fileName = Path.GetFileName(sourceFile);
+        var baseName = CollectionData.GetNameWithoutExtension(sourceFile);
+        var suffix = GetRenameSuffix(sourceFile);
+        var existingNames = Directory.EnumerateFiles(destinationDirectory)
+            .Where(IsVisibleCollectionFile)
+            .Select(CollectionData.GetNameWithoutExtension)
+            .ToList();
+        var finalBaseName = File.Exists(Path.Combine(destinationDirectory, fileName)) || Directory.Exists(Path.Combine(destinationDirectory, fileName))
+            ? Generators.AvailableName(baseName, existingNames)
+            : baseName;
+
+        return Path.Combine(destinationDirectory, finalBaseName + suffix);
+    }
+
+    private static void MoveFileCrossVolume(string sourceFile, string destinationFile) {
+
+        try {
+            File.Move(sourceFile, destinationFile);
+        } catch (IOException) {
+            File.Copy(sourceFile, destinationFile, overwrite: false);
+            File.Delete(sourceFile);
+        }
+    }
+
+    private static void MoveDirectoryCrossVolume(string sourceDirectory, string destinationDirectory) {
+
+        try {
+            Directory.Move(sourceDirectory, destinationDirectory);
+        } catch (IOException) {
+            CopyDirectoryRecursive(sourceDirectory, destinationDirectory);
+            Directory.Delete(sourceDirectory, recursive: true);
+        }
+    }
+
+    private static void CopyDirectoryRecursive(string sourceDirectory, string destinationDirectory) {
+
+        Directory.CreateDirectory(destinationDirectory);
+
+        foreach (var directory in Directory.EnumerateDirectories(sourceDirectory, "*", SearchOption.AllDirectories)) {
+            var relative = Path.GetRelativePath(sourceDirectory, directory);
+            Directory.CreateDirectory(Path.Combine(destinationDirectory, relative));
+        }
+
+        foreach (var file in Directory.EnumerateFiles(sourceDirectory, "*", SearchOption.AllDirectories)) {
+            var relative = Path.GetRelativePath(sourceDirectory, file);
+            var targetFile = Path.Combine(destinationDirectory, relative);
+            Directory.CreateDirectory(Path.GetDirectoryName(targetFile)!);
+            File.Copy(file, targetFile, overwrite: false);
+        }
+    }
 
     private string? GetUpMoveDestinationDirectory() {
 
