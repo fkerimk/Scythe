@@ -57,6 +57,16 @@ internal static class CollectionData {
 
     public static bool IsRoot(string path) => IsProjectRoot(path) || IsBuiltInRoot(path);
 
+    public static bool IsBuiltInPath(string path) {
+
+        var fullPath = Path.GetFullPath(path).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        var builtInRootPath = Path.GetFullPath(BuiltInRootPath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+
+        return fullPath.Equals(builtInRootPath, StringComparison.OrdinalIgnoreCase)
+               || fullPath.StartsWith(builtInRootPath + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
+               || fullPath.StartsWith(builtInRootPath + Path.AltDirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
+    }
+
     public static IEnumerable<string> EnumerateRootCollections(CollectionAssetKind kind) {
 
         if (kind == CollectionAssetKind.Collection && Directory.Exists(BuiltInRootPath))

@@ -88,6 +88,9 @@ internal class Collections : Viewport {
 
     public void SyncExternalSelection(string? path) {
 
+        if (!CanSelectAsset(path))
+            path = null;
+
         _selectedPath = path;
 
         if (string.IsNullOrEmpty(path)) return;
@@ -104,7 +107,7 @@ internal class Collections : Viewport {
     }
 
     public bool CanDeleteSelectedAsset =>
-        !string.IsNullOrWhiteSpace(_selectedPath) && (File.Exists(_selectedPath) || Directory.Exists(_selectedPath));
+        !string.IsNullOrWhiteSpace(_selectedPath) && (File.Exists(_selectedPath) || Directory.Exists(_selectedPath)) && CanEditBuiltInAsset(_selectedPath);
 
     public void DeleteSelectedAsset() {
 
@@ -394,7 +397,7 @@ internal class Collections : Viewport {
         var dropped = HandleCollectionDropTarget(path);
         if (IsItemHovered()) _externalDropTargetPath = path;
 
-        if (!isBuiltIn) DrawEntryContextMenu(path, isDirectory: true);
+        if (CanShowContextMenu(path)) DrawEntryContextMenu(path, isDirectory: true);
 
         if (dropped) return;
         if (!clicked) return;
@@ -492,15 +495,15 @@ internal class Collections : Viewport {
         var color = GetFileColor(path);
         var clicked = DrawRenamableEntry(path, name, color, isSelected);
         DrawEntryDragSource(path, name, isDirectory: false);
-        DrawEntryContextMenu(path, isDirectory: false);
+        if (CanShowContextMenu(path)) DrawEntryContextMenu(path, isDirectory: false);
         var doubleClicked = IsItemHovered() && IsMouseDoubleClicked(ImGuiMouseButton.Left);
 
-        if (doubleClicked && (CollectionData.IsLevel(path) || CollectionData.IsPrefab(path))) {
+        if (doubleClicked && (CollectionData.IsLevel(path) || CollectionData.IsPrefab(path)) && CanEditBuiltInAsset(path)) {
             _entryClickedThisFrame = true;
             Editor.OpenLevel(path);
             return;
         }
-        if (!clicked) return;
+        if (!clicked || !CanSelectAsset(path)) return;
 
         _entryClickedThisFrame = true;
         LevelBrowser.SelectObject(null);
@@ -510,6 +513,7 @@ internal class Collections : Viewport {
     public void StartRenameSelected() {
 
         if (string.IsNullOrWhiteSpace(_selectedPath) || (!File.Exists(_selectedPath) && !Directory.Exists(_selectedPath))) return;
+        if (!CanEditBuiltInAsset(_selectedPath)) return;
 
         StartRename(_selectedPath, Directory.Exists(_selectedPath));
     }
@@ -725,7 +729,7 @@ internal class Collections : Viewport {
         DragDropPayload.Data = path;
 
         SetDragDropPayload(CollectionEntryDragDropType, IntPtr.Zero, 0);
-        Text($"Move {displayName}");
+        Text(CanEditBuiltInAsset(path) ? $"Move {displayName}" : $"Reference {displayName}");
         EndDragDropSource();
     }
 
@@ -1458,10 +1462,16 @@ internal class Collections : Viewport {
         }
     }
 
-    private bool CanDragEntry(string path) =>
-        (File.Exists(path) || Directory.Exists(path))
-        && !CollectionData.IsRoot(path)
-        && !IsBuiltInPath(path);
+    private bool CanDragEntry(string path) {
+
+        if (!File.Exists(path) && !Directory.Exists(path)) return false;
+        if (CollectionData.IsRoot(path)) return false;
+
+        if (IsBuiltInPath(path))
+            return !Directory.Exists(path);
+
+        return true;
+    }
 
     private bool CanAcceptEntryDrop(string destinationDirectory) =>
         Directory.Exists(destinationDirectory)
@@ -1769,15 +1779,18 @@ internal class Collections : Viewport {
             : null;
     }
 
-    private static bool IsBuiltInPath(string path) {
+    private static bool IsBuiltInPath(string path) => CollectionData.IsBuiltInPath(path);
 
-        var fullPath = Path.GetFullPath(path).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-        var builtInRootPath = Path.GetFullPath(CollectionData.BuiltInRootPath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+    private static bool IsBuiltInLocked => !CommandLine.UnlockBuiltin;
 
-        return fullPath.Equals(builtInRootPath, StringComparison.OrdinalIgnoreCase)
-               || fullPath.StartsWith(builtInRootPath + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
-               || fullPath.StartsWith(builtInRootPath + Path.AltDirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
-    }
+    private static bool CanEditBuiltInAsset(string? path) =>
+        !string.IsNullOrWhiteSpace(path) && (!IsBuiltInPath(path) || !IsBuiltInLocked);
+
+    private static bool CanSelectAsset(string? path) =>
+        !string.IsNullOrWhiteSpace(path) && (File.Exists(path) || Directory.Exists(path)) && CanEditBuiltInAsset(path);
+
+    private static bool CanShowContextMenu(string path) =>
+        !IsBuiltInPath(path) || !IsBuiltInLocked;
 
     private readonly record struct CollectionCategory(string Name, Func<string, bool> Match, string Icon);
     private readonly record struct CategoryState(CollectionCategory Category, int Count);

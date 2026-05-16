@@ -58,6 +58,9 @@ internal static unsafe class Editor {
 
     public static void SetSelectedAsset(string? path) {
 
+        if (!string.IsNullOrWhiteSpace(path) && CollectionData.IsBuiltInPath(path) && !CommandLine.UnlockBuiltin)
+            path = null;
+
         AssetManager.EnsureImported(path);
         IsSynchronizingSelection = true;
         try {

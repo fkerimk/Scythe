@@ -13,7 +13,8 @@ internal static class Launcher {
     private static readonly List<ProjectInfo> Projects = [];
     private static string _newProjectName = "New Project";
     private static string? _projectToDelete;
-    private static string? _popupToOpen;
+    private static bool _showCreateProjectModal;
+    private static bool _showDeleteProjectModal;
     private static Texture2D _logoTexture;
 
     private struct ProjectInfo {
@@ -122,7 +123,7 @@ internal static class Launcher {
 
             // Create Project Button
             SetCursorPos(new Vector2(windowSize.X - 180, (headerHeight - 34) / 2));
-            if (Button("Create New###btnCreate", new Vector2(160, 34))) _popupToOpen = "Create Project";
+            if (Button("Create New###btnCreate", new Vector2(160, 34))) _showCreateProjectModal = true;
 
             // Validate header extent
             SetCursorPos(new Vector2(0, headerHeight));
@@ -190,7 +191,7 @@ internal static class Launcher {
                     PushFont(Fonts.ImFontAwesomeNormal);
                     if (Button(Icons.FaTrashAlt + "##DelBtn", new Vector2(btnHeight, btnHeight))) {
                         _projectToDelete = project.Path;
-                        _popupToOpen = "DeleteConfirm";
+                        _showDeleteProjectModal = true;
                     }
                     PopFont();
                     PopStyleColor();
@@ -204,12 +205,6 @@ internal static class Launcher {
             }
             Unindent(20);
 
-            // OPEN POPUP IN THE CORRECT PARENT CONTEXT
-            if (_popupToOpen != null) {
-                OpenPopup(_popupToOpen);
-                _popupToOpen = null;
-            }
-
             DrawModals();
         }
         PopStyleVar();
@@ -217,42 +212,80 @@ internal static class Launcher {
     }
 
     private static void DrawModals() {
-        var center = GetMainViewport().GetCenter();
-        SetNextWindowPos(center, ImGuiCond.Always, new Vector2(0.5f, 0.5f));
-        SetNextWindowSize(new Vector2(400, 0));
-        
-        if (BeginPopupModal("Create Project", ImGuiWindowFlags.NoMove | ImGuiWindowFlags.AlwaysAutoResize)) {
-            Dummy(new Vector2(0, 10));
-            Text("Project Name:");
-            SetNextItemWidth(-1);
-            InputText("##projname", ref _newProjectName, 64);
-            Spacing(); Separator(); Spacing();
-            if (Button("Create", new Vector2(185, 40))) {
+        if (_showCreateProjectModal) OpenPopup("Create Project");
+
+        if (Modal.Begin("Create Project", ref _showCreateProjectModal)) {
+            Text("Project Name");
+
+            if (IsWindowAppearing()) SetKeyboardFocusHere();
+
+            SetNextItemWidth(360);
+            if (InputText("##projname", ref _newProjectName, 64, ImGuiInputTextFlags.EnterReturnsTrue)) {
                 var createdProject = CreateProject(_newProjectName);
                 RefreshProjects();
-                CloseCurrentPopup();
 
                 if (!string.IsNullOrEmpty(createdProject)) {
                     CommandLine.Runtime = false;
                     _selectedProject = createdProject;
                     _shouldExit = true;
+                    _showCreateProjectModal = false;
+                    CloseCurrentPopup();
                 }
             }
-            SameLine(); if (Button("Cancel", new Vector2(185, 40))) CloseCurrentPopup();
-            EndPopup();
+
+            Spacing();
+            Separator();
+            Spacing();
+
+            if (Button("Create", new Vector2(160, 0))) {
+                var createdProject = CreateProject(_newProjectName);
+                RefreshProjects();
+
+                if (!string.IsNullOrEmpty(createdProject)) {
+                    CommandLine.Runtime = false;
+                    _selectedProject = createdProject;
+                    _shouldExit = true;
+                    _showCreateProjectModal = false;
+                    CloseCurrentPopup();
+                }
+            }
+
+            SameLine();
+
+            if (Button("Cancel", new Vector2(160, 0))) {
+                _showCreateProjectModal = false;
+                CloseCurrentPopup();
+            }
+
+            Modal.End();
         }
 
-        if (BeginPopupModal("DeleteConfirm", ImGuiWindowFlags.NoMove | ImGuiWindowFlags.AlwaysAutoResize)) {
+        if (_showDeleteProjectModal) OpenPopup("DeleteConfirm");
+
+        if (Modal.Begin("DeleteConfirm", ref _showDeleteProjectModal)) {
             Text("Delete project?");
             TextDisabled(_projectToDelete ?? "");
-            Spacing(); Separator(); Spacing();
-            if (Button("DELETE", new Vector2(185, 40))) { 
+
+            Spacing();
+            Separator();
+            Spacing();
+
+            if (Button("DELETE", new Vector2(160, 0))) { 
                 if (!string.IsNullOrEmpty(_projectToDelete)) { try { Directory.Delete(_projectToDelete, true); RefreshProjects(); } catch { } }
                 _projectToDelete = null; 
+                _showDeleteProjectModal = false;
                 CloseCurrentPopup(); 
             }
-            SameLine(); if (Button("Cancel", new Vector2(185, 40))) { _projectToDelete = null; CloseCurrentPopup(); }
-            EndPopup();
+
+            SameLine();
+
+            if (Button("Cancel", new Vector2(160, 0))) {
+                _projectToDelete = null;
+                _showDeleteProjectModal = false;
+                CloseCurrentPopup();
+            }
+
+            Modal.End();
         }
     }
 
