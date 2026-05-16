@@ -200,7 +200,7 @@ internal class Model(Obj obj) : Component(obj) {
 
                 // Global Ambient (Live Update)
                 if (locs.AmbientIntensity != -1) SetShaderValue(shader, locs.AmbientIntensity, Core.RenderSettings.AmbientIntensity, ShaderUniformDataType.Float);
-                if (locs.AmbientColor != -1) SetShaderValue(shader, locs.AmbientColor, Core.RenderSettings.AmbientColor.ToVector4(), ShaderUniformDataType.Vec3);
+                if (locs.AmbientColor != -1) SetShaderValue(shader, locs.AmbientColor, new Vector3(Core.RenderSettings.AmbientColor.R / 255f, Core.RenderSettings.AmbientColor.G / 255f, Core.RenderSettings.AmbientColor.B / 255f), ShaderUniformDataType.Vec3);
             }
 
             lastShaderId = shader.Id;

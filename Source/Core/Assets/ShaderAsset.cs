@@ -133,7 +133,7 @@ internal class ShaderAsset : Asset {
             var name = match.Groups[2].Value;
 
             // Skip standard uniforms
-            if (name.StartsWith("lights[") || name is "mvp" or "matModel" or "matNormal" or "matProjection" or "matView" or "matProjectionInverse" or "matViewProjInv" or "matPrevViewProj" or "view_pos" or "viewPos" or "cameraPos" or "light_count" or "lightVP" or "shadowMap" or "shadow_light_index" or "shadow_strength" or "shadow_map_resolution" or "receive_shadows" or "shadow_bias" or "tiling" or "offset" or "alpha_cutoff" or "texture0" or "colDiffuse" or "textureSize" or "renderSize" or "renderWidth" or "renderHeight" or "resolution" or "time" or "depthTexture" or "historyTexture" or "jitter" or "ambient_color" or "ambient_intensity") continue;
+            if (name.StartsWith("lights[") || name.StartsWith("use_tex_") || name is "mvp" or "matModel" or "matNormal" or "matProjection" or "matView" or "matProjectionInverse" or "matViewProjInv" or "matPrevViewProj" or "view_pos" or "viewPos" or "cameraPos" or "light_count" or "lightVP" or "shadowMap" or "shadow_light_index" or "shadow_strength" or "shadow_map_resolution" or "receive_shadows" or "shadow_bias" or "tiling" or "offset" or "alpha_cutoff" or "texture0" or "colDiffuse" or "difColor" or "textureSize" or "renderSize" or "renderWidth" or "renderHeight" or "resolution" or "time" or "depthTexture" or "historyTexture" or "jitter" or "ambient_color" or "ambient_intensity") continue;
 
             if (Properties.All(p => p.Name != name)) Properties.Add(new ShaderProperty { Name = name, Type = type });
         }
