@@ -61,8 +61,12 @@ Scythe.json
 **/Projects/*/Imports/
 **/Projects/*/Project/BuildSettings.json
 **/Projects/*/Project/EditorRender.json
+**/Projects/*/Directory.Build.props
+**/Projects/*/*.csproj
 
 Template/Assembly/
 Template/Imports/
 Template/Project/BuildSettings.json
 Template/Project/EditorRender.json
+Template/Project/Directory.Build.props
+Template/Project/*.csproj
