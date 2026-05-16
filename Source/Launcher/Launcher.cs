@@ -64,7 +64,7 @@ internal static class Launcher {
 
     private static void RefreshProjects() {
         Projects.Clear();
-        var projectsDir = Path.GetFullPath("Projects");
+        var projectsDir = Path.Combine(PathUtil.GetBaseRoot(), "Projects");
         if (!Directory.Exists(projectsDir)) Directory.CreateDirectory(projectsDir);
         
         var latestPath = string.IsNullOrEmpty(ScytheConfig.Current.Project) ? "" : Path.GetFullPath(ScytheConfig.Current.Project).Replace('\\', '/');
@@ -293,13 +293,13 @@ internal static class Launcher {
         var trimmedName = name.Trim();
         if (string.IsNullOrWhiteSpace(trimmedName)) return null;
 
-        var templatePath = Path.GetFullPath("Template");
+        var templatePath = Path.Combine(PathUtil.GetBaseRoot(), "Template");
         if (!Directory.Exists(templatePath)) return null;
 
         var projectName = SanitizeProjectDirectoryName(trimmedName);
         if (string.IsNullOrWhiteSpace(projectName)) projectName = "New Project";
 
-        var path = Path.Combine(Path.GetFullPath("Projects"), projectName);
+        var path = Path.Combine(PathUtil.GetBaseRoot(), "Projects", projectName);
         var originalPath = path;
         var i = 1;
 

@@ -1,12 +1,58 @@
 internal static class PathUtil {
 
-    public static string GetBaseRoot() => BundleRuntime.GetBaseRoot();
+    public static string GetBaseRoot() {
+
+        if (BundleRuntime.IsActive) return BundleRuntime.GetBaseRoot();
+
+        return FindEngineRoot() ?? AppContext.BaseDirectory;
+    }
+
+    private static string? FindEngineRoot() {
+
+        var candidates = new[] {
+            Directory.GetCurrentDirectory(),
+            AppContext.BaseDirectory,
+            Path.GetDirectoryName(Environment.ProcessPath ?? "") ?? ""
+        };
+
+        foreach (var start in candidates) {
+
+            var root = FindEngineRootFrom(start);
+            if (!string.IsNullOrWhiteSpace(root)) return root;
+        }
+
+        return null;
+    }
+
+    private static string? FindEngineRootFrom(string start) {
+
+        if (string.IsNullOrWhiteSpace(start)) return null;
+
+        var current = new DirectoryInfo(Path.GetFullPath(start));
+
+        while (current != null) {
+
+            var collectionPath = Path.Combine(current.FullName, "Collection");
+            var projectFilePath = Path.Combine(current.FullName, "Scythe.csproj");
+
+            if (Directory.Exists(collectionPath) && (File.Exists(projectFilePath) || Directory.Exists(Path.Combine(current.FullName, "Source"))))
+                return current.FullName;
+
+            current = current.Parent;
+        }
+
+        return null;
+    }
+
     public static string GetBuiltInCollectionRoot() {
 
         if (BundleRuntime.IsActive) return BundleRuntime.GetCollectionRoot();
 
         var workingDirCollection = Path.GetFullPath("Collection");
         if (Directory.Exists(workingDirCollection)) return workingDirCollection;
+
+        var baseRootCollection = Path.Combine(GetBaseRoot(), "Collection");
+        if (Directory.Exists(baseRootCollection)) return baseRootCollection;
 
         return Path.Combine(AppContext.BaseDirectory, "Collection");
     }

@@ -24,14 +24,14 @@ if (!BundleRuntime.IsActive) {
     JsonFile.PopulateInto(scytheJson, ScytheConfig.Current);
 
     if (CommandLine.Template)
-        ScytheConfig.Current.Project = Path.GetFullPath("Template");
+        ScytheConfig.Current.Project = Path.Combine(PathUtil.GetBaseRoot(), "Template");
 
     // Resolve relative paths
     if (!string.IsNullOrWhiteSpace(ScytheConfig.Current.Project)) {
     
         if (!Directory.Exists(ScytheConfig.Current.Project)) {
         
-            var altPath = Path.Combine(Directory.GetCurrentDirectory(), "Projects", ScytheConfig.Current.Project);
+            var altPath = Path.Combine(PathUtil.GetBaseRoot(), "Projects", ScytheConfig.Current.Project);
             if (Directory.Exists(altPath)) ScytheConfig.Current.Project = altPath;
         }
     }
