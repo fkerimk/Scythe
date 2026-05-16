@@ -64,9 +64,12 @@ void main() {
     vec3 m1 = vec3(0.0);
     vec3 m2 = vec3(0.0);
     
+    vec2 texelSize = 1.0 / vec2(textureSize(texture0, 0));
+
     for(int x = -1; x <= 1; x++) {
         for(int y = -1; y <= 1; y++) {
-            vec3 s = textureOffset(texture0, fragTexCoord, ivec2(x, y)).rgb;
+            vec2 sampleUv = fragTexCoord + vec2(float(x), float(y)) * texelSize;
+            vec3 s = texture(texture0, sampleUv).rgb;
             minColor = min(minColor, s);
             maxColor = max(maxColor, s);
             
