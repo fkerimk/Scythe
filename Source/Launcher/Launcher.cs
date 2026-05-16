@@ -23,6 +23,8 @@ internal static class Launcher {
     }
 
     public static string? Show() {
+        _selectedProject = null;
+        _shouldExit = false;
         Window.Show(title: "SCYTHE - Project Launcher", flags: [ConfigFlags.Msaa4xHint]);
         Setup(true, true);
         unsafe { GetIO().NativePtr->IniFilename = null; }
@@ -225,7 +227,17 @@ internal static class Launcher {
             SetNextItemWidth(-1);
             InputText("##projname", ref _newProjectName, 64);
             Spacing(); Separator(); Spacing();
-            if (Button("Create", new Vector2(185, 40))) { CreateProject(_newProjectName); RefreshProjects(); CloseCurrentPopup(); }
+            if (Button("Create", new Vector2(185, 40))) {
+                var createdProject = CreateProject(_newProjectName);
+                RefreshProjects();
+                CloseCurrentPopup();
+
+                if (!string.IsNullOrEmpty(createdProject)) {
+                    CommandLine.Runtime = false;
+                    _selectedProject = createdProject;
+                    _shouldExit = true;
+                }
+            }
             SameLine(); if (Button("Cancel", new Vector2(185, 40))) CloseCurrentPopup();
             EndPopup();
         }
@@ -244,15 +256,51 @@ internal static class Launcher {
         }
     }
 
-    private static void CreateProject(string name) {
-        var slug = name.Replace(" ", "");
-        var path = Path.Combine(Path.GetFullPath("Projects"), slug);
-        var i = 1; var originalPath = path;
-        while (Directory.Exists(path)) { path = originalPath + i; i++; }
-        Directory.CreateDirectory(path);
-        Directory.CreateDirectory(Path.Combine(path, "Project"));
-        Directory.CreateDirectory(Path.Combine(path, "Assets"));
-        Directory.CreateDirectory(Path.Combine(path, "Scripts"));
-        JsonFile.WriteIndented(Path.Combine(path, "Project.json"), new ProjectConfig { Name = name });
+    private static string? CreateProject(string name) {
+        var trimmedName = name.Trim();
+        if (string.IsNullOrWhiteSpace(trimmedName)) return null;
+
+        var templatePath = Path.GetFullPath("Template");
+        if (!Directory.Exists(templatePath)) return null;
+
+        var projectName = SanitizeProjectDirectoryName(trimmedName);
+        if (string.IsNullOrWhiteSpace(projectName)) projectName = "New Project";
+
+        var path = Path.Combine(Path.GetFullPath("Projects"), projectName);
+        var originalPath = path;
+        var i = 1;
+
+        while (Directory.Exists(path))
+            path = originalPath + i++;
+
+        CopyDirectory(templatePath, path);
+
+        var projectJsonPath = Path.Combine(path, "Project.json");
+        var config = JsonFile.ReadOrDefault<ProjectConfig?>(projectJsonPath, null) ?? new ProjectConfig();
+        config.Name = trimmedName;
+        JsonFile.WriteIndented(projectJsonPath, config);
+        return path;
+    }
+
+    private static string SanitizeProjectDirectoryName(string name) {
+        var invalidChars = Path.GetInvalidFileNameChars();
+        var sanitized = new string(name.Select(ch => invalidChars.Contains(ch) ? '_' : ch).ToArray()).Trim();
+        return sanitized.TrimEnd('.', ' ');
+    }
+
+    private static void CopyDirectory(string sourcePath, string destinationPath) {
+        Directory.CreateDirectory(destinationPath);
+
+        foreach (var directory in Directory.GetDirectories(sourcePath, "*", SearchOption.AllDirectories)) {
+            var relativePath = Path.GetRelativePath(sourcePath, directory);
+            Directory.CreateDirectory(Path.Combine(destinationPath, relativePath));
+        }
+
+        foreach (var file in Directory.GetFiles(sourcePath, "*", SearchOption.AllDirectories)) {
+            var relativePath = Path.GetRelativePath(sourcePath, file);
+            var destinationFile = Path.Combine(destinationPath, relativePath);
+            Directory.CreateDirectory(Path.GetDirectoryName(destinationFile)!);
+            File.Copy(file, destinationFile, overwrite: false);
+        }
     }
 }

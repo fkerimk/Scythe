@@ -1,0 +1,213 @@
+{
+  "Root": {
+    "Name": "Root",
+    "Children": [
+      {
+        "Name": "Camera",
+        "Prefab": null,
+        "PrefabPath": null,
+        "Transform": {
+          "Pos": {
+            "X": -5.0,
+            "Y": 5.0,
+            "Z": -5.0
+          },
+          "Euler": {
+            "X": 34.999996,
+            "Y": -44.999992
+          },
+          "Scale": {
+            "X": 1.0,
+            "Y": 1.0,
+            "Z": 1.0
+          },
+          "Rot": {
+            "X": 0.27781594,
+            "Y": 0.36497164,
+            "Z": -0.11507511,
+            "W": 0.8811196
+          }
+        },
+        "Components": [
+          {
+            "Fov": 45.0,
+            "NearClip": 0.01,
+            "FarClip": 1000.0,
+            "$ComponentType": "Camera"
+          }
+        ],
+        "Children": []
+      },
+      {
+        "Name": "Directional Light",
+        "Prefab": null,
+        "PrefabPath": null,
+        "Transform": {
+          "Pos": {
+            "Y": 3.0
+          },
+          "Euler": {
+            "X": 5.7105927,
+            "Y": 89.960434,
+            "Z": -30.256435
+          },
+          "Scale": {
+            "X": 0.99999946,
+            "Y": 0.9999998,
+            "Z": 0.9999995
+          },
+          "Rot": {
+            "X": 0.27059788,
+            "Y": -0.6532812,
+            "Z": 0.270598,
+            "W": 0.6532817
+          }
+        },
+        "Components": [
+          {
+            "Type": 0,
+            "ScytheColor": {
+              "R": 255,
+              "G": 255,
+              "B": 255,
+              "A": 255
+            },
+            "Intensity": 2.0,
+            "Range": 10.0,
+            "ShadowStrength": 1.0,
+            "$ComponentType": "Light"
+          }
+        ],
+        "Children": []
+      },
+      {
+        "Name": "Ground",
+        "Prefab": null,
+        "PrefabPath": null,
+        "Transform": {
+          "Pos": {
+            "Y": -0.05
+          },
+          "Scale": {
+            "X": 5.0,
+            "Y": 0.1,
+            "Z": 5.0
+          },
+          "Rot": {
+            "W": 1.0,
+            "IsIdentity": true
+          }
+        },
+        "Components": [
+          {
+            "GUID": "2cd053e9959f4b91ba52c0cb4d7826a6",
+            "Path": "Built In/Cube.fbx",
+            "Color": {
+              "R": 255,
+              "G": 255,
+              "B": 255,
+              "A": 255
+            },
+            "$ComponentType": "Model"
+          },
+          {
+            "Size": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            },
+            "$ComponentType": "BoxCollider"
+          },
+          {
+            "IsStatic": true,
+            "Gravity": false,
+            "Bounciness": 0.0,
+            "$ComponentType": "Rigidbody"
+          }
+        ],
+        "Children": []
+      },
+      {
+        "Name": "Cube",
+        "Prefab": null,
+        "PrefabPath": null,
+        "Transform": {
+          "Pos": {
+            "Y": 0.5
+          },
+          "Scale": {
+            "X": 1.0,
+            "Y": 1.0,
+            "Z": 1.0
+          },
+          "Rot": {
+            "W": 1.0,
+            "IsIdentity": true
+          }
+        },
+        "Components": [
+          {
+            "GUID": "2cd053e9959f4b91ba52c0cb4d7826a6",
+            "Path": "Built In/Cube.fbx",
+            "Color": {
+              "R": 255,
+              "G": 255,
+              "B": 255,
+              "A": 255
+            },
+            "$ComponentType": "Model"
+          },
+          {
+            "Size": {
+              "X": 1.0,
+              "Y": 1.0,
+              "Z": 1.0
+            },
+            "$ComponentType": "BoxCollider"
+          },
+          {
+            "IsStatic": true,
+            "Gravity": false,
+            "Bounciness": 0.0,
+            "$ComponentType": "Rigidbody"
+          }
+        ],
+        "Children": []
+      }
+    ]
+  },
+  "EditorCamera": {
+    "Position": {
+      "X": -4.3631763,
+      "Y": 3.5260663,
+      "Z": -4.3067417
+    },
+    "Rotation": {
+      "X": -0.5858332,
+      "Y": 0.784805
+    }
+  },
+  "GUID": "1a1ba6d01f0e4ddabcfa301ed352494d",
+  "Skybox": "8cd2244ffb8f4998bc2bf49541897cd2",
+  "SkyboxPath": "Built In/Skyboxes/Sky 4.png",
+  "SkyboxTint": {
+    "R": 240,
+    "G": 240,
+    "B": 240,
+    "A": 255
+  },
+  "BackgroundColor": {
+    "R": 25,
+    "G": 25,
+    "B": 25,
+    "A": 255
+  },
+  "AmbientColor": {
+    "R": 255,
+    "G": 255,
+    "B": 255,
+    "A": 255
+  },
+  "SkyboxAmbientEnabled": true,
+  "SkyboxAmbientIntensity": 2.0
+}

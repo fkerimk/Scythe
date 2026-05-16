@@ -2,6 +2,7 @@
 
     public static bool NoSplash { get; set; }
     public static bool Runtime { get; set; }
+    public static bool Template { get; set; }
     public static bool SplashHelper { get; set; }
     public static string SplashSignalPath { get; private set; } = "";
     public static string SplashReadyPath { get; private set; } = "";
@@ -12,6 +13,7 @@
 
         NoSplash = args.Contains("nosplash");
         Runtime = args.Contains("runtime");
+        Template = args.Contains("template");
         SplashHelper = rawArgs.Contains("splashhelper", StringComparer.InvariantCultureIgnoreCase);
 
         for (var i = 0; i < rawArgs.Length - 1; i++) {

@@ -208,6 +208,9 @@ internal class EditorRender() : Viewport("Render (Editor)") {
                     Core.SetActiveLevel(i);
             }
 
+            if (hovered && IsMouseClicked(ImGuiMouseButton.Middle))
+                closeIndex = i;
+
             if (!closeHovered && BeginDragDropSource()) {
                 var payloadIndex = i;
                 unsafe { SetDragDropPayload("LEVEL_TAB_INDEX", new IntPtr(&payloadIndex), (uint)sizeof(int)); }

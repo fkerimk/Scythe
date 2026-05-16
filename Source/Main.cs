@@ -23,6 +23,9 @@ if (!BundleRuntime.IsActive) {
     PathUtil.ValidateFile("Scythe.json", out var scytheJson, "{}");
     JsonFile.PopulateInto(scytheJson, ScytheConfig.Current);
 
+    if (CommandLine.Template)
+        ScytheConfig.Current.Project = Path.GetFullPath("Template");
+
     // Resolve relative paths
     if (!string.IsNullOrWhiteSpace(ScytheConfig.Current.Project)) {
     
@@ -34,10 +37,12 @@ if (!BundleRuntime.IsActive) {
     }
 
     #if !SCYTHE_RUNTIME_BUILD
-    var selected = Launcher.Show();
-    if (string.IsNullOrEmpty(selected)) return 0;
+    if (!CommandLine.Template) {
+        var selected = Launcher.Show();
+        if (string.IsNullOrEmpty(selected)) return 0;
 
-    ScytheConfig.Current.Project = selected;
+        ScytheConfig.Current.Project = selected;
+    }
     #endif
 
     // Ensure full path and save back for next run

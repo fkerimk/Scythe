@@ -59,3 +59,8 @@ Raylib Examples/
 **/Projects/*/Imports/
 **/Projects/*/Project/BuildSettings.json
 **/Projects/*/Project/EditorRender.json
+
+Template/Assembly/
+Template/Imports/
+Template/Project/BuildSettings.json
+Template/Project/EditorRender.json
