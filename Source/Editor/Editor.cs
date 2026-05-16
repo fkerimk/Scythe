@@ -32,6 +32,8 @@ internal static unsafe class Editor {
     private static List<Level>? _editorOpenLevelsSnapshot;
     private static int _editorActiveLevelIndexSnapshot = -1;
     private static string? _editorActiveLevelPathSnapshot;
+    private static Vector3 _editorFreeCamPosSnapshot;
+    private static Vector2 _editorFreeCamRotSnapshot;
     internal static bool IsSynchronizingSelection { get; private set; }
     public static string? SelectedAssetPath { get; private set; }
     public static bool ProjectSettingsSelected { get; private set; }
@@ -436,6 +438,8 @@ internal static unsafe class Editor {
             _editorOpenLevelsSnapshot = Core.OpenLevels.ToList();
             _editorActiveLevelIndexSnapshot = Core.ActiveLevelIndex;
             _editorActiveLevelPathSnapshot = Core.ActiveLevel?.JsonPath;
+            _editorFreeCamPosSnapshot = FreeCam.Pos;
+            _editorFreeCamRotSnapshot = FreeCam.Rot;
             var selectedPaths = CaptureSelectedObjectPaths();
             LevelBrowser.DragObject = null;
             LevelBrowser.DragTarget = null;
@@ -490,6 +494,8 @@ internal static unsafe class Editor {
                     ReloadPhysics(level.Root);
                 RestoreSelectedObjectPaths(selectedPaths);
                 Core.ApplyPresentationSettings();
+                FreeCam.Pos = _editorFreeCamPosSnapshot;
+                FreeCam.Rot = _editorFreeCamRotSnapshot;
 
                 _editorLevelRef = null;
                 _editorOpenLevelsSnapshot = null;
@@ -562,6 +568,9 @@ internal static unsafe class Editor {
             AmbientColor = source.AmbientColor,
             SkyboxAmbientEnabled = source.SkyboxAmbientEnabled,
             SkyboxAmbientIntensity = source.SkyboxAmbientIntensity,
+            EditorCamera = source.EditorCamera == null
+                ? new Level.CameraData { Position = _editorFreeCamPosSnapshot, Rotation = _editorFreeCamRotSnapshot }
+                : new Level.CameraData { Position = _editorFreeCamPosSnapshot, Rotation = _editorFreeCamRotSnapshot },
             IsDirty = source.IsDirty
         };
 

@@ -753,9 +753,19 @@ internal partial class ObjectBrowser : Viewport {
         invalidReason = "";
 
         if (string.IsNullOrWhiteSpace(pickerType) || IsScenePickerType(pickerType)) return false;
-        if (string.IsNullOrWhiteSpace(DragDropPayload.Data) || Directory.Exists(DragDropPayload.Data)) return false;
+        if (string.IsNullOrWhiteSpace(DragDropPayload.Data)) return false;
 
         var draggedPath = DragDropPayload.Data;
+        if (Directory.Exists(draggedPath)) {
+            if (!CollectionData.TryGetCollectionSelectionValue(draggedPath, pickerType, out var collectionValue)) {
+                invalidReason = $"Drop failed: '{Path.GetFileName(draggedPath)}' is not compatible with this field.";
+                return true;
+            }
+
+            value = collectionValue;
+            return true;
+        }
+
         if (!File.Exists(draggedPath)) return false;
 
         if (!CollectionData.IsPathCompatibleWithPicker(draggedPath, pickerType)) {
@@ -1476,8 +1486,14 @@ internal partial class ObjectBrowser : Viewport {
             if (!CollectionData.TryGetCollectionSelectionValue(collectionPath, pickerType, out var value)) continue;
 
             var logicalPath = CollectionData.GetLogicalCollectionPath(collectionPath);
-            var targetPath = CollectionData.GetResolvedTargetPath(collectionPath);
-            entries.Add(new PickerSearchEntry(logicalPath, targetPath == null ? logicalPath : AssetManager.GetStoredPath(targetPath), value));
+            var targetPath = CollectionData.GetResolvedTargetAssetPath(collectionPath, pickerType) ?? CollectionData.GetResolvedTargetPath(collectionPath);
+            entries.Add(new PickerSearchEntry(
+                logicalPath,
+                targetPath == null ? logicalPath : AssetManager.GetStoredPath(targetPath),
+                value,
+                targetPath,
+                Icons.FaArchive,
+                Vector4.One));
         }
 
         if (pickerType is "LevelAsset" or "PrefabAsset") {
@@ -1494,7 +1510,13 @@ internal partial class ObjectBrowser : Viewport {
                     : AssetManager.GetOrImport<LevelAsset>(file)?.GUID;
                 if (string.IsNullOrWhiteSpace(assetGuid)) continue;
 
-                entries.Add(new PickerSearchEntry(label, storedPath, assetGuid));
+                entries.Add(new PickerSearchEntry(
+                    label,
+                    storedPath,
+                    assetGuid,
+                    file,
+                    GetPickerFileIcon(file),
+                    GetPickerCategoryColor(CollectionData.GetKindForPickerType(pickerType) ?? CollectionAssetKind.Collection)));
             }
 
             return entries
@@ -1508,7 +1530,14 @@ internal partial class ObjectBrowser : Viewport {
 
             var label = asset.Path.Replace('\\', '/');
             label = TrimPickerLabelExtension(label);
-            entries.Add(new PickerSearchEntry(label, asset.Path.Replace('\\', '/'), asset.GUID));
+            var absolutePath = ResolveAbsoluteAssetReferencePath(asset.GUID, pickerType);
+            entries.Add(new PickerSearchEntry(
+                label,
+                asset.Path.Replace('\\', '/'),
+                asset.GUID,
+                absolutePath,
+                GetPickerFileIcon(absolutePath),
+                GetPickerCategoryColor(CollectionData.GetKindForPickerType(pickerType) ?? CollectionAssetKind.Collection)));
         }
 
         return entries
@@ -1633,5 +1662,5 @@ internal partial class ObjectBrowser : Viewport {
     private readonly record struct PickerTypeMetadata(CollectionAssetKind? Kind, Func<string, string> ResolveStoredPath, Func<string, string> GetDisplayValue, Func<string, string> GetTooltip, Func<IEnumerable<(string Name, string Path, string GUID)>> GetNamedAssets);
     private readonly record struct PickerCategoryMetadata(string PickerType, Vector4 Color, string Icon);
     private readonly record struct PickerNavigationState(string Path, CollectionAssetKind? ActiveCategory, bool ShowChildCollections);
-    private readonly record struct PickerSearchEntry(string Label, string Tooltip, string Value);
+    private readonly record struct PickerSearchEntry(string Label, string Tooltip, string Value, string? ThumbnailPath, string Icon, Vector4 Color);
 }

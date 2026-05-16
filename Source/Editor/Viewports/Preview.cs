@@ -807,7 +807,8 @@ internal class Preview : Viewport {
                 var transform = Matrix4x4.Transpose(Matrix4x4.CreateTranslation(0, 0.5f, 0));
                 if (PrimitiveNames[_currentPrimitiveIndex] == "Plane") transform = Matrix4x4.Transpose(Matrix4x4.CreateRotationX((float)Math.PI * -0.5f));
 
-                DrawMesh(mesh, mat.Material, transform);
+                if (IsRenderableMesh(mesh))
+                    DrawMesh(mesh, mat.Material, transform);
 
                 break;
             }
@@ -855,7 +856,8 @@ internal class Preview : Viewport {
                     var matAsset = mesh.MaterialIndex >= 0 && mesh.MaterialIndex < model.CachedMaterialAssets.Count ? model.CachedMaterialAssets[mesh.MaterialIndex] ?? MaterialAsset.Default : MaterialAsset.Default;
 
                     SetupPreviewLighting(matAsset, camera, target, distance);
-                    DrawMesh(mesh.RlMesh, material, matBase);
+                    if (IsRenderableMesh(mesh.RlMesh))
+                        DrawMesh(mesh.RlMesh, material, matBase);
                 }
 
                 break;
@@ -1236,7 +1238,8 @@ internal class Preview : Viewport {
                 mat.ApplyChanges(updateThumbnail: false, bumpVersion: false);
 
                 SetupPreviewLightingStatic(mat, camera, target, distance);
-                DrawMesh(mesh, mat.Material, Matrix4x4.Transpose(Matrix4x4.CreateTranslation(0, 0.5f, 0)));
+                if (IsRenderableMesh(mesh))
+                    DrawMesh(mesh, mat.Material, Matrix4x4.Transpose(Matrix4x4.CreateTranslation(0, 0.5f, 0)));
 
                 break;
             }
@@ -1253,7 +1256,8 @@ internal class Preview : Viewport {
                     var matAsset = mesh.MaterialIndex >= 0 && mesh.MaterialIndex < model.CachedMaterialAssets.Count ? model.CachedMaterialAssets[mesh.MaterialIndex] ?? MaterialAsset.Default : MaterialAsset.Default;
 
                     SetupPreviewLightingStatic(matAsset, camera, target, distance);
-                    DrawMesh(mesh.RlMesh, material, matBase);
+                    if (IsRenderableMesh(mesh.RlMesh))
+                        DrawMesh(mesh.RlMesh, material, matBase);
                 }
 
                 break;
@@ -1262,4 +1266,7 @@ internal class Preview : Viewport {
     }
 
     private readonly record struct ColoredTextSegment(string Text, Vector4 Color);
+
+    private static unsafe bool IsRenderableMesh(Mesh mesh) =>
+        mesh.VertexCount > 0 && mesh.Vertices != null;
 }

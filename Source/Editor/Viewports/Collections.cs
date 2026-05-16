@@ -1314,13 +1314,31 @@ internal class Collections : Viewport {
 
         EnsureCollectionSettings(collectionPath);
 
-        var settings = ReadCollectionSettings(collectionPath);
-        if (string.IsNullOrWhiteSpace(settings.TargetPath)) return null;
-
-        var targetPath = Path.GetFullPath(Path.Combine(collectionPath, settings.TargetPath));
-        if (!File.Exists(targetPath)) return null;
+        var targetPath = ResolveCollectionThumbnailPath(collectionPath);
+        if (string.IsNullOrWhiteSpace(targetPath) || !File.Exists(targetPath)) return null;
 
         return GetThumbnail(targetPath);
+    }
+
+    private static string? ResolveCollectionThumbnailPath(string collectionPath) {
+
+        var kind = CollectionData.GetKind(collectionPath);
+        if (kind != CollectionAssetKind.Collection) {
+            var pickerType = kind switch {
+                CollectionAssetKind.Level => "LevelAsset",
+                CollectionAssetKind.Material => "MaterialAsset",
+                CollectionAssetKind.Model => "ModelAsset",
+                CollectionAssetKind.Prefab => "PrefabAsset",
+                CollectionAssetKind.Script => "ScriptAsset",
+                CollectionAssetKind.Texture => "TextureAsset",
+                _ => ""
+            };
+
+            if (!string.IsNullOrWhiteSpace(pickerType))
+                return CollectionData.GetResolvedTargetAssetPath(collectionPath, pickerType) ?? CollectionData.GetResolvedTargetPath(collectionPath);
+        }
+
+        return CollectionData.GetResolvedTargetPath(collectionPath);
     }
 
     private static Texture2D? GetThumbnail(string path) {
@@ -1568,6 +1586,11 @@ internal class Collections : Viewport {
             yield break;
         }
 
+        if (CollectionData.IsModel(fullSourcePath)) {
+            yield return CopyImportedModelToCollection(fullSourcePath, destinationDirectory);
+            yield break;
+        }
+
         yield return CopyExternalFileTo(fullSourcePath, destinationDirectory);
     }
 
@@ -1590,6 +1613,7 @@ internal class Collections : Viewport {
 
         var collectionPath = CreateImportCollection(destinationDirectory, collectionName);
         ImportDirectoryContentsToCollection(sourceDirectory, collectionPath);
+        AutoConfigureImportedCollection(collectionPath);
 
         if (deleteSourceDirectory && Directory.Exists(sourceDirectory))
             Directory.Delete(sourceDirectory, recursive: true);
@@ -1612,8 +1636,15 @@ internal class Collections : Viewport {
             .OrderBy(path => path, new NaturalStringComparer()!)
             .ToList();
 
-        foreach (var file in files)
-            CopyExternalFileTo(file, collectionPath);
+        foreach (var file in files) {
+            var relativeDirectory = Path.GetDirectoryName(Path.GetRelativePath(sourceDirectory, file)) ?? "";
+            var targetDirectory = string.IsNullOrWhiteSpace(relativeDirectory)
+                ? collectionPath
+                : Path.Combine(collectionPath, relativeDirectory);
+
+            Directory.CreateDirectory(targetDirectory);
+            CopyExternalFileTo(file, targetDirectory);
+        }
     }
 
     private static void ExpandNestedZipArchives(string rootDirectory) {
@@ -1636,9 +1667,6 @@ internal class Collections : Viewport {
 
     private string CopyExternalFileTo(string sourceFile, string destinationDirectory) {
 
-        if (CollectionData.IsModel(sourceFile))
-            return CopyImportedModelToCollection(sourceFile, destinationDirectory);
-
         var destinationPath = GetAvailableFilePath(destinationDirectory, sourceFile);
         File.Copy(sourceFile, destinationPath, overwrite: false);
         return destinationPath;
@@ -1655,9 +1683,13 @@ internal class Collections : Viewport {
         }
 
         if (embeddedData is not { HasEmbeddedAssets: true }) {
-            var destinationPath = GetAvailableFilePath(destinationDirectory, sourceFile);
+            var modelCollectionPath = CreateImportCollection(destinationDirectory, CollectionData.GetNameWithoutExtension(sourceFile));
+            var destinationPath = GetAvailableFilePath(modelCollectionPath, sourceFile);
             File.Copy(sourceFile, destinationPath, overwrite: false);
-            return destinationPath;
+            CollectionData.SetKind(modelCollectionPath, CollectionAssetKind.Model);
+            CollectionData.SetTarget(modelCollectionPath, destinationPath);
+            AssetManager.EnsureImported(destinationPath);
+            return modelCollectionPath;
         }
 
         var modelName = CollectionData.GetNameWithoutExtension(sourceFile);
@@ -1716,6 +1748,51 @@ internal class Collections : Viewport {
             modelAsset.ApplyMaterial(materialIndex, materialPath);
 
         modelAsset.SaveSettings();
+    }
+
+    private static void AutoConfigureImportedCollection(string collectionPath) {
+
+        if (!Directory.Exists(collectionPath)) return;
+        if (CollectionData.GetResolvedTargetEntryPath(collectionPath) != null) return;
+
+        foreach (var candidate in GetImportTargetCandidates(collectionPath)) {
+            CollectionData.SetKind(collectionPath, candidate.Kind);
+            CollectionData.SetTarget(collectionPath, candidate.Path);
+            return;
+        }
+    }
+
+    private static IEnumerable<(CollectionAssetKind Kind, string Path)> GetImportTargetCandidates(string collectionPath) {
+
+        var files = Directory.EnumerateFiles(collectionPath, "*", SearchOption.AllDirectories)
+            .Where(IsVisibleCollectionFile)
+            .Where(path => !CollectionData.IsSidecarMetaFile(path))
+            .OrderBy(path => path, new NaturalStringComparer()!)
+            .ToList();
+
+        foreach (var kind in new[] {
+                     CollectionAssetKind.Model,
+                     CollectionAssetKind.Level,
+                     CollectionAssetKind.Prefab,
+                     CollectionAssetKind.Material,
+                     CollectionAssetKind.Script,
+                     CollectionAssetKind.Texture
+                 }) {
+            var match = files.FirstOrDefault(path => kind switch {
+                CollectionAssetKind.Model => CollectionData.IsModel(path),
+                CollectionAssetKind.Level => CollectionData.IsLevel(path),
+                CollectionAssetKind.Prefab => CollectionData.IsPrefab(path),
+                CollectionAssetKind.Material => CollectionData.IsMaterial(path),
+                CollectionAssetKind.Script => CollectionData.IsScript(path),
+                CollectionAssetKind.Texture => CollectionData.IsTexture(path),
+                _ => false
+            });
+
+            if (!string.IsNullOrWhiteSpace(match)) {
+                yield return (kind, match);
+                yield break;
+            }
+        }
     }
 
     private static string GetAvailableAssetPath(string directory, string baseName, string extension) {

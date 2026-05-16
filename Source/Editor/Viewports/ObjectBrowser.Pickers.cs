@@ -49,8 +49,18 @@ internal partial class ObjectBrowser {
             foreach (var entry in _pickerEntries.Where(entry =>
                          entry.Label.Contains(_searchFilter, StringComparison.OrdinalIgnoreCase)
                          || entry.Tooltip.Contains(_searchFilter, StringComparison.OrdinalIgnoreCase))) {
+                const float iconWidth = 20f;
+                const float thumbnailSize = 16f;
+                var startX = GetCursorPosX();
+                var color = entry.Color;
 
-                if (Selectable($"{entry.Label}##{entry.Value}")) {
+                PushFont(Fonts.ImFontAwesomeSmall);
+                if (!TryDrawPickerSearchThumbnail(entry, startX, iconWidth, thumbnailSize))
+                    DrawPickerIcon(entry.Icon, color, startX, iconWidth);
+                PopFont();
+                SameLine(startX + iconWidth + 5f);
+
+                if (Selectable($"{entry.Label}##{entry.Value}", false, ImGuiSelectableFlags.None, new Vector2(GetContentRegionAvail().X, 0f))) {
                     ApplyPickerValue(entry.Value, ref value, targets, propName, ref changed, ref deactivated);
                     CloseCurrentPopup();
                 }
@@ -79,6 +89,9 @@ internal partial class ObjectBrowser {
 
             foreach (var collectionPath in EnumerateVisiblePickerCollections(state.CurrentPath, pickerType, CollectionAssetKind.Collection))
                 DrawPickerCollectionEntry(collectionPath, pickerType, state, ref value, targets, propName, ref changed, ref deactivated);
+
+            foreach (var filePath in GetPickerFilesForCategory(state.CurrentPath, pickerType))
+                DrawPickerFileEntry(filePath, pickerType, ref value, targets, propName, ref changed, ref deactivated);
 
             EndChild();
             return;
@@ -231,7 +244,7 @@ internal partial class ObjectBrowser {
         var color = Vector4.One;
 
         PushFont(Fonts.ImFontAwesomeSmall);
-        if (!TryDrawPickerCollectionThumbnail(collectionPath, startX, iconWidth, thumbnailSize))
+        if (!TryDrawPickerCollectionThumbnail(collectionPath, pickerType, startX, iconWidth, thumbnailSize))
             DrawPickerIcon(Icons.FaArchive, color, startX, iconWidth);
         PopFont();
         SameLine(startX + iconWidth + 5f);
@@ -490,13 +503,18 @@ internal partial class ObjectBrowser {
         GetWindowDrawList().AddText(pos, ColorConvertFloat4ToU32(color), text);
     }
 
-    private static bool TryDrawPickerCollectionThumbnail(string collectionPath, float startX, float iconWidth, float thumbnailSize) {
+    private static bool TryDrawPickerCollectionThumbnail(string collectionPath, string pickerType, float startX, float iconWidth, float thumbnailSize) {
 
-        var targetPath = CollectionData.GetResolvedTargetPath(collectionPath);
+        var targetPath = CollectionData.GetResolvedTargetAssetPath(collectionPath, pickerType) ?? CollectionData.GetResolvedTargetPath(collectionPath);
         if (string.IsNullOrWhiteSpace(targetPath)) return false;
 
         return TryDrawPickerThumbnail(targetPath, startX, iconWidth, thumbnailSize);
     }
+
+    private static bool TryDrawPickerSearchThumbnail(PickerSearchEntry entry, float startX, float iconWidth, float thumbnailSize) =>
+        !string.IsNullOrWhiteSpace(entry.ThumbnailPath) && File.Exists(entry.ThumbnailPath)
+            ? TryDrawPickerThumbnail(entry.ThumbnailPath, startX, iconWidth, thumbnailSize)
+            : false;
 
     private static bool TryDrawPickerThumbnail(string path, float startX, float iconWidth, float thumbnailSize) {
 

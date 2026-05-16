@@ -138,6 +138,30 @@ internal static class CollectionData {
         return File.Exists(targetPath) ? targetPath : null;
     }
 
+    public static string? GetResolvedTargetEntryPath(string collectionPath) {
+
+        EnsureSettings(collectionPath);
+
+        var settings = ReadSettings(collectionPath);
+        if (string.IsNullOrWhiteSpace(settings.TargetPath)) return null;
+
+        var targetPath = Path.GetFullPath(Path.Combine(collectionPath, settings.TargetPath));
+        return File.Exists(targetPath) || Directory.Exists(targetPath) ? targetPath : null;
+    }
+
+    public static string? GetResolvedTargetAssetPath(string collectionPath, string pickerType) {
+
+        var targetPath = GetResolvedTargetEntryPath(collectionPath);
+        if (string.IsNullOrWhiteSpace(targetPath)) return null;
+
+        if (File.Exists(targetPath))
+            return IsPathCompatibleWithPicker(targetPath, pickerType) ? targetPath : null;
+
+        if (!Directory.Exists(targetPath)) return null;
+
+        return EnumerateCollectionTargetAssets(targetPath, pickerType).FirstOrDefault();
+    }
+
     public static IEnumerable<string> EnumerateCollections(string parentPath, CollectionAssetKind kind) =>
         Directory.EnumerateDirectories(parentPath)
             .Select(path => {
@@ -186,7 +210,7 @@ internal static class CollectionData {
     public static bool TryGetCollectionSelectionValue(string collectionPath, string pickerType, out string value) {
 
         value = "";
-        var targetPath = GetResolvedTargetPath(collectionPath);
+        var targetPath = GetResolvedTargetAssetPath(collectionPath, pickerType);
         if (string.IsNullOrWhiteSpace(targetPath) || !IsPathCompatibleWithPicker(targetPath, pickerType)) return false;
 
         value = GetGuidForAssetPath(targetPath, pickerType);
@@ -200,11 +224,18 @@ internal static class CollectionData {
 
         foreach (var collectionPath in EnumerateAllCollections()) {
 
-            var targetPath = GetResolvedTargetPath(collectionPath);
-            if (string.IsNullOrWhiteSpace(targetPath) || !IsPathCompatibleWithPicker(targetPath, pickerType)) continue;
+            var targetEntryPath = GetResolvedTargetEntryPath(collectionPath);
+            var targetPath = GetResolvedTargetAssetPath(collectionPath, pickerType);
+            if (string.IsNullOrWhiteSpace(targetEntryPath) && string.IsNullOrWhiteSpace(targetPath)) continue;
 
             var fullCollectionPath = Path.GetFullPath(collectionPath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
                                      + Path.DirectorySeparatorChar;
+
+            if (!string.IsNullOrWhiteSpace(targetEntryPath) && Directory.Exists(targetEntryPath)) {
+                var fullTargetDirectory = Path.GetFullPath(targetEntryPath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+                                          + Path.DirectorySeparatorChar;
+                if (fullAssetPath.StartsWith(fullTargetDirectory, StringComparison.OrdinalIgnoreCase)) return true;
+            }
 
             if (fullAssetPath.StartsWith(fullCollectionPath, StringComparison.OrdinalIgnoreCase)) return true;
         }
@@ -240,7 +271,7 @@ internal static class CollectionData {
             if (!TryGetCollectionSelectionValue(collectionPath, pickerType, out var targetValue)) continue;
             if (!string.Equals(targetValue, value, StringComparison.OrdinalIgnoreCase)) continue;
 
-            var targetPath = GetResolvedTargetPath(collectionPath);
+            var targetPath = GetResolvedTargetAssetPath(collectionPath, pickerType) ?? GetResolvedTargetPath(collectionPath);
             display = GetLogicalCollectionPath(collectionPath);
             tooltip = string.IsNullOrWhiteSpace(targetPath)
                 ? display
@@ -309,6 +340,17 @@ internal static class CollectionData {
     public static bool IsFont(string path) => AssetFilePatterns.IsFont(path);
 
     public static bool IsModel(string path) => AssetFilePatterns.IsModel(path);
+
+    public static IEnumerable<string> EnumerateCollectionTargetAssets(string rootPath, string pickerType) {
+
+        if (!Directory.Exists(rootPath)) yield break;
+
+        foreach (var file in Directory.EnumerateFiles(rootPath, "*", SearchOption.AllDirectories)
+                     .Where(path => !IsSidecarMetaFile(path))
+                     .Where(path => IsPathCompatibleWithPicker(path, pickerType))
+                     .OrderBy(path => path, new NaturalStringComparer()!))
+            yield return file;
+    }
 
     public static string GetNameWithoutExtension(string path) {
 

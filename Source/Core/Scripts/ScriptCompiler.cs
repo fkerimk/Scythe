@@ -59,7 +59,7 @@ internal static class ScriptCompiler {
         var assemblyName = Assembly.GetExecutingAssembly().GetName().Name ?? "Scythe";
         var exePath = Path.Combine(AppContext.BaseDirectory, assemblyName + ".dll");
         if (!File.Exists(exePath))
-            exePath = Assembly.GetExecutingAssembly().Location;
+            exePath = Path.Combine(AppContext.BaseDirectory, "Scythe.dll");
         var projectName = new DirectoryInfo(ScytheConfig.Current.Project).Name;
         var csprojPath = Path.Combine(ScytheConfig.Current.Project, $"{projectName}.csproj");
         var dirPropsPath = Path.Combine(ScytheConfig.Current.Project, "Directory.Build.props");
