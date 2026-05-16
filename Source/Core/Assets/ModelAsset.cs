@@ -47,7 +47,7 @@ internal class ModelAsset : Asset {
         for (var i = 0; i < Materials.Length; i++) {
 
             MaterialPaths[i] = Settings.MeshMaterials.GetValueOrDefault(i, "");
-            CachedMaterialAssets[i] = AssetManager.Get<MaterialAsset>(MaterialPaths[i]);
+            CachedMaterialAssets[i] = ResolveMaterialAsset(i, MaterialPaths[i]);
             ApplyMaterialState(i, true);
         }
     }
@@ -193,7 +193,7 @@ internal class ModelAsset : Asset {
         if (index < 0 || index >= Materials.Length) return;
 
         MaterialPaths[index] = path;
-        CachedMaterialAssets[index] = AssetManager.Get<MaterialAsset>(path);
+        CachedMaterialAssets[index] = ResolveMaterialAsset(index, path);
         ApplyMaterialState(index, true);
         ThumbnailDirty = true;
         Preview.UpdateThumbnail(this);
@@ -217,7 +217,7 @@ internal class ModelAsset : Asset {
 
         if (asset == null && !string.IsNullOrEmpty(MaterialPaths[index])) {
 
-            asset = AssetManager.Get<MaterialAsset>(MaterialPaths[index]);
+            asset = ResolveMaterialAsset(index, MaterialPaths[index]);
             if (index < CachedMaterialAssets.Count) CachedMaterialAssets[index] = asset;
         }
 
@@ -230,30 +230,40 @@ internal class ModelAsset : Asset {
         // Texture Assignment (Baked into Material Struct)
         fixed (Material* p = &mat) {
 
-            var tPath = asset?.Data.Textures.GetValueOrDefault("albedo_map", "");
-            var tex = AssetManager.Get<TextureAsset>(tPath);
+            var tex = ResolveTextureAsset(asset, "albedo_map");
             SetMaterialTexture(p, MaterialMapIndex.Albedo, tex?.Texture ?? new Texture2D());
 
-            tPath = asset?.Data.Textures.GetValueOrDefault("normal_map", "");
-            tex = AssetManager.Get<TextureAsset>(tPath);
+            tex = ResolveTextureAsset(asset, "normal_map");
             SetMaterialTexture(p, MaterialMapIndex.Normal, tex?.Texture ?? new Texture2D());
 
-            tPath = asset?.Data.Textures.GetValueOrDefault("metallic_map", "");
-            tex = AssetManager.Get<TextureAsset>(tPath);
+            tex = ResolveTextureAsset(asset, "metallic_map");
             SetMaterialTexture(p, MaterialMapIndex.Metalness, tex?.Texture ?? new Texture2D());
 
-            tPath = asset?.Data.Textures.GetValueOrDefault("roughness_map", "");
-            tex = AssetManager.Get<TextureAsset>(tPath);
+            tex = ResolveTextureAsset(asset, "roughness_map");
             SetMaterialTexture(p, MaterialMapIndex.Roughness, tex?.Texture ?? new Texture2D());
 
-            tPath = asset?.Data.Textures.GetValueOrDefault("occlusion_map", "");
-            tex = AssetManager.Get<TextureAsset>(tPath);
+            tex = ResolveTextureAsset(asset, "occlusion_map");
             SetMaterialTexture(p, MaterialMapIndex.Occlusion, tex?.Texture ?? new Texture2D());
 
-            tPath = asset?.Data.Textures.GetValueOrDefault("emissive_map", "");
-            tex = AssetManager.Get<TextureAsset>(tPath);
+            tex = ResolveTextureAsset(asset, "emissive_map");
             SetMaterialTexture(p, MaterialMapIndex.Emission, tex?.Texture ?? new Texture2D());
         }
+    }
+
+    private MaterialAsset? ResolveMaterialAsset(int index, string value) {
+
+        var asset = AssetManager.GetOrImport<MaterialAsset>(value);
+        asset ??= AssetManager.GetOrImport<MaterialAsset>(Settings.MeshMaterialPaths.GetValueOrDefault(index, ""));
+        return asset;
+    }
+
+    private static TextureAsset? ResolveTextureAsset(MaterialAsset? asset, string key) {
+
+        if (asset == null) return null;
+
+        var texture = AssetManager.GetOrImport<TextureAsset>(asset.Data.Textures.GetValueOrDefault(key, ""));
+        texture ??= AssetManager.GetOrImport<TextureAsset>(asset.Data.TexturePaths.GetValueOrDefault(key, ""));
+        return texture;
     }
 
     public override unsafe void Unload() {

@@ -103,8 +103,7 @@ internal class MaterialAsset : Asset {
             Version++;
         }
 
-        var shaderName = string.IsNullOrEmpty(Data.Shader) ? "Collection/pbr.vs" : Data.Shader;
-        var shaderAsset = AssetManager.GetOrImport<ShaderAsset>(shaderName) ?? AssetManager.GetOrImport<ShaderAsset>("Collection/pbr.vs");
+        var shaderAsset = ResolveShaderAsset() ?? AssetManager.GetOrImport<ShaderAsset>("Collection/pbr.vs");
         if (shaderAsset != null) Material.Shader = shaderAsset.Shader;
 
         ApplyMap("albedo_map", MaterialMapIndex.Albedo);
@@ -121,8 +120,7 @@ internal class MaterialAsset : Asset {
 
         void ApplyMap(string key, MaterialMapIndex index) {
 
-            var path = Data.Textures.GetValueOrDefault(key, "");
-            var tex = AssetManager.Get<TextureAsset>(path);
+            var tex = ResolveTextureAsset(key);
 
             fixed (Material* p = &Material) {
 
@@ -135,8 +133,7 @@ internal class MaterialAsset : Asset {
 
     public void ApplyUniforms(Shader shader) {
 
-        var shaderName = string.IsNullOrEmpty(Data.Shader) ? "Collection/pbr.vs" : Data.Shader;
-        var shaderAsset = AssetManager.GetOrImport<ShaderAsset>(shaderName);
+        var shaderAsset = ResolveShaderAsset();
 
         if (shaderAsset == null) return;
 
@@ -212,6 +209,21 @@ internal class MaterialAsset : Asset {
             var loc = shaderAsset.GetLoc(name);
             if (loc != -1) SetShaderValue(shader, loc, Data.Textures.ContainsKey(texKey) && !string.IsNullOrEmpty(Data.Textures[texKey]) ? 1 : 0, ShaderUniformDataType.Int);
         }
+    }
+
+    private ShaderAsset? ResolveShaderAsset() {
+
+        var shader = AssetManager.GetOrImport<ShaderAsset>(Data.Shader);
+        shader ??= AssetManager.GetOrImport<ShaderAsset>(Data.ShaderPath);
+        shader ??= AssetManager.GetOrImport<ShaderAsset>(string.IsNullOrWhiteSpace(Data.Shader) ? "Collection/pbr.vs" : Data.Shader);
+        return shader;
+    }
+
+    private TextureAsset? ResolveTextureAsset(string key) {
+
+        var texture = AssetManager.GetOrImport<TextureAsset>(Data.Textures.GetValueOrDefault(key, ""));
+        texture ??= AssetManager.GetOrImport<TextureAsset>(Data.TexturePaths.GetValueOrDefault(key, ""));
+        return texture;
     }
 
     public override unsafe void Unload() {
