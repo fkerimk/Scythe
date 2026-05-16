@@ -362,7 +362,17 @@ internal static class AssetManager {
     private static bool IsVisibleAssetSourcePath(string path) {
 
         var fullPath = Path.GetFullPath(path);
-        var parts = fullPath.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        var relativePath = fullPath;
+
+        var projectRoot = string.IsNullOrWhiteSpace(ScytheConfig.Current.Project) ? "" : Path.GetFullPath(ScytheConfig.Current.Project);
+        var builtInRoot = Path.GetFullPath(PathUtil.GetBuiltInCollectionRoot());
+
+        if (!string.IsNullOrWhiteSpace(projectRoot) && fullPath.StartsWith(projectRoot, StringComparison.OrdinalIgnoreCase))
+            relativePath = Path.GetRelativePath(projectRoot, fullPath);
+        else if (fullPath.StartsWith(builtInRoot, StringComparison.OrdinalIgnoreCase))
+            relativePath = Path.GetRelativePath(builtInRoot, fullPath);
+
+        var parts = relativePath.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
 
         foreach (var part in parts) {
 
