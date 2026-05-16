@@ -61,6 +61,12 @@ internal static unsafe class Editor {
         if (!string.IsNullOrWhiteSpace(path) && CollectionData.IsBuiltInPath(path) && !CommandLine.UnlockBuiltin)
             path = null;
 
+        if (LevelBrowser == null || Collections == null) {
+            SelectedAssetPath = path;
+            ProjectSettingsSelected = false;
+            return;
+        }
+
         AssetManager.EnsureImported(path);
         IsSynchronizingSelection = true;
         try {
@@ -74,6 +80,12 @@ internal static unsafe class Editor {
     }
 
     public static void SelectProjectSettings() {
+
+        if (LevelBrowser == null || Collections == null) {
+            SelectedAssetPath = null;
+            ProjectSettingsSelected = true;
+            return;
+        }
 
         IsSynchronizingSelection = true;
         try {

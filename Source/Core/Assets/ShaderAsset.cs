@@ -22,6 +22,11 @@ internal class ShaderAsset : Asset {
 
         if (System.IO.File.Exists(Path.Combine(directory, name + ".fs"))) fsPath = Path.Combine(directory, name + ".fs");
 
+        if (vsPath == null && fsPath != null && !string.Equals(name, "transform", StringComparison.OrdinalIgnoreCase)) {
+            var sharedPostProcessPath = Path.Combine(directory, "postprocess.vs");
+            if (System.IO.File.Exists(sharedPostProcessPath)) vsPath = sharedPostProcessPath;
+        }
+
         if (vsPath == null && fsPath == null) return false;
 
         var jsonPath = File + ".json";
