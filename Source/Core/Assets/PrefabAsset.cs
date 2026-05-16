@@ -22,11 +22,19 @@ internal class PrefabAsset : Asset {
             JsonFile.WriteIndented(File, json, ensureDirectory: false);
 
         IsLoaded = true;
+        ThumbnailDirty = true;
+        if (!AssetManager.IsInitializing) Preview.UpdateThumbnail(this);
         return true;
     }
 
     public override void Unload() {
 
+        if (Thumbnail.HasValue) {
+            Raylib_cs.Raylib.UnloadTexture(Thumbnail.Value);
+            Thumbnail = null;
+        }
+
+        ThumbnailDirty = true;
         IsLoaded = false;
     }
 

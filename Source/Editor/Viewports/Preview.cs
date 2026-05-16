@@ -1128,6 +1128,8 @@ internal class Preview : Viewport {
                 case TextureAsset tex: GenerateTextureThumbnail(tex); break;
 
                 case MaterialAsset or ModelAsset: Generate3DThumbnail(asset); break;
+
+                case LevelAsset or PrefabAsset: GenerateDocumentThumbnail(asset); break;
             }
 
         } finally {
@@ -1226,6 +1228,57 @@ internal class Preview : Viewport {
         UnloadRenderTexture(rt);
     }
 
+    private static unsafe void GenerateDocumentThumbnail(Asset asset) {
+
+        if (!asset.IsLoaded || !File.Exists(asset.File)) return;
+
+        var level = new Level(CollectionData.GetLevelDisplayName(asset.File), asset.File, load: true, applyEditorCamera: false);
+
+        try {
+            LoadPreviewLevelComponents(level.Root);
+            SyncPreviewLevelTransforms(level.Root);
+
+            const int size = 64;
+            var rt = LoadRenderTexture(size, size);
+
+            try {
+                BeginTextureMode(rt);
+                ClearBackground(level.BackgroundColor);
+
+                var dist = GetLevelAutoDistance(level, out var targetPos) * 1.35f;
+                var camera = new Raylib_cs.Camera3D {
+                    Position = targetPos + Vector3.Normalize(new Vector3(1f, 0.8f, 1f)) * dist,
+                    Target = targetPos,
+                    Up = Vector3.UnitY,
+                    FovY = 45.0f,
+                    Projection = CameraProjection.Perspective
+                };
+
+                BeginMode3D(camera);
+                RenderPreviewLevelHierarchyStatic(level.Root, camera, targetPos, dist);
+                EndMode3D();
+                EndTextureMode();
+
+                var img = LoadImageFromTexture(rt.Texture);
+                ImageFlipVertical(&img);
+
+                if (asset.Thumbnail.HasValue) {
+                    UnloadTexture(asset.Thumbnail.Value);
+                    asset.Thumbnail = null;
+                }
+
+                asset.Thumbnail = LoadTextureFromImage(img);
+                asset.ThumbnailDirty = false;
+                UnloadImage(img);
+            } finally {
+                UnloadRenderTexture(rt);
+            }
+
+        } finally {
+            level.Root.Dispose();
+        }
+    }
+
     private static void RenderAsset3DStatic(Asset asset, Raylib_cs.Camera3D camera, Vector3 target, float distance) {
 
         switch (asset) {
@@ -1263,6 +1316,24 @@ internal class Preview : Viewport {
                 break;
             }
         }
+    }
+
+    private static void RenderPreviewLevelHierarchyStatic(Obj obj, Raylib_cs.Camera3D camera, Vector3 target, float distance) {
+
+        obj.VisualWorldMatrix = obj.WorldMatrix;
+
+        foreach (var component in obj.ComponentEntries.Values) {
+
+            if (component is not Model { IsLoaded: true } model) continue;
+
+            foreach (var matAsset in model.AssetRef.CachedMaterialAssets.Where(matAsset => matAsset is { IsLoaded: true }).Distinct())
+                SetupPreviewLightingStatic(matAsset!, camera, target, distance);
+
+            model.Draw();
+        }
+
+        foreach (var child in obj.ChildEntries.Values)
+            RenderPreviewLevelHierarchyStatic(child, camera, target, distance);
     }
 
     private readonly record struct ColoredTextSegment(string Text, Vector4 Color);

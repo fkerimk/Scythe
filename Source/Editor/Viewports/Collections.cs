@@ -3,6 +3,7 @@ using System.IO.Compression;
 using ImGuiNET;
 using NativeFileDialogNET;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using Raylib_cs;
 using static ImGuiNET.ImGui;
 using static Raylib_cs.Raylib;
@@ -1353,6 +1354,8 @@ internal class Collections : Viewport {
 
         if (CollectionData.IsMaterial(path)) return AssetManager.GetOrImport<MaterialAsset>(path)?.Thumbnail;
         if (CollectionData.IsModel(path)) return AssetManager.GetOrImport<ModelAsset>(path)?.Thumbnail;
+        if (CollectionData.IsLevel(path)) return AssetManager.GetOrImport<LevelAsset>(path)?.Thumbnail;
+        if (CollectionData.IsPrefab(path)) return AssetManager.GetOrImport<PrefabAsset>(path)?.Thumbnail;
 
         return null;
     }
@@ -1636,15 +1639,15 @@ internal class Collections : Viewport {
             .OrderBy(path => path, new NaturalStringComparer()!)
             .ToList();
 
-        foreach (var file in files) {
-            var relativeDirectory = Path.GetDirectoryName(Path.GetRelativePath(sourceDirectory, file)) ?? "";
-            var targetDirectory = string.IsNullOrWhiteSpace(relativeDirectory)
-                ? collectionPath
-                : Path.Combine(collectionPath, relativeDirectory);
+        var importedFiles = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
-            Directory.CreateDirectory(targetDirectory);
-            CopyExternalFileTo(file, targetDirectory);
-        }
+        foreach (var file in files)
+            importedFiles[file] = CopyExternalFileFlatTo(file, collectionPath);
+
+        RewriteImportedAssetReferences(importedFiles);
+
+        foreach (var destinationPath in importedFiles.Values)
+            AssetManager.EnsureImported(destinationPath);
     }
 
     private static void ExpandNestedZipArchives(string rootDirectory) {
@@ -1666,6 +1669,13 @@ internal class Collections : Viewport {
     }
 
     private string CopyExternalFileTo(string sourceFile, string destinationDirectory) {
+
+        var destinationPath = GetAvailableFilePath(destinationDirectory, sourceFile);
+        File.Copy(sourceFile, destinationPath, overwrite: false);
+        return destinationPath;
+    }
+
+    private static string CopyExternalFileFlatTo(string sourceFile, string destinationDirectory) {
 
         var destinationPath = GetAvailableFilePath(destinationDirectory, sourceFile);
         File.Copy(sourceFile, destinationPath, overwrite: false);
@@ -1748,6 +1758,144 @@ internal class Collections : Viewport {
             modelAsset.ApplyMaterial(materialIndex, materialPath);
 
         modelAsset.SaveSettings();
+    }
+
+    private static void RewriteImportedAssetReferences(IReadOnlyDictionary<string, string> importedFiles) {
+
+        foreach (var (sourcePath, destinationPath) in importedFiles) {
+            var extension = Path.GetExtension(destinationPath).ToLowerInvariant();
+
+            switch (extension) {
+                case ".gltf":
+                    RewriteGltfReferences(sourcePath, destinationPath, importedFiles);
+                    break;
+                case ".obj":
+                    RewriteObjReferences(sourcePath, destinationPath, importedFiles);
+                    break;
+                case ".mtl":
+                    RewriteMtlReferences(sourcePath, destinationPath, importedFiles);
+                    break;
+            }
+        }
+    }
+
+    private static void RewriteGltfReferences(string sourcePath, string destinationPath, IReadOnlyDictionary<string, string> importedFiles) {
+
+        JObject? gltf;
+
+        try {
+            gltf = JsonConvert.DeserializeObject<JObject>(File.ReadAllText(destinationPath));
+        } catch {
+            return;
+        }
+
+        if (gltf == null) return;
+
+        var changed = false;
+        foreach (var token in gltf.SelectTokens("$.buffers[*].uri").Concat(gltf.SelectTokens("$.images[*].uri"))) {
+            var uri = token.Value<string>();
+            if (string.IsNullOrWhiteSpace(uri) || uri.StartsWith("data:", StringComparison.OrdinalIgnoreCase) || uri.Contains("://", StringComparison.Ordinal)) continue;
+
+            var sourceRefPath = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(sourcePath)!, uri));
+            if (!importedFiles.TryGetValue(sourceRefPath, out var rewrittenPath)) continue;
+
+            var rewrittenName = Path.GetFileName(rewrittenPath);
+            if (string.Equals(uri, rewrittenName, StringComparison.Ordinal)) continue;
+
+            token.Replace(rewrittenName);
+            changed = true;
+        }
+
+        if (!changed) return;
+
+        AssetManager.RegisterInternalWrite(destinationPath);
+        File.WriteAllText(destinationPath, gltf.ToString(Formatting.Indented));
+    }
+
+    private static void RewriteObjReferences(string sourcePath, string destinationPath, IReadOnlyDictionary<string, string> importedFiles) {
+
+        var sourceDirectory = Path.GetDirectoryName(sourcePath);
+        if (string.IsNullOrWhiteSpace(sourceDirectory) || !File.Exists(destinationPath)) return;
+
+        var changed = false;
+        var rewrittenLines = new List<string>();
+
+        foreach (var rawLine in File.ReadAllLines(destinationPath)) {
+            var line = rawLine;
+            var trimmed = rawLine.Trim();
+
+            if (trimmed.StartsWith("mtllib ", StringComparison.OrdinalIgnoreCase)) {
+                var refs = trimmed["mtllib ".Length..]
+                    .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                    .Select(reference => {
+                        var sourceRefPath = Path.GetFullPath(Path.Combine(sourceDirectory, reference));
+                        return importedFiles.TryGetValue(sourceRefPath, out var rewrittenPath)
+                            ? Path.GetFileName(rewrittenPath)
+                            : reference;
+                    })
+                    .ToArray();
+
+                var rewrittenLine = $"mtllib {string.Join(' ', refs)}";
+                if (!string.Equals(rewrittenLine, rawLine, StringComparison.Ordinal)) {
+                    line = rewrittenLine;
+                    changed = true;
+                }
+            }
+
+            rewrittenLines.Add(line);
+        }
+
+        if (!changed) return;
+
+        AssetManager.RegisterInternalWrite(destinationPath);
+        File.WriteAllLines(destinationPath, rewrittenLines);
+    }
+
+    private static void RewriteMtlReferences(string sourcePath, string destinationPath, IReadOnlyDictionary<string, string> importedFiles) {
+
+        var sourceDirectory = Path.GetDirectoryName(sourcePath);
+        if (string.IsNullOrWhiteSpace(sourceDirectory) || !File.Exists(destinationPath)) return;
+
+        var changed = false;
+        var rewrittenLines = new List<string>();
+
+        foreach (var rawLine in File.ReadAllLines(destinationPath)) {
+            var line = rawLine;
+            var trimmed = rawLine.Trim();
+
+            if (!string.IsNullOrWhiteSpace(trimmed) && !trimmed.StartsWith('#')) {
+                var firstSpace = trimmed.IndexOf(' ');
+                if (firstSpace > 0) {
+                    var keyword = trimmed[..firstSpace];
+                    if (keyword.StartsWith("map_", StringComparison.OrdinalIgnoreCase)
+                        || string.Equals(keyword, "bump", StringComparison.OrdinalIgnoreCase)
+                        || string.Equals(keyword, "disp", StringComparison.OrdinalIgnoreCase)
+                        || string.Equals(keyword, "decal", StringComparison.OrdinalIgnoreCase)
+                        || string.Equals(keyword, "refl", StringComparison.OrdinalIgnoreCase)) {
+                        var value = trimmed[(firstSpace + 1)..];
+                        var tokens = value.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+                        if (tokens.Count > 0) {
+                            var sourceRefPath = Path.GetFullPath(Path.Combine(sourceDirectory, tokens[^1]));
+                            if (importedFiles.TryGetValue(sourceRefPath, out var rewrittenPath)) {
+                                tokens[^1] = Path.GetFileName(rewrittenPath);
+                                var rewrittenLine = $"{keyword} {string.Join(' ', tokens)}";
+                                if (!string.Equals(rewrittenLine, rawLine.Trim(), StringComparison.Ordinal)) {
+                                    line = rewrittenLine;
+                                    changed = true;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            rewrittenLines.Add(line);
+        }
+
+        if (!changed) return;
+
+        AssetManager.RegisterInternalWrite(destinationPath);
+        File.WriteAllLines(destinationPath, rewrittenLines);
     }
 
     private static void AutoConfigureImportedCollection(string collectionPath) {

@@ -1157,9 +1157,19 @@ internal static class AssetManager {
                 Preview.UpdateThumbnail(model);
                 break;
 
-            case PrefabAsset prefab:
-                PrefabUtility.RefreshOpenPrefabInstances(prefab.File);
+            case AnimationAsset animation:
+                Preview.UpdateThumbnail(animation);
                 break;
+
+            case LevelAsset level:
+                Preview.UpdateThumbnail(level);
+                break;
+
+            case PrefabAsset prefabAsset:
+                Preview.UpdateThumbnail(prefabAsset);
+                PrefabUtility.RefreshOpenPrefabInstances(prefabAsset.File);
+                break;
+
         }
     }
 
@@ -1185,6 +1195,16 @@ internal static class AssetManager {
             model.ApplySettings();
             model.InvalidateThumbnail();
             Preview.UpdateThumbnail(model);
+        }
+
+        foreach (var level in GetAll<LevelAsset>().ToList()) {
+            level.InvalidateThumbnail();
+            Preview.UpdateThumbnail(level);
+        }
+
+        foreach (var prefab in GetAll<PrefabAsset>().ToList()) {
+            prefab.InvalidateThumbnail();
+            Preview.UpdateThumbnail(prefab);
         }
     }
 

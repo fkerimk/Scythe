@@ -1603,7 +1603,7 @@ internal partial class ObjectBrowser : Viewport {
         AddPickerType<PrefabAsset>(metadata, "PrefabAsset", CollectionAssetKind.Prefab, asset => CollectionData.GetLevelDisplayName(asset.File));
         AddPickerType<TextureAsset>(metadata, "TextureAsset", CollectionAssetKind.Texture, asset => Path.GetFileNameWithoutExtension(asset.File));
         AddPickerType<ModelAsset>(metadata, "ModelAsset", CollectionAssetKind.Model, asset => Path.GetFileNameWithoutExtension(asset.File));
-        AddPickerType<AnimationAsset>(metadata, "AnimationAsset", null, asset => Path.GetFileNameWithoutExtension(asset.File));
+        AddPickerType<AnimationAsset>(metadata, "AnimationAsset", CollectionAssetKind.Model, asset => Path.GetFileNameWithoutExtension(asset.File));
         AddPickerType<MaterialAsset>(metadata, "MaterialAsset", CollectionAssetKind.Material, asset => Path.GetFileNameWithoutExtension(asset.File));
         AddPickerType<ScriptAsset>(metadata, "ScriptAsset", CollectionAssetKind.Script, asset => Path.GetFileNameWithoutExtension(asset.File));
 
@@ -1647,6 +1647,8 @@ internal partial class ObjectBrowser : Viewport {
         if (CollectionData.IsTexture(path)) return AssetManager.GetOrImport<TextureAsset>(path)?.Thumbnail;
         if (CollectionData.IsMaterial(path)) return AssetManager.GetOrImport<MaterialAsset>(path)?.Thumbnail;
         if (CollectionData.IsModel(path)) return AssetManager.GetOrImport<ModelAsset>(path)?.Thumbnail;
+        if (CollectionData.IsLevel(path)) return AssetManager.GetOrImport<LevelAsset>(path)?.Thumbnail;
+        if (CollectionData.IsPrefab(path)) return AssetManager.GetOrImport<PrefabAsset>(path)?.Thumbnail;
 
         return null;
     }

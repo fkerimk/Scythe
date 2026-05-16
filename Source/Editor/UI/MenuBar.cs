@@ -45,8 +45,49 @@ internal static class MenuBar {
             EndMenu();
         }
 
+        if (BeginMenu("Help")) {
+
+            if (MenuItem("Clear Build Cache"))
+                ClearBuildCache();
+
+            if (MenuItem("Clear Asset Cache"))
+                ClearAssetCache();
+
+            EndMenu();
+        }
+
         BuildPipeline.DrawMenu();
 
         EndMainMenuBar();
+    }
+
+    private static void ClearBuildCache() {
+
+        var assemblyPath = Path.Combine(ScytheConfig.Current.Project, "Assembly");
+
+        try {
+            if (Directory.Exists(assemblyPath))
+                Directory.Delete(assemblyPath, recursive: true);
+
+            Notifications.Show("Build cache cleared.");
+        } catch (Exception e) {
+            Notifications.Show($"Build cache clear failed: {e.Message}");
+        }
+    }
+
+    private static void ClearAssetCache() {
+
+        var importsPath = Path.Combine(ScytheConfig.Current.Project, "Imports");
+
+        try {
+            if (Directory.Exists(importsPath))
+                Directory.Delete(importsPath, recursive: true);
+
+            AssetManager.Init();
+            Core.Load();
+            Notifications.Show("Asset cache cleared.");
+        } catch (Exception e) {
+            Notifications.Show($"Asset cache clear failed: {e.Message}");
+        }
     }
 }
