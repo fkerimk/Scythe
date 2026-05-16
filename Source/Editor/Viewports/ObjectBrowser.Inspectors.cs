@@ -109,7 +109,7 @@ internal partial class ObjectBrowser {
             var (skyboxAmbientIntensityChanged, skyboxAmbientIntensityDeactivated) = DrawInspectorField("LevelAssetSkyboxAmbientIntensity", ref skyboxAmbientIntensityValue, typeof(float), [levelAsset], nameof(LevelAsset.SkyboxAmbientIntensity));
 
             if (skyboxAmbientIntensityChanged) {
-                levelAsset.SkyboxAmbientIntensity = Math.Clamp((float)skyboxAmbientIntensityValue!, 0.0f, 1.0f);
+                levelAsset.SkyboxAmbientIntensity = (float)skyboxAmbientIntensityValue!;
                 levelAsset.SaveSettings();
                 levelAsset.ApplyToActiveLevelIfOpen();
             }

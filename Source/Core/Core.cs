@@ -435,7 +435,7 @@ internal static class Core {
 
     private static unsafe Color GetSkyboxAmbientColor(Image image, float intensity) {
 
-        intensity = Math.Clamp(intensity, 0.0f, 1.0f);
+        intensity = Math.Max(intensity, 0.0f);
         var colors = LoadImageColors(image);
         if (colors == null) return Color.White;
 

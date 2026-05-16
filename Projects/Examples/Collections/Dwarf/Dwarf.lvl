@@ -40,7 +40,6 @@
             "GUID": "5f7a4b3df2764935b97a9e9112ca69e2",
             "Path": "Dwarf/WizardGnome/WizardGnome.fbx",
             "IsPlaying": true,
-            "Looping": true,
             "$ComponentType": "Animation"
           },
           {

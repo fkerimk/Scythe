@@ -380,5 +380,5 @@
     "A": 255
   },
   "SkyboxAmbientEnabled": true,
-  "SkyboxAmbientIntensity": 1.0
+  "SkyboxAmbientIntensity": 2.0
 }

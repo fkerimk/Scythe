@@ -29,6 +29,9 @@ internal static unsafe class Editor {
     // ReSharper restore MemberCanBePrivate.Global
 
     private static Level? _editorLevelRef;
+    private static List<Level>? _editorOpenLevelsSnapshot;
+    private static int _editorActiveLevelIndexSnapshot = -1;
+    private static string? _editorActiveLevelPathSnapshot;
     internal static bool IsSynchronizingSelection { get; private set; }
     public static string? SelectedAssetPath { get; private set; }
     public static bool ProjectSettingsSelected { get; private set; }
@@ -415,6 +418,9 @@ internal static unsafe class Editor {
         if (!Core.IsPlaying) {
             // Isolate editor state
             _editorLevelRef = Core.ActiveLevel;
+            _editorOpenLevelsSnapshot = Core.OpenLevels.ToList();
+            _editorActiveLevelIndexSnapshot = Core.ActiveLevelIndex;
+            _editorActiveLevelPathSnapshot = Core.ActiveLevel?.JsonPath;
             var selectedPaths = CaptureSelectedObjectPaths();
             LevelBrowser.DragObject = null;
             LevelBrowser.DragTarget = null;
@@ -430,9 +436,9 @@ internal static unsafe class Editor {
             // Re-init physics to clear any leftovers and prepare for fresh simulation
             Physics.Init();
 
-            // Replace the level reference in the active slot with a runtime clone
-            Core.OpenLevels[Core.ActiveLevelIndex] = CloneLevelForPlayMode(_editorLevelRef);
-            Core.SetActiveLevel(Core.ActiveLevelIndex, clearHistory: false);
+            // Replace editor-open tabs with isolated runtime clones so scene switches during play
+            // do not mutate or dispose the editor tab/session state.
+            ReplaceOpenLevels(_editorOpenLevelsSnapshot.Select(CloneLevelForPlayMode).ToList(), _editorActiveLevelIndexSnapshot);
             Core.Load();
             RestoreSelectedObjectPaths(selectedPaths);
             Core.ApplyPresentationSettings();
@@ -459,17 +465,21 @@ internal static unsafe class Editor {
             // Re-init physics to clear runtime bodies
             Physics.Init();
 
-            // Restore - Undo history holds references to objects in _editorLevelRef.
-            if (_editorLevelRef != null) {
-                Core.OpenLevels[Core.ActiveLevelIndex] = _editorLevelRef;
-                Core.SetActiveLevel(Core.ActiveLevelIndex, clearHistory: false);
+            if (_editorOpenLevelsSnapshot != null) {
+                DisposeOpenLevels(except: _editorOpenLevelsSnapshot);
+                var restoreIndex = ResolveRestoredActiveLevelIndex(_editorOpenLevelsSnapshot, _editorActiveLevelIndexSnapshot, _editorActiveLevelPathSnapshot);
+                ReplaceOpenLevels(_editorOpenLevelsSnapshot, restoreIndex);
 
                 // Force reload rigidbodies because Physics World was reset
-                ReloadPhysics(_editorLevelRef.Root);
+                foreach (var level in _editorOpenLevelsSnapshot)
+                    ReloadPhysics(level.Root);
                 RestoreSelectedObjectPaths(selectedPaths);
                 Core.ApplyPresentationSettings();
 
                 _editorLevelRef = null;
+                _editorOpenLevelsSnapshot = null;
+                _editorActiveLevelIndexSnapshot = -1;
+                _editorActiveLevelPathSnapshot = null;
             }
 
             Notifications.Show("Play Mode Stopped");
@@ -544,6 +554,45 @@ internal static unsafe class Editor {
             child.DeepClone(clone.Root, preserveName: true);
 
         return clone;
+    }
+
+    private static void ReplaceOpenLevels(List<Level> levels, int activeIndex) {
+
+        Core.OpenLevels.Clear();
+        Core.OpenLevels.AddRange(levels);
+
+        if (Core.OpenLevels.Count == 0) {
+            Core.ActiveLevelIndex = -1;
+            return;
+        }
+
+        activeIndex = Math.Clamp(activeIndex, 0, Core.OpenLevels.Count - 1);
+        Core.SetActiveLevel(activeIndex, clearHistory: false);
+    }
+
+    private static void DisposeOpenLevels(IEnumerable<Level>? except = null) {
+
+        var excluded = except != null ? new HashSet<Level>(except) : null;
+
+        foreach (var level in Core.OpenLevels.ToList()) {
+
+            if (excluded?.Contains(level) == true) continue;
+            level.Root.Dispose();
+        }
+    }
+
+    private static int ResolveRestoredActiveLevelIndex(List<Level> levels, int fallbackIndex, string? activePath) {
+
+        if (!string.IsNullOrWhiteSpace(activePath)) {
+
+            var pathIndex = levels.FindIndex(level =>
+                string.Equals(Path.GetFullPath(level.JsonPath), Path.GetFullPath(activePath), StringComparison.OrdinalIgnoreCase));
+            if (pathIndex >= 0) return pathIndex;
+        }
+
+        if (fallbackIndex >= 0 && fallbackIndex < levels.Count) return fallbackIndex;
+
+        return levels.Count > 0 ? 0 : -1;
     }
 
     private static void ReloadPhysics(Obj obj) {
