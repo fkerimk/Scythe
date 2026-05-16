@@ -404,6 +404,7 @@ internal class Preview : Viewport {
     private void Draw3DPreview(Asset asset) {
 
         if (!asset.IsLoaded) return;
+        if (!IsAssetReady(asset)) return;
 
         // Interaction
         if (IsWindowHovered()) {

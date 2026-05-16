@@ -1162,7 +1162,18 @@ internal class Collections : Viewport {
     }
 
     private static bool IsVisibleCollectionFile(string path) =>
-        !IsSidecarMetaFile(path) && !IsEditorCollectionFile(path);
+        !IsSidecarMetaFile(path) && !IsEditorCollectionFile(path) && !IsHiddenModelSidecar(path);
+
+    private static bool IsHiddenModelSidecar(string path) {
+
+        if (!string.Equals(Path.GetExtension(path), ".bin", StringComparison.OrdinalIgnoreCase)) return false;
+
+        var directory = Path.GetDirectoryName(path);
+        if (string.IsNullOrWhiteSpace(directory)) return false;
+
+        var sameNameGltf = Path.Combine(directory, Path.GetFileNameWithoutExtension(path) + ".gltf");
+        return File.Exists(sameNameGltf);
+    }
 
     private static bool IsKnownFile(string path) =>
         CollectionData.IsShader(path)

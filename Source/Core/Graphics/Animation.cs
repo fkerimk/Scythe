@@ -70,6 +70,24 @@ internal class Animation(Obj obj) : Component(obj) {
         var guid = GUID;
         var path = Path;
         var loaded = AssetManager.ResolveReference<AnimationAsset>(ref guid, ref path);
+
+        if (loaded is not { IsLoaded: true }) {
+            var modelGuid = GUID;
+            var modelPath = Path;
+            var modelAsset = AssetManager.ResolveReference<ModelAsset>(ref modelGuid, ref modelPath)
+                ?? AssetManager.Get<ModelAsset>(GUID)
+                ?? AssetManager.Get<ModelAsset>(Path)
+                ?? AssetManager.GetOrImport<ModelAsset>(Path);
+
+            if (modelAsset is { IsLoaded: true }) {
+                loaded = AssetManager.GetOrImport<AnimationAsset>(modelAsset.File);
+                if (loaded is { IsLoaded: true }) {
+                    guid = loaded.GUID;
+                    path = AssetManager.GetStoredPath(loaded.File);
+                }
+            }
+        }
+
         GUID = guid;
         Path = path;
 
