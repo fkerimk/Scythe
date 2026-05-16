@@ -330,7 +330,7 @@ internal static class History {
             level.Save();
             if (ReferenceEquals(Core.ActiveLevel, level)) Core.ApplyLevelVisualSettings();
         } else if (target is LevelAsset levelAsset) {
-            levelAsset.SkyboxAmbientIntensity = Math.Clamp(levelAsset.SkyboxAmbientIntensity, 0.0f, 1.0f);
+            levelAsset.SkyboxAmbientIntensity = Math.Max(levelAsset.SkyboxAmbientIntensity, 0.0f);
             levelAsset.SaveSettings();
             levelAsset.ApplyToActiveLevelIfOpen();
         } else if (target is ScriptAsset scriptAsset) {

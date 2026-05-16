@@ -32,7 +32,7 @@ internal class LevelAsset : Asset {
         BackgroundColor = json["BackgroundColor"]?.ToObject<Color?>() ?? new Color(25, 25, 25, 255);
         AmbientColor = json["AmbientColor"]?.ToObject<Color?>() ?? Color.White;
         SkyboxAmbientEnabled = json["SkyboxAmbientEnabled"]?.Value<bool>() ?? false;
-        SkyboxAmbientIntensity = Math.Clamp(json["SkyboxAmbientIntensity"]?.Value<float>() ?? 1.0f, 0.0f, 1.0f);
+        SkyboxAmbientIntensity = Math.Max(json["SkyboxAmbientIntensity"]?.Value<float>() ?? 1.0f, 0.0f);
 
         if (changed)
             JsonFile.WriteIndented(File, json, ensureDirectory: false);

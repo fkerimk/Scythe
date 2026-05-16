@@ -161,7 +161,7 @@ internal class Level {
                 SkyboxPath = rawData["SkyboxPath"]?.Value<string>() ?? "";
                 SkyboxTint = ReadJsonValue(rawData, "SkyboxTint", SkyboxTint);
                 SkyboxAmbientEnabled = rawData["SkyboxAmbientEnabled"]?.Value<bool>() ?? false;
-                SkyboxAmbientIntensity = Math.Clamp(rawData["SkyboxAmbientIntensity"]?.Value<float>() ?? 1.0f, 0.0f, 1.0f);
+                SkyboxAmbientIntensity = Math.Max(rawData["SkyboxAmbientIntensity"]?.Value<float>() ?? 1.0f, 0.0f);
                 BackgroundColor = ReadJsonValue(rawData, "BackgroundColor", BackgroundColor);
                 AmbientColor = ReadJsonValue(rawData, "AmbientColor", AmbientColor);
 
