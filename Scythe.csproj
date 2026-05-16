@@ -25,7 +25,6 @@
 
     <!-- Essential Core Packages -->
     <ItemGroup>
-        <PackageReference Include="AssimpNetter" Version="6.0.4" />
         <PackageReference Include="Raylib-cs" Version="7.0.2" />
         <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
         <PackageReference Include="Jitter2" Version="2.8.5" />
@@ -33,6 +32,7 @@
 
     <!-- Editor Only Packages -->
     <ItemGroup Condition="'$(ScytheRuntimeBuild)' != 'true'">
+        <PackageReference Include="AssimpNetter" Version="6.0.4" />
         <PackageReference Include="CliWrap" Version="3.10.1" />
         <PackageReference Include="DeepCloner" Version="0.10.4" />
         <PackageReference Include="Scriban" Version="7.2.0" />
@@ -70,6 +70,7 @@
         <Compile Remove="Source/Helpers/Editor/**/*.cs" />
         <Compile Remove="Source/Helpers/IO/CommandRunner.cs" />
         <Compile Remove="Source/Core/Utilities/AssimpLoader.cs" />
+        <Compile Remove="Source/Core/Utilities/AssimpLoader.Embedded.cs" />
     </ItemGroup>
 
     <!-- Runtime Data Bundling -->

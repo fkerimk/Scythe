@@ -27,6 +27,10 @@ internal class EditorRender {
 internal class LevelBrowser {
     public static List<Obj> SelectedObjects { get; } = [];
     public static Obj? SelectedObject => SelectedObjects.Count > 0 ? SelectedObjects[0] : null;
+    public static void SelectObject(Obj? obj, bool multiSelect = false) {
+        SelectedObjects.Clear();
+        if (obj != null) SelectedObjects.Add(obj);
+    }
 }
 
 internal static class History {
