@@ -20,7 +20,7 @@ internal static class PostProcessing {
         var shaderFiles = new[] { "bloom", "blur", "cross_hatching", "cross_stitching", "dream_vision", "fisheye", "fxaa", "smaa", "grayscale", "pixelizer", "posterization", "predator", "scanlines", "sobel", "ssao", "taa" };
 
         foreach (var name in shaderFiles) {
-            var shaderAsset = AssetManager.Get<ShaderAsset>($"Collection/{name}.fs");
+            var shaderAsset = AssetManager.GetOrImport<ShaderAsset>($"Collection/{name}.fs");
 
             if (shaderAsset is { Shader.Id: not 0 })
                 _shaders[name] = shaderAsset.Shader;

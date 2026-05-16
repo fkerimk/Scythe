@@ -61,7 +61,7 @@ internal static class Core {
         else while (Splash.IsLoading) Tasks.Update();
 
         // Setup Global PBR Uniforms
-        var pbr = AssetManager.Get<ShaderAsset>("Collection/pbr.vs");
+        var pbr = AssetManager.GetOrImport<ShaderAsset>("Collection/pbr.vs");
 
         ApplyPresentationSettings();
 
@@ -71,7 +71,7 @@ internal static class Core {
         var cube = GenMeshCube(1.0f, 1.0f, 1.0f);
         _skyboxModel = LoadModelFromMesh(cube);
 
-        var skybox = AssetManager.Get<ShaderAsset>("Collection/skybox.vs");
+        var skybox = AssetManager.GetOrImport<ShaderAsset>("Collection/skybox.vs");
         if (skybox != null) _skyboxModel.Materials[0].Shader = skybox.Shader;
 
         // Level & camera
@@ -362,7 +362,7 @@ internal static class Core {
 
     public static void ApplyPresentationSettings() {
 
-        var pbr = AssetManager.Get<ShaderAsset>("Collection/pbr.vs");
+        var pbr = AssetManager.GetOrImport<ShaderAsset>("Collection/pbr.vs");
         if (pbr == null) return;
 
         var useRuntimeSettings = IsRuntimePresentation;
@@ -565,7 +565,7 @@ internal static class Core {
 
     public static void ApplyViewPosition(Camera3D? camera) {
 
-        var pbr = AssetManager.Get<ShaderAsset>("Collection/pbr.vs");
+        var pbr = AssetManager.GetOrImport<ShaderAsset>("Collection/pbr.vs");
         if (pbr != null) SetShaderValue(pbr.Shader, pbr.GetLoc("view_pos"), camera?.Position ?? Vector3.Zero, ShaderUniformDataType.Vec3);
     }
 
@@ -691,7 +691,7 @@ internal static class Core {
 
         if (renderCamera == null) return;
 
-        var pbr = AssetManager.Get<ShaderAsset>("Collection/pbr.vs");
+        var pbr = AssetManager.GetOrImport<ShaderAsset>("Collection/pbr.vs");
 
         if (pbr == null) return;
 

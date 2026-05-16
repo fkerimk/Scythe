@@ -9,7 +9,7 @@ internal static class Grid {
 
         var gridPos = new Vector3((int)camera.Position.X, 0, (int)camera.Position.Z);
 
-        var grid = AssetManager.Get<ShaderAsset>("Collection/grid.vs");
+        var grid = AssetManager.GetOrImport<ShaderAsset>("Collection/grid.vs");
 
         if (grid == null) return;
 

@@ -327,7 +327,7 @@ internal static unsafe class Editor {
 
             // Post-process outline
             if ((LevelBrowser.SelectedObject != null || Picking.IsDragging) && !LevelBrowser.IsReorderingObject) {
-                var outlinePost = AssetManager.Get<ShaderAsset>("Collection/outline_post.vs");
+                var outlinePost = AssetManager.GetOrImport<ShaderAsset>("Collection/outline_post.vs");
 
                 if (outlinePost != null) {
                     BeginShaderMode(outlinePost.Shader);
@@ -626,7 +626,7 @@ internal static unsafe class Editor {
 
             // Override shaders
             var modelAsset = model.AssetRef;
-            var outlineMask = AssetManager.Get<ShaderAsset>("Collection/outline_mask.vs");
+            var outlineMask = AssetManager.GetOrImport<ShaderAsset>("Collection/outline_mask.vs");
 
             if (outlineMask != null) {
                 // Track original shaders by Material index to handle shared materials correctly

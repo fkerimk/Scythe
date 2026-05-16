@@ -962,7 +962,7 @@ internal class Preview : Viewport {
 
     private void SetupPreviewLighting(MaterialAsset mat, Raylib_cs.Camera3D camera, Vector3 target, float distance) {
 
-        var shaderAsset = AssetManager.Get<ShaderAsset>(mat.Data.Shader) ?? AssetManager.Get<ShaderAsset>("Collection/pbr.vs");
+        var shaderAsset = AssetManager.GetOrImport<ShaderAsset>(mat.Data.Shader) ?? AssetManager.GetOrImport<ShaderAsset>("Collection/pbr.vs");
 
         if (shaderAsset is not { IsLoaded: true }) return;
 
@@ -1010,7 +1010,7 @@ internal class Preview : Viewport {
 
     private static void SetupPreviewLightingStatic(MaterialAsset mat, Raylib_cs.Camera3D camera, Vector3 target, float distance) {
 
-        var shaderAsset = AssetManager.Get<ShaderAsset>(mat.Data.Shader) ?? AssetManager.Get<ShaderAsset>("Collection/pbr.vs");
+        var shaderAsset = AssetManager.GetOrImport<ShaderAsset>(mat.Data.Shader) ?? AssetManager.GetOrImport<ShaderAsset>("Collection/pbr.vs");
 
         if (shaderAsset is not { IsLoaded: true }) return;
 

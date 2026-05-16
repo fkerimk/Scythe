@@ -319,7 +319,7 @@ internal class Transform(Obj obj) : Component(obj) {
             if (IsKeyPressed(KeyboardKey.X)) _isWorldSpace = !_isWorldSpace;
         }
 
-        var transformShader = AssetManager.Get<ShaderAsset>("Collection/transform.fs");
+        var transformShader = AssetManager.GetOrImport<ShaderAsset>("Collection/transform.fs");
         if (transformShader != null) BeginShaderMode(transformShader.Shader);
 
         var ray = GetScreenToWorldRay(EditorRender.RelativeMouse3D, Core.ActiveCamera.Raylib);

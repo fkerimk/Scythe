@@ -159,7 +159,7 @@ internal class Model(Obj obj) : Component(obj) {
 
         if (!CastShadows) return;
 
-        var depth = AssetManager.Get<ShaderAsset>("Collection/depth.vs");
+        var depth = AssetManager.GetOrImport<ShaderAsset>("Collection/depth.vs");
         Draw(shaderOverride: depth?.Shader);
     }
 
