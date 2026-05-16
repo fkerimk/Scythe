@@ -17,9 +17,9 @@ out vec4 finalColor;
 uniform float renderWidth;
 uniform float renderHeight;
 
-uniform float stitchingSize = 6.0;
+uniform float stitchingSize;
 
-uniform int invert = 0;
+const int invert = 0;
 
 vec4 PostFX(sampler2D tex, vec2 uv)
 {

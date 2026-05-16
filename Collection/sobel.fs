@@ -12,7 +12,7 @@ uniform vec4 colDiffuse;
 out vec4 finalColor;
 
 // NOTE: Add your custom variables here
-uniform vec2 resolution = vec2(800, 450);
+uniform vec2 resolution;
 
 void main()
 {

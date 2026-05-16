@@ -14,9 +14,9 @@ out vec4 finalColor;
 // NOTE: Add your custom variables here
 
 uniform vec2 renderSize;
-uniform float intensity = 1.0;
-uniform float samples = 5.0;
-uniform float quality = 2.5;
+uniform float intensity;
+const float samples = 5.0;
+const float quality = 2.5;
 
 void main()
 {

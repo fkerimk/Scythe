@@ -9,9 +9,9 @@ uniform sampler2D depthTexture;
 uniform mat4 matProjection;
 uniform mat4 matProjectionInverse;
 
-uniform float ssaoRadius = 0.5;
-uniform float ssaoBias = 0.025;
-uniform float ssaoIntensity = 2.0;
+uniform float ssaoRadius;
+uniform float ssaoBias;
+uniform float ssaoIntensity;
 uniform vec2 renderSize;
 
 out vec4 finalColor;

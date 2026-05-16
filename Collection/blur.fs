@@ -4,7 +4,7 @@ in vec2 fragTexCoord;
 in vec4 fragColor;
 
 uniform sampler2D texture0;
-uniform float radius = 1.0;
+uniform float radius;
 uniform vec2 resolution;
 
 out vec4 finalColor;
