@@ -1,12 +1,63 @@
 {
   "GUID": "cb053817c9994577ae188a1ce387e57a",
   "AnimationGUID": "5f7a4b3df2764935b97a9e9112ca69e2",
-  "AnimationPath": "Collections/Dwarf/WizardGnome/WizardGnome.fbx",
+  "AnimationPath": "Dwarf/WizardGnome/WizardGnome.fbx",
   "MeshMaterials": {
     "0": "7a139f23cec541148e2b7e47d754401c"
   },
   "MeshMaterialPaths": {
-    "0": "Collections/Dwarf/WizardGnome/WizardGnome.mat"
+    "0": "Dwarf/WizardGnome/WizardGnome.mat"
   },
-  "ImportScale": 0.01
+  "ImportScale": 0.01,
+  "AnimationClips": [
+    {
+      "Name": "Wizard_Gnome_Armature|agree",
+      "Track": 0,
+      "StartFrame": 0,
+      "EndFrame": 34,
+      "Loop": true
+    },
+    {
+      "Name": "Wizard_Gnome_Armature|Curse",
+      "Track": 1,
+      "StartFrame": 0,
+      "EndFrame": 25,
+      "Loop": true
+    },
+    {
+      "Name": "Wizard_Gnome_Armature|disagree",
+      "Track": 2,
+      "StartFrame": 0,
+      "EndFrame": 34,
+      "Loop": true
+    },
+    {
+      "Name": "Wizard_Gnome_Armature|Fall",
+      "Track": 3,
+      "StartFrame": 0,
+      "EndFrame": 11,
+      "Loop": true
+    },
+    {
+      "Name": "Wizard_Gnome_Armature|Hit",
+      "Track": 4,
+      "StartFrame": 0,
+      "EndFrame": 17,
+      "Loop": true
+    },
+    {
+      "Name": "Wizard_Gnome_Armature|idle",
+      "Track": 5,
+      "StartFrame": 0,
+      "EndFrame": 29,
+      "Loop": true
+    },
+    {
+      "Name": "Wizard_Gnome_Armature|Walking",
+      "Track": 6,
+      "StartFrame": 0,
+      "EndFrame": 18,
+      "Loop": true
+    }
+  ]
 }
