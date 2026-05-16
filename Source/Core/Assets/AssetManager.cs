@@ -234,7 +234,7 @@ internal static class AssetManager {
             ["ShaderAsset"] = CreatePickerBinding<ShaderAsset>(),
             ["TextureAsset"] = CreatePickerBinding<TextureAsset>(),
             ["ModelAsset"] = CreatePickerBinding<ModelAsset>(),
-            ["AnimationAsset"] = CreatePickerBinding<AnimationAsset>(),
+            ["AnimationAsset"] = CreateAnimationPickerBinding(),
             ["MaterialAsset"] = CreatePickerBinding<MaterialAsset>(),
             ["ScriptAsset"] = CreatePickerBinding<ScriptAsset>(),
             ["PrefabAsset"] = CreatePickerBinding<PrefabAsset>(),
@@ -243,6 +243,18 @@ internal static class AssetManager {
 
     private static PickerBinding CreatePickerBinding<T>() where T : Asset =>
         new(() => GetNames<T>(), path => GetOrImport<T>(path)?.GUID ?? "");
+
+    private static PickerBinding CreateAnimationPickerBinding() =>
+        new(() => GetNames<AnimationAsset>(), path => {
+            var animation = GetOrImport<AnimationAsset>(path);
+            if (animation is { IsLoaded: true } && !string.IsNullOrWhiteSpace(animation.GUID)) return animation.GUID;
+
+            var model = GetOrImport<ModelAsset>(path);
+            if (model is not { IsLoaded: true }) return "";
+
+            animation = GetOrImport<AnimationAsset>(model.File);
+            return animation?.GUID ?? "";
+        });
 
     private static void HandleFileChange(string file) {
 

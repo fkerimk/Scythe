@@ -404,7 +404,15 @@ internal class Preview : Viewport {
     private void Draw3DPreview(Asset asset) {
 
         if (!asset.IsLoaded) return;
-        if (!IsAssetReady(asset)) return;
+        if (!IsAssetReady(asset)) {
+            if (asset is ModelAsset model) UpdateThumbnail(model);
+            return;
+        }
+
+        if (asset is ModelAsset { ThumbnailDirty: true } pendingModel) {
+            UpdateThumbnail(pendingModel);
+            if (pendingModel.Thumbnail is null) return;
+        }
 
         // Interaction
         if (IsWindowHovered()) {

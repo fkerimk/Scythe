@@ -1164,6 +1164,9 @@ internal class Collections : Viewport {
     private static bool IsVisibleCollectionFile(string path) =>
         !IsSidecarMetaFile(path) && !IsEditorCollectionFile(path) && !IsHiddenModelSidecar(path);
 
+    private static bool IsVisibleImportFile(string path) =>
+        !IsSidecarMetaFile(path) && !IsEditorCollectionFile(path);
+
     private static bool IsHiddenModelSidecar(string path) {
 
         if (!string.Equals(Path.GetExtension(path), ".bin", StringComparison.OrdinalIgnoreCase)) return false;
@@ -1646,7 +1649,7 @@ internal class Collections : Viewport {
     private void ImportDirectoryContentsToCollection(string sourceDirectory, string collectionPath) {
 
         var files = Directory.EnumerateFiles(sourceDirectory, "*", SearchOption.AllDirectories)
-            .Where(IsVisibleCollectionFile)
+            .Where(IsVisibleImportFile)
             .OrderBy(path => path, new NaturalStringComparer()!)
             .ToList();
 
