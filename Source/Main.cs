@@ -7,14 +7,14 @@ NativeResolver.Init();
 if (BundleRuntime.TryActivate()) CommandLine.Runtime = true;
 
 if (CommandLine.SplashHelper) {
-    SetTraceLogLevel(TraceLogLevel.Error);
+    SetTraceLogLevel(TraceLogLevel.All);
     Splash.RunExternalHelperLoop();
     if (IsWindowReady()) CloseWindow();
     return 0;
 }
 
 // Initialize window
-SetTraceLogLevel(TraceLogLevel.Error);
+SetTraceLogLevel(TraceLogLevel.All);
 Window.Show(width: 1280, height: 720, maximize: false, flags: [ConfigFlags.ResizableWindow]);
 
 if (!CommandLine.Runtime) CommandLine.NoSplash = false;
