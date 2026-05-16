@@ -1547,7 +1547,7 @@ internal class Collections : Viewport {
         var fullSourcePath = Path.GetFullPath(sourcePath);
 
         if (Directory.Exists(fullSourcePath)) {
-            yield return ImportDirectoryIntoCollection(fullSourcePath, destinationDirectory, Path.GetFileName(fullSourcePath));
+            yield return ImportDirectoryIntoCollection(fullSourcePath, destinationDirectory, Path.GetFileName(fullSourcePath), deleteSourceDirectory: false);
             yield break;
         }
 
@@ -1558,7 +1558,7 @@ internal class Collections : Viewport {
             yield break;
         }
 
-        yield return MoveExternalFileTo(fullSourcePath, destinationDirectory);
+        yield return CopyExternalFileTo(fullSourcePath, destinationDirectory);
     }
 
     private string ImportZipIntoCollection(string zipPath, string destinationDirectory) {
@@ -1603,7 +1603,7 @@ internal class Collections : Viewport {
             .ToList();
 
         foreach (var file in files)
-            MoveExternalFileTo(file, collectionPath);
+            CopyExternalFileTo(file, collectionPath);
     }
 
     private static void ExpandNestedZipArchives(string rootDirectory) {
@@ -1624,17 +1624,10 @@ internal class Collections : Viewport {
         }
     }
 
-    private string MoveExternalDirectoryTo(string sourceDirectory, string destinationDirectory) {
-
-        var destinationPath = GetAvailableDirectoryPath(destinationDirectory, Path.GetFileName(sourceDirectory));
-        MoveDirectoryCrossVolume(sourceDirectory, destinationPath);
-        return destinationPath;
-    }
-
-    private string MoveExternalFileTo(string sourceFile, string destinationDirectory) {
+    private string CopyExternalFileTo(string sourceFile, string destinationDirectory) {
 
         var destinationPath = GetAvailableFilePath(destinationDirectory, sourceFile);
-        MoveFileCrossVolume(sourceFile, destinationPath);
+        File.Copy(sourceFile, destinationPath, overwrite: false);
         return destinationPath;
     }
 
@@ -1667,42 +1660,6 @@ internal class Collections : Viewport {
         return Path.Combine(destinationDirectory, finalBaseName + suffix);
     }
 
-    private static void MoveFileCrossVolume(string sourceFile, string destinationFile) {
-
-        try {
-            File.Move(sourceFile, destinationFile);
-        } catch (IOException) {
-            File.Copy(sourceFile, destinationFile, overwrite: false);
-            File.Delete(sourceFile);
-        }
-    }
-
-    private static void MoveDirectoryCrossVolume(string sourceDirectory, string destinationDirectory) {
-
-        try {
-            Directory.Move(sourceDirectory, destinationDirectory);
-        } catch (IOException) {
-            CopyDirectoryRecursive(sourceDirectory, destinationDirectory);
-            Directory.Delete(sourceDirectory, recursive: true);
-        }
-    }
-
-    private static void CopyDirectoryRecursive(string sourceDirectory, string destinationDirectory) {
-
-        Directory.CreateDirectory(destinationDirectory);
-
-        foreach (var directory in Directory.EnumerateDirectories(sourceDirectory, "*", SearchOption.AllDirectories)) {
-            var relative = Path.GetRelativePath(sourceDirectory, directory);
-            Directory.CreateDirectory(Path.Combine(destinationDirectory, relative));
-        }
-
-        foreach (var file in Directory.EnumerateFiles(sourceDirectory, "*", SearchOption.AllDirectories)) {
-            var relative = Path.GetRelativePath(sourceDirectory, file);
-            var targetFile = Path.Combine(destinationDirectory, relative);
-            Directory.CreateDirectory(Path.GetDirectoryName(targetFile)!);
-            File.Copy(file, targetFile, overwrite: false);
-        }
-    }
 
     private string? GetUpMoveDestinationDirectory() {
 
