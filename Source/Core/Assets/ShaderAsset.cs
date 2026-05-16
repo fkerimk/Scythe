@@ -47,6 +47,11 @@ internal class ShaderAsset : Asset {
         try {
 
             Shader = LoadShader(vsPath, fsPath);
+            if (Shader.Id == 0) {
+                TraceLog(TraceLogLevel.Error, $"SHADER: Failed to compile/load shader '{File}' (vs: {vsPath ?? "<default>"}, fs: {fsPath ?? "<none>"})");
+                return false;
+            }
+
             Properties.Clear();
 
             // Map standard locations
