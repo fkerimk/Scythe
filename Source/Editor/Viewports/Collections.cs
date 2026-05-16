@@ -1626,9 +1626,107 @@ internal class Collections : Viewport {
 
     private string CopyExternalFileTo(string sourceFile, string destinationDirectory) {
 
+        if (CollectionData.IsModel(sourceFile))
+            return CopyImportedModelToCollection(sourceFile, destinationDirectory);
+
         var destinationPath = GetAvailableFilePath(destinationDirectory, sourceFile);
         File.Copy(sourceFile, destinationPath, overwrite: false);
         return destinationPath;
+    }
+
+    private string CopyImportedModelToCollection(string sourceFile, string destinationDirectory) {
+
+        AssimpLoader.EmbeddedImportData? embeddedData = null;
+
+        try {
+            embeddedData = AssimpLoader.ExtractEmbeddedImportData(sourceFile);
+        } catch {
+            embeddedData = null;
+        }
+
+        if (embeddedData is not { HasEmbeddedAssets: true }) {
+            var destinationPath = GetAvailableFilePath(destinationDirectory, sourceFile);
+            File.Copy(sourceFile, destinationPath, overwrite: false);
+            return destinationPath;
+        }
+
+        var modelName = CollectionData.GetNameWithoutExtension(sourceFile);
+        var collectionPath = CreateImportCollection(destinationDirectory, modelName);
+        var modelPath = GetAvailableFilePath(collectionPath, sourceFile);
+        File.Copy(sourceFile, modelPath, overwrite: false);
+
+        try {
+            FinalizeEmbeddedModelImport(collectionPath, modelPath, embeddedData);
+        } catch (Exception e) {
+            Notifications.Show($"Embedded import setup failed: {e.Message}");
+        }
+
+        return collectionPath;
+    }
+
+    private static void FinalizeEmbeddedModelImport(string collectionPath, string modelPath, AssimpLoader.EmbeddedImportData embeddedData) {
+
+        var texturePaths = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var texture in embeddedData.Textures) {
+            var baseName = SanitizeFileName(texture.Name);
+            var texturePath = GetAvailableAssetPath(collectionPath, baseName, texture.Extension);
+            File.WriteAllBytes(texturePath, texture.Bytes);
+            texturePaths[texture.Key] = texturePath;
+        }
+
+        var materialPaths = new Dictionary<int, string>();
+        foreach (var material in embeddedData.Materials) {
+            var materialName = string.IsNullOrWhiteSpace(material.Name) ? $"Material_{material.Index}" : material.Name;
+            var materialPath = GetAvailableAssetPath(collectionPath, SanitizeFileName(materialName), ".mat");
+            var data = new MaterialAsset.MaterialData();
+
+            foreach (var (slot, textureKey) in material.TextureBindings) {
+                if (!texturePaths.TryGetValue(textureKey, out var texturePath)) continue;
+                data.Textures[slot] = texturePath;
+                data.TexturePaths[slot] = AssetManager.GetStoredPath(texturePath);
+            }
+
+            JsonFile.WriteIndented(materialPath, data);
+            materialPaths[material.Index] = materialPath;
+        }
+
+        CollectionData.SetKind(collectionPath, CollectionAssetKind.Model);
+        CollectionData.SetTarget(collectionPath, modelPath);
+
+        foreach (var texturePath in texturePaths.Values)
+            AssetManager.EnsureImported(texturePath);
+
+        foreach (var materialPath in materialPaths.Values)
+            AssetManager.EnsureImported(materialPath);
+
+        var modelAsset = AssetManager.GetOrImport<ModelAsset>(modelPath);
+        if (modelAsset == null) return;
+
+        foreach (var (materialIndex, materialPath) in materialPaths)
+            modelAsset.ApplyMaterial(materialIndex, materialPath);
+
+        modelAsset.SaveSettings();
+    }
+
+    private static string GetAvailableAssetPath(string directory, string baseName, string extension) {
+
+        var existingNames = Directory.EnumerateFiles(directory)
+            .Where(IsVisibleCollectionFile)
+            .Select(CollectionData.GetNameWithoutExtension)
+            .ToList();
+        var candidate = baseName;
+        var targetPath = Path.Combine(directory, candidate + extension);
+
+        if (File.Exists(targetPath) || Directory.Exists(targetPath))
+            candidate = Generators.AvailableName(baseName, existingNames);
+
+        return Path.Combine(directory, candidate + extension);
+    }
+
+    private static string SanitizeFileName(string value) {
+
+        var sanitized = new string(value.Select(ch => Path.GetInvalidFileNameChars().Contains(ch) ? '_' : ch).ToArray()).Trim();
+        return string.IsNullOrWhiteSpace(sanitized) ? "Asset" : sanitized;
     }
 
     private static string GetAvailableDirectoryPath(string destinationDirectory, string name) {
