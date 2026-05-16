@@ -1,6 +1,0 @@
-<Project>
-  <PropertyGroup>
-    <BaseIntermediateOutputPath>Assembly\obj\</BaseIntermediateOutputPath>
-    <MSBuildProjectExtensionsPath>Assembly\obj\</MSBuildProjectExtensionsPath>
-  </PropertyGroup>
-</Project>
