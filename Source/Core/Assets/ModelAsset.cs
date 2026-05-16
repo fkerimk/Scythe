@@ -57,6 +57,7 @@ internal class ModelAsset : Asset {
         // Normalize path for Linux compatibility
         File = File.Replace('\\', '/');
         ImportedFile = "";
+        var settingsChanged = false;
 
         if (!System.IO.File.Exists(File)) return false;
 
@@ -65,8 +66,18 @@ internal class ModelAsset : Asset {
             var jsonPath = File + ".json";
             if (System.IO.File.Exists(jsonPath)) Settings = JsonFile.ReadOrDefault(jsonPath, new ModelSettings());
 
-            if (string.IsNullOrWhiteSpace(Settings.GUID)) Settings.GUID = System.Guid.NewGuid().ToString("N");
-            if (string.IsNullOrWhiteSpace(Settings.AnimationGUID)) Settings.AnimationGUID = System.Guid.NewGuid().ToString("N");
+            if (string.IsNullOrWhiteSpace(Settings.GUID)) {
+
+                Settings.GUID = System.Guid.NewGuid().ToString("N");
+                settingsChanged = true;
+            }
+
+            if (string.IsNullOrWhiteSpace(Settings.AnimationGUID)) {
+
+                Settings.AnimationGUID = System.Guid.NewGuid().ToString("N");
+                settingsChanged = true;
+            }
+
             GUID = Settings.GUID;
             ImportedFile = AssetManager.GetImportedModelFile(File, GUID);
             if (!TryLoadImportedOrRebuild()) return false;
@@ -104,8 +115,10 @@ internal class ModelAsset : Asset {
             ApplyMaterialState(i, true);
         }
 
-        NormalizeReferences();
+        settingsChanged |= NormalizeReferences();
         ThumbnailDirty = true;
+
+        if (settingsChanged) SaveSettings();
 
         if (!AssetManager.IsInitializing) Preview.UpdateThumbnail(this);
 
