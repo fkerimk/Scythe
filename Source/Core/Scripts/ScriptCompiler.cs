@@ -33,7 +33,7 @@ internal static class ScriptCompiler {
           <ItemGroup>
             <PackageReference Include="Raylib-cs" Version="7.0.2" />
             <Reference Include="Scythe">
-              <HintPath>{{ exe_path }}</HintPath>
+              <HintPath>{{ exePath }}</HintPath>
             </Reference>
           </ItemGroup>
         </Project>
@@ -56,7 +56,10 @@ internal static class ScriptCompiler {
         var assemblyDir = Path.Combine(ScytheConfig.Current.Project, "Assembly");
         var scriptOutDll = Path.Combine(assemblyDir, "Scripts.dll");
 
-        var exePath = Path.Combine(AppContext.BaseDirectory, "Scythe.dll");
+        var assemblyName = Assembly.GetExecutingAssembly().GetName().Name ?? "Scythe";
+        var exePath = Path.Combine(AppContext.BaseDirectory, assemblyName + ".dll");
+        if (!File.Exists(exePath))
+            exePath = Assembly.GetExecutingAssembly().Location;
         var projectName = new DirectoryInfo(ScytheConfig.Current.Project).Name;
         var csprojPath = Path.Combine(ScytheConfig.Current.Project, $"{projectName}.csproj");
         var dirPropsPath = Path.Combine(ScytheConfig.Current.Project, "Directory.Build.props");
@@ -142,14 +145,20 @@ internal static class ScriptCompiler {
 #if !SCYTHE_RUNTIME_BUILD
     private static void EnsureBuildProjectFiles(string dirPropsPath, string csprojPath, string exePath) {
 
-        WriteTemplateIfMissing(dirPropsPath, DirectoryBuildPropsTemplate);
-        WriteTemplateIfMissing(csprojPath, ScriptProjectTemplate, new { exe_path = exePath });
+        WriteTemplateIfOutdated(dirPropsPath, DirectoryBuildPropsTemplate);
+        WriteTemplateIfOutdated(csprojPath, ScriptProjectTemplate, new { exePath });
     }
 
-    private static void WriteTemplateIfMissing(string path, Template template, object? model = null) {
+    private static void WriteTemplateIfOutdated(string path, Template template, object? model = null) {
 
-        if (File.Exists(path)) return;
-        File.WriteAllText(path, template.Render(model, member => member.Name));
+        var rendered = template.Render(model, member => member.Name);
+
+        if (File.Exists(path)) {
+            var existing = File.ReadAllText(path);
+            if (string.Equals(existing, rendered, StringComparison.Ordinal)) return;
+        }
+
+        File.WriteAllText(path, rendered);
     }
 #endif
 
