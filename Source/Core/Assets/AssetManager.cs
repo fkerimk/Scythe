@@ -663,7 +663,7 @@ internal static class AssetManager {
     private static string EnsureImportedTextureCache(string sourceFile, string guid, AssetSidecarData.TextureImportSettings settings) {
 
         var folder = Path.Combine(GetImportsRoot(), "Textures");
-        var importedPath = TextureImportProcessor.BuildImportedPath(folder, guid, sourceFile, settings);
+        var importedPath = Path.Combine(folder, guid + ".stex");
 
         if (CommandLine.Runtime) return importedPath;
 
@@ -673,7 +673,7 @@ internal static class AssetManager {
         DeleteLegacyTextureImports(folder, guid, importedPath);
         if (IsTextureCacheCurrent(sourceFile, importedPath, settings)) return importedPath;
         RegisterInternalWrite(importedPath);
-        if (!TextureImportProcessor.Import(sourceFile, importedPath, settings)) return sourceFile;
+        importedPath = CompiledAssetCache.EnsureTextureCache(sourceFile, importedPath, settings);
 
         return File.Exists(importedPath) ? importedPath : sourceFile;
     }
@@ -724,7 +724,7 @@ internal static class AssetManager {
 
     private static bool IsTextureCacheCurrent(string sourceFile, string importedPath, AssetSidecarData.TextureImportSettings settings) {
 
-        return TextureImportProcessor.IsCurrent(sourceFile, importedPath, settings);
+        return CompiledAssetCache.IsTextureCacheCurrent(sourceFile, importedPath, settings);
     }
 
     private static IEnumerable<string> GetModelDependencyFiles(string sourceFile) {
@@ -976,7 +976,7 @@ internal static class AssetManager {
         var guid = texture.GUID;
         var settings = (AssetSidecarData.TextureImportSettings)texture.ImportSettings.Clone();
         var importedFolder = Path.Combine(GetImportsRoot(), "Textures");
-        var importedPath = TextureImportProcessor.BuildImportedPath(importedFolder, guid, sourceFile, settings);
+        var importedPath = Path.Combine(importedFolder, guid + ".stex");
 
         Tasks.Run($"Import Texture {Path.GetFileName(texture.File)}", task => {
             try {
@@ -986,7 +986,8 @@ internal static class AssetManager {
                 DeleteLegacyTextureImports(importedFolder, guid, importedPath);
                 RegisterInternalWrite(importedPath);
 
-                if (!TextureImportProcessor.Import(sourceFile, importedPath, settings)) {
+                importedPath = CompiledAssetCache.EnsureTextureCache(sourceFile, importedPath, settings);
+                if (!File.Exists(importedPath)) {
                     task.Status = "Fail: texture import failed";
                     return;
                 }

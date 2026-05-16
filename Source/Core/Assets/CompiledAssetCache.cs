@@ -1,16 +1,19 @@
 using System.IO.Compression;
 using System.Numerics;
+#if !SCYTHE_RUNTIME_BUILD
+using ImageMagick;
+#endif
 using Raylib_cs;
 using static Raylib_cs.Raylib;
 
 internal static partial class CompiledAssetCache {
 
-    private const int TextureVersion = 4;
+    private const int TextureVersion = 6;
     private const int ModelVersion = 3;
     private const string TextureMagic = "STEX";
     private const string ModelMagic = "SMOD";
 
-    public readonly record struct TextureCacheInfo(int Width, int Height, PixelFormat Format, string Compression, int SourceWidth, int SourceHeight, int MaxSize, string ResizeFilter, string EncodedFormat);
+    public readonly record struct TextureCacheInfo(int Width, int Height, PixelFormat Format, string Compression, int SourceWidth, int SourceHeight, int MaxSize, string ResizeFilter, int Quality, string RequestedFormat, string PayloadFormat);
 
     private readonly record struct TextureCacheHeader(
         int SourceWidth,
@@ -21,29 +24,28 @@ internal static partial class CompiledAssetCache {
         int MaxSize,
         string ResizeFilter,
         string Compression,
-        string EncodedFormat
+        int Quality,
+        string RequestedFormat,
+        string PayloadFormat
     );
 
     public static unsafe string EnsureTextureCache(string sourceFile, string outputFile, AssetSidecarData.TextureImportSettings settings) {
 
-        if (File.Exists(outputFile) && new FileInfo(outputFile).LastWriteTimeUtc >= new FileInfo(sourceFile).LastWriteTimeUtc)
+        if (IsTextureCacheCurrent(sourceFile, outputFile, settings))
             return outputFile;
 
         Directory.CreateDirectory(Path.GetDirectoryName(outputFile)!);
 
-        var image = LoadImage(sourceFile);
+        var image = LoadImportedTextureImage(sourceFile, outputFile, settings);
         if (image.Data == null) return sourceFile;
 
         try {
 
             var sourceWidth = image.Width;
             var sourceHeight = image.Height;
-            ApplyTextureImportSettings(ref image, settings);
-            var encodedFormat = ChooseEncodedTextureFormat(sourceFile);
-            var tempPath = outputFile + encodedFormat;
-            ExportImage(image, tempPath);
-            var encodedBytes = File.ReadAllBytes(tempPath);
-            File.Delete(tempPath);
+            ImageFormat(&image, PixelFormat.UncompressedR8G8B8A8);
+            var pixelBytes = ExtractPixelBytes(image);
+            var compressedBytes = CompressTextureBytes(pixelBytes, settings);
 
             using var file = File.Create(outputFile);
             using var writer = new BinaryWriter(file);
@@ -59,11 +61,14 @@ internal static partial class CompiledAssetCache {
                 settings.MaxSize,
                 settings.ResizeFilter ?? "Bilinear",
                 settings.Compression ?? "Normal",
-                encodedFormat
+                Math.Clamp(settings.Quality, 1, 100),
+                NormalizeRequestedFormat(settings.Format),
+                "RGBA32+Brotli"
             );
             WriteTextureHeader(writer, header);
-            writer.Write(encodedBytes.Length);
-            writer.Write(encodedBytes);
+            writer.Write(pixelBytes.Length);
+            writer.Write(compressedBytes.Length);
+            writer.Write(compressedBytes);
 
         } finally {
 
@@ -87,15 +92,16 @@ internal static partial class CompiledAssetCache {
 
             var header = ReadTextureHeader(reader);
             if (header == null) return false;
-            var byteCount = reader.ReadInt32();
-            var encodedBytes = reader.ReadBytes(byteCount);
-            if (encodedBytes.Length != byteCount) return false;
+            var rawByteCount = reader.ReadInt32();
+            var compressedByteCount = reader.ReadInt32();
+            var compressedBytes = reader.ReadBytes(compressedByteCount);
+            if (compressedBytes.Length != compressedByteCount) return false;
 
-            var image = LoadImageFromMemory(header.Value.EncodedFormat, encodedBytes);
-            if (image.Data == null) return false;
+            var pixelBytes = DecompressTextureBytes(compressedBytes, rawByteCount);
+            if (pixelBytes.Length != rawByteCount) return false;
 
-            texture = LoadTextureFromImage(image);
-            UnloadImage(image);
+            texture = LoadTextureFromRgbaPixels(header.Value.Width, header.Value.Height, pixelBytes);
+            if (texture.Id == 0) return false;
 
             SetTextureFilter(texture, TextureFilter.Bilinear);
             return true;
@@ -130,7 +136,9 @@ internal static partial class CompiledAssetCache {
                 header.Value.SourceHeight,
                 header.Value.MaxSize,
                 header.Value.ResizeFilter,
-                header.Value.EncodedFormat
+                header.Value.Quality,
+                header.Value.RequestedFormat,
+                header.Value.PayloadFormat
             );
             return true;
 
@@ -151,6 +159,8 @@ internal static partial class CompiledAssetCache {
                 reader.ReadInt32(),
                 reader.ReadString(),
                 reader.ReadString(),
+                reader.ReadInt32(),
+                reader.ReadString(),
                 reader.ReadString()
             );
         } catch {
@@ -167,7 +177,113 @@ internal static partial class CompiledAssetCache {
         writer.Write(header.MaxSize);
         writer.Write(header.ResizeFilter);
         writer.Write(header.Compression);
-        writer.Write(header.EncodedFormat);
+        writer.Write(header.Quality);
+        writer.Write(header.RequestedFormat);
+        writer.Write(header.PayloadFormat);
+    }
+
+    public static bool IsTextureCacheCurrent(string sourceFile, string cacheFile, AssetSidecarData.TextureImportSettings settings) {
+
+        if (!File.Exists(sourceFile) || !File.Exists(cacheFile)) return false;
+
+        var cacheTime = new FileInfo(cacheFile).LastWriteTimeUtc;
+        var sourceTime = new FileInfo(sourceFile).LastWriteTimeUtc;
+        var sidecarPath = sourceFile + ".json";
+        var sidecarTime = File.Exists(sidecarPath) ? new FileInfo(sidecarPath).LastWriteTimeUtc : DateTime.MinValue;
+
+        if (cacheTime < sourceTime || cacheTime < sidecarTime) return false;
+        if (!TryReadTextureInfo(cacheFile, out var info)) return false;
+
+        return info.MaxSize == settings.MaxSize
+               && string.Equals(info.ResizeFilter, settings.ResizeFilter ?? "Bilinear", StringComparison.Ordinal)
+               && string.Equals(info.Compression, settings.Compression ?? "Balanced", StringComparison.Ordinal)
+               && info.Quality == Math.Clamp(settings.Quality, 1, 100)
+               && string.Equals(info.RequestedFormat, NormalizeRequestedFormat(settings.Format), StringComparison.Ordinal);
+    }
+
+    private static unsafe byte[] ExtractPixelBytes(Image image) {
+
+        var pixelCount = image.Width * image.Height;
+        if (pixelCount <= 0) return [];
+
+        var colors = LoadImageColors(image);
+        if (colors == null) return [];
+
+        try {
+            var bytes = new byte[pixelCount * 4];
+            fixed (byte* destination = bytes)
+                Buffer.MemoryCopy(colors, destination, bytes.Length, bytes.Length);
+
+            return bytes;
+        } finally {
+            UnloadImageColors(colors);
+        }
+    }
+
+    private static byte[] CompressTextureBytes(byte[] pixelBytes, AssetSidecarData.TextureImportSettings settings) {
+
+        using var buffer = new MemoryStream();
+        using (var brotli = new BrotliStream(buffer, GetTextureCompressionLevel(settings), leaveOpen: true))
+            brotli.Write(pixelBytes, 0, pixelBytes.Length);
+
+        return buffer.ToArray();
+    }
+
+    private static byte[] DecompressTextureBytes(byte[] compressedBytes, int expectedSize) {
+
+        using var input = new MemoryStream(compressedBytes);
+        using var brotli = new BrotliStream(input, CompressionMode.Decompress);
+        using var output = new MemoryStream(expectedSize);
+        brotli.CopyTo(output);
+        return output.ToArray();
+    }
+
+    private static CompressionLevel GetTextureCompressionLevel(AssetSidecarData.TextureImportSettings settings) => (settings.Compression ?? "Balanced") switch {
+        "Fast" => CompressionLevel.Fastest,
+        "Best" => CompressionLevel.SmallestSize,
+        _ => CompressionLevel.Optimal
+    };
+
+    private static string NormalizeRequestedFormat(string? format) => string.IsNullOrWhiteSpace(format) ? "Source" : format;
+
+    private static unsafe Texture2D LoadTextureFromRgbaPixels(int width, int height, byte[] pixelBytes) {
+
+        if (width <= 0 || height <= 0 || pixelBytes.Length == 0) return default;
+
+        fixed (byte* pixels = pixelBytes) {
+            return new Texture2D {
+                Id = Rlgl.LoadTexture(pixels, width, height, PixelFormat.UncompressedR8G8B8A8, 1),
+                Width = width,
+                Height = height,
+                Mipmaps = 1,
+                Format = PixelFormat.UncompressedR8G8B8A8
+            };
+        }
+    }
+
+    private static unsafe Image LoadImportedTextureImage(string sourceFile, string outputFile, AssetSidecarData.TextureImportSettings settings) {
+
+#if !SCYTHE_RUNTIME_BUILD
+        var tempFile = Path.Combine(Path.GetTempPath(), $"scythe-texture-{Path.GetFileNameWithoutExtension(outputFile)}-{Guid.NewGuid():N}{TextureImportProcessor.GetOutputExtension(sourceFile, settings)}");
+
+        try {
+            if (!TextureImportProcessor.Import(sourceFile, tempFile, settings))
+                return default;
+
+            var image = LoadImage(tempFile);
+            if (image.Data != null) return image;
+
+            return LoadImageFromMagickFallback(tempFile, settings);
+
+        } finally {
+            try {
+                if (File.Exists(tempFile)) File.Delete(tempFile);
+            } catch {
+            }
+        }
+#else
+        return default;
+#endif
     }
 
 #if !SCYTHE_RUNTIME_BUILD
@@ -207,6 +323,27 @@ internal static partial class CompiledAssetCache {
         foreach (var anim in data.Animations) WriteAnimation(writer, anim);
 
         return outputFile;
+    }
+#endif
+
+#if !SCYTHE_RUNTIME_BUILD
+    private static Image LoadImageFromMagickFallback(string importedFile, AssetSidecarData.TextureImportSettings settings) {
+
+        var effectiveFormat = TextureImportProcessor.GetEffectiveFormat(importedFile, settings);
+        if (effectiveFormat is not "WebP" and not "Avif") return default;
+
+        var tempPng = Path.Combine(Path.GetTempPath(), $"scythe-texture-fallback-{Guid.NewGuid():N}.png");
+
+        try {
+            using var image = new MagickImage(importedFile);
+            image.Write(tempPng, MagickFormat.Png);
+            return File.Exists(tempPng) ? LoadImage(tempPng) : default;
+        } finally {
+            try {
+                if (File.Exists(tempPng)) File.Delete(tempPng);
+            } catch {
+            }
+        }
     }
 #endif
 
@@ -488,10 +625,4 @@ internal static partial class CompiledAssetCache {
                 ImageResize(ref image, targetWidth, targetHeight);
         }
     }
-
-    private static string ChooseEncodedTextureFormat(string sourceFile) => Path.GetExtension(sourceFile).ToLowerInvariant() switch {
-        ".jpg" => ".jpg",
-        ".jpeg" => ".jpg",
-        _ => ".png"
-    };
 }

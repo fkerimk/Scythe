@@ -164,7 +164,7 @@ internal static class TextureImportProcessor {
         }
     }
 
-    private static string GetOutputExtension(string sourceFile, AssetSidecarData.TextureImportSettings settings) => GetEffectiveFormat(sourceFile, settings) switch {
+    public static string GetOutputExtension(string sourceFile, AssetSidecarData.TextureImportSettings settings) => GetEffectiveFormat(sourceFile, settings) switch {
         "Jpeg" => ".jpg",
         "WebP" => ".webp",
         "Avif" => ".avif",

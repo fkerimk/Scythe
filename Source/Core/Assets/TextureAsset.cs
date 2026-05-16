@@ -79,6 +79,29 @@ internal class TextureAsset : Asset {
 
         ImportedFile = AssetManager.GetImportedTextureFile(File, GUID, ImportSettings);
 
+        if (string.Equals(Path.GetExtension(ResolvedFile), ".stex", StringComparison.OrdinalIgnoreCase)
+            && CompiledAssetCache.LoadTexture(ResolvedFile, out Texture)) {
+            ApplyTextureFilter();
+
+            if (CompiledAssetCache.TryReadTextureInfo(ResolvedFile, out var info)) {
+                ImportedWidth = info.Width;
+                ImportedHeight = info.Height;
+                if (SourceWidth <= 0 || SourceHeight <= 0) {
+                    SourceWidth = info.SourceWidth;
+                    SourceHeight = info.SourceHeight;
+                }
+            } else {
+                ImportedWidth = Texture.Width;
+                ImportedHeight = Texture.Height;
+            }
+
+            ImportedFileSize = System.IO.File.Exists(ResolvedFile) ? new FileInfo(ResolvedFile).Length : SourceFileSize;
+            IsLoaded = true;
+            ThumbnailDirty = true;
+            if (!AssetManager.IsInitializing) Preview.UpdateThumbnail(this);
+            return true;
+        }
+
         var image = LoadImage(ResolvedFile);
         if (image.Data == null) {
 
