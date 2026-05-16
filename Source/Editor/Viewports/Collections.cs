@@ -404,7 +404,6 @@ internal class Collections : Viewport {
         _currentPath = path;
         _showChildCollections = false;
         _activeCategory = null;
-        Editor.SetSelectedAsset(null);
     }
 
     private void DrawCollectionGroupEntry(int count) {
@@ -436,7 +435,6 @@ internal class Collections : Viewport {
         _entryClickedThisFrame = true;
         _showChildCollections = true;
         _activeCategory = null;
-        Editor.SetSelectedAsset(null);
     }
 
     private void DrawCategoryEntry(CategoryState state) {
@@ -472,7 +470,6 @@ internal class Collections : Viewport {
         _entryClickedThisFrame = true;
         _showChildCollections = false;
         _activeCategory = state.Category;
-        Editor.SetSelectedAsset(null);
     }
 
     private void DrawFileEntry(string path) {

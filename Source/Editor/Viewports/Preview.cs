@@ -28,6 +28,15 @@ internal class Preview : Viewport {
     private List<AssimpMesh> _previewModelMeshes = [];
     private List<BoneInfo> _previewModelBones = [];
     private Dictionary<string, List<BoneInfo>> _previewBoneMap = new();
+    private string _previewAnimatedModelGuid = "";
+    private int _previewAnimatedClipIndex = -1;
+    private double _previewAnimatedTime = -1d;
+    private double _previewAnimationUpdateAt;
+    private string _previewBoundsKey = "";
+    private Vector3 _previewBoundsCenter;
+    private float _previewBoundsDistance = 5f;
+    private readonly HashSet<string> _previewAppliedMaterialUniforms = [];
+    private readonly HashSet<uint> _previewAppliedLightingUniforms = [];
 
     private RenderTexture2D _rt;
     private string _lastFile = "";
@@ -66,6 +75,9 @@ internal class Preview : Viewport {
 
         if (avail.X <= 1 || avail.Y <= 1) return;
 
+        _previewAppliedMaterialUniforms.Clear();
+        _previewAppliedLightingUniforms.Clear();
+
         if (selectedCamera == null && !string.IsNullOrEmpty(selectedFile) && IsCodePreviewFile(selectedFile)) {
 
             if (selectedFile != _lastCodeFile) {
@@ -86,6 +98,11 @@ internal class Preview : Viewport {
             _previewModelMeshes.Clear();
             _previewModelBones.Clear();
             _previewBoneMap.Clear();
+            _previewAnimatedModelGuid = "";
+            _previewAnimatedClipIndex = -1;
+            _previewAnimatedTime = -1d;
+            _previewAnimationUpdateAt = 0d;
+            _previewBoundsKey = "";
 
             if (CollectionData.IsLevel(selectedFile!) || CollectionData.IsPrefab(selectedFile!)) {
 
@@ -110,7 +127,7 @@ internal class Preview : Viewport {
 
                     _zoom = 1.0f;
                     var asset = (Asset?)matAsset ?? modelAsset;
-                    if (asset != null) _distance = GetAssetAutoDistance(asset, out _) * 1.6f;
+                    if (asset != null) _distance = GetCachedAssetAutoDistance(asset, out _) * 1.6f;
                 }
             } else {
                 UnloadPreviewLevel();
@@ -403,7 +420,7 @@ internal class Preview : Viewport {
             _distance = Math.Clamp(_distance, 0.01f, 1000f);
         }
 
-        GetAssetAutoDistance(asset, out var targetPos);
+        GetCachedAssetAutoDistance(asset, out var targetPos);
 
         var camPos = targetPos + new Vector3((float)(Math.Cos(_rotation.X * Math.PI / 180.0) * Math.Cos(_rotation.Y * Math.PI / 180.0) * _distance), (float)(Math.Sin(_rotation.Y * Math.PI / 180.0) * _distance), (float)(Math.Sin(_rotation.X * Math.PI / 180.0) * Math.Cos(_rotation.Y * Math.PI / 180.0) * _distance));
 
@@ -811,10 +828,23 @@ internal class Preview : Viewport {
 
                         var clip = model.Animations[_currentAnimationIndex];
                         var time = (Raylib_cs.Raylib.GetTime() * clip.TicksPerSecond) % Math.Max(clip.Duration, 0.0001);
+                        var now = Raylib_cs.Raylib.GetTime();
+                        var shouldReskin = _previewAnimatedModelGuid != model.GUID
+                                           || _previewAnimatedClipIndex != _currentAnimationIndex
+                                           || _previewAnimatedTime < 0d
+                                           || now >= _previewAnimationUpdateAt;
 
-                        AssimpLoader.UpdateAnimation(model.RootNode, clip, time, Matrix4x4.Identity, model.GlobalInverse, _previewBoneMap);
+                        if (shouldReskin) {
+                            AssimpLoader.UpdateAnimation(model.RootNode, clip, time, Matrix4x4.Identity, model.GlobalInverse, _previewBoneMap);
 
-                        foreach (var mesh in _previewModelMeshes) AssimpLoader.SkinMesh(mesh, _previewModelBones);
+                            foreach (var mesh in _previewModelMeshes) AssimpLoader.SkinMesh(mesh, _previewModelBones);
+
+                            _previewAnimatedModelGuid = model.GUID;
+                            _previewAnimatedClipIndex = _currentAnimationIndex;
+                            _previewAnimatedTime = time;
+                            _previewAnimationUpdateAt = now + (1d / 30d);
+                        }
+
                         meshesToDraw = _previewModelMeshes;
                     }
                 }
@@ -844,6 +874,10 @@ internal class Preview : Viewport {
         _previewModelMeshes = model.Meshes.Select(mesh => mesh.Clone()).ToList();
         _previewModelBones = [];
         _previewBoneMap = new Dictionary<string, List<BoneInfo>>();
+        _previewAnimatedModelGuid = "";
+        _previewAnimatedClipIndex = -1;
+        _previewAnimatedTime = -1d;
+        _previewAnimationUpdateAt = 0d;
 
         foreach (var bone in model.Bones) {
 
@@ -926,15 +960,22 @@ internal class Preview : Viewport {
         return true;
     }
 
-    private static void SetupPreviewLighting(MaterialAsset mat, Raylib_cs.Camera3D camera, Vector3 target, float distance) {
+    private void SetupPreviewLighting(MaterialAsset mat, Raylib_cs.Camera3D camera, Vector3 target, float distance) {
 
         var shaderAsset = AssetManager.Get<ShaderAsset>(mat.Data.Shader) ?? AssetManager.Get<ShaderAsset>("Collection/pbr.vs");
 
         if (shaderAsset is not { IsLoaded: true }) return;
 
         var shader = shaderAsset.Shader;
+        var materialKey = !string.IsNullOrWhiteSpace(mat.GUID) ? mat.GUID : mat.File;
 
-        mat.ApplyUniforms(shader);
+        if (!string.IsNullOrWhiteSpace(materialKey) && _previewAppliedMaterialUniforms.Add(materialKey))
+            mat.ApplyUniforms(shader);
+
+        if (_previewAppliedLightingUniforms.Contains(shader.Id))
+            return;
+
+        _previewAppliedLightingUniforms.Add(shader.Id);
 
         // Ensure sampler slots are assigned correctly for custom shaders
         SetShaderValue(shader, shaderAsset.GetLoc("albedo_map"), 0, ShaderUniformDataType.Int);
@@ -965,6 +1006,65 @@ internal class Preview : Viewport {
         SetShaderValue(shader, shaderAsset.GetLoc("ambient_color"), Vector3.One, ShaderUniformDataType.Vec3);
         SetShaderValue(shader, shaderAsset.GetLoc("aoValue"), 1.0f, ShaderUniformDataType.Float);
         SetShaderValue(shader, shaderAsset.GetLoc("receive_shadows"), 0, ShaderUniformDataType.Int);
+    }
+
+    private static void SetupPreviewLightingStatic(MaterialAsset mat, Raylib_cs.Camera3D camera, Vector3 target, float distance) {
+
+        var shaderAsset = AssetManager.Get<ShaderAsset>(mat.Data.Shader) ?? AssetManager.Get<ShaderAsset>("Collection/pbr.vs");
+
+        if (shaderAsset is not { IsLoaded: true }) return;
+
+        var shader = shaderAsset.Shader;
+
+        mat.ApplyUniforms(shader);
+
+        SetShaderValue(shader, shaderAsset.GetLoc("albedo_map"), 0, ShaderUniformDataType.Int);
+        SetShaderValue(shader, shaderAsset.GetLoc("normal_map"), 1, ShaderUniformDataType.Int);
+        SetShaderValue(shader, shaderAsset.GetLoc("metallic_map"), 2, ShaderUniformDataType.Int);
+        SetShaderValue(shader, shaderAsset.GetLoc("roughness_map"), 3, ShaderUniformDataType.Int);
+        SetShaderValue(shader, shaderAsset.GetLoc("occlusion_map"), 4, ShaderUniformDataType.Int);
+        SetShaderValue(shader, shaderAsset.GetLoc("emissive_map"), 5, ShaderUniformDataType.Int);
+
+        var lightDist = distance * 2.0f;
+        SetShaderValue(shader, shaderAsset.GetLoc("view_pos"), camera.Position, ShaderUniformDataType.Vec3);
+        SetShaderValue(shader, shaderAsset.GetLoc("light_count"), 2, ShaderUniformDataType.Int);
+        SetShaderValue(shader, shaderAsset.GetLoc("lights[0].enabled"), 1, ShaderUniformDataType.Int);
+        SetShaderValue(shader, shaderAsset.GetLoc("lights[0].type"), 0, ShaderUniformDataType.Int);
+        SetShaderValue(shader, shaderAsset.GetLoc("lights[0].position"), target + new Vector3(lightDist, lightDist, lightDist), ShaderUniformDataType.Vec3);
+        SetShaderValue(shader, shaderAsset.GetLoc("lights[0].target"), target, ShaderUniformDataType.Vec3);
+        SetShaderValue(shader, shaderAsset.GetLoc("lights[0].color"), Vector4.One, ShaderUniformDataType.Vec4);
+        SetShaderValue(shader, shaderAsset.GetLoc("lights[0].intensity"), 4.0f, ShaderUniformDataType.Float);
+
+        SetShaderValue(shader, shaderAsset.GetLoc("lights[1].enabled"), 1, ShaderUniformDataType.Int);
+        SetShaderValue(shader, shaderAsset.GetLoc("lights[1].type"), 0, ShaderUniformDataType.Int);
+        SetShaderValue(shader, shaderAsset.GetLoc("lights[1].position"), target + new Vector3(-lightDist, lightDist * 0.5f, lightDist * 0.5f), ShaderUniformDataType.Vec3);
+        SetShaderValue(shader, shaderAsset.GetLoc("lights[1].target"), target, ShaderUniformDataType.Vec3);
+        SetShaderValue(shader, shaderAsset.GetLoc("lights[1].color"), new Vector4(0.8f, 0.9f, 1.0f, 1.0f), ShaderUniformDataType.Vec4);
+        SetShaderValue(shader, shaderAsset.GetLoc("lights[1].intensity"), 1.5f, ShaderUniformDataType.Float);
+
+        SetShaderValue(shader, shaderAsset.GetLoc("ambient_intensity"), 1.0f, ShaderUniformDataType.Float);
+        SetShaderValue(shader, shaderAsset.GetLoc("ambient_color"), Vector3.One, ShaderUniformDataType.Vec3);
+        SetShaderValue(shader, shaderAsset.GetLoc("aoValue"), 1.0f, ShaderUniformDataType.Float);
+        SetShaderValue(shader, shaderAsset.GetLoc("receive_shadows"), 0, ShaderUniformDataType.Int);
+    }
+
+    private float GetCachedAssetAutoDistance(Asset asset, out Vector3 center) {
+
+        var key = asset switch {
+            ModelAsset model => $"{model.GUID}:{model.Settings.ImportScale}:{model.Meshes.Count}",
+            MaterialAsset material => $"mat:{material.GUID}:{_currentPrimitiveIndex}",
+            _ => $"{asset.GUID}:{asset.File}"
+        };
+
+        if (_previewBoundsKey == key) {
+            center = _previewBoundsCenter;
+            return _previewBoundsDistance;
+        }
+
+        _previewBoundsDistance = GetAssetAutoDistance(asset, out _previewBoundsCenter);
+        _previewBoundsKey = key;
+        center = _previewBoundsCenter;
+        return _previewBoundsDistance;
     }
 
     private static float GetAssetAutoDistance(Asset asset, out Vector3 center) {
@@ -1135,7 +1235,7 @@ internal class Preview : Viewport {
 
                 mat.ApplyChanges(updateThumbnail: false, bumpVersion: false);
 
-                SetupPreviewLighting(mat, camera, target, distance);
+                SetupPreviewLightingStatic(mat, camera, target, distance);
                 DrawMesh(mesh, mat.Material, Matrix4x4.Transpose(Matrix4x4.CreateTranslation(0, 0.5f, 0)));
 
                 break;
@@ -1152,7 +1252,7 @@ internal class Preview : Viewport {
                     var material = mesh.MaterialIndex >= 0 && mesh.MaterialIndex < model.Materials.Length ? model.Materials[mesh.MaterialIndex] : MaterialAsset.Default.Material;
                     var matAsset = mesh.MaterialIndex >= 0 && mesh.MaterialIndex < model.CachedMaterialAssets.Count ? model.CachedMaterialAssets[mesh.MaterialIndex] ?? MaterialAsset.Default : MaterialAsset.Default;
 
-                    SetupPreviewLighting(matAsset, camera, target, distance);
+                    SetupPreviewLightingStatic(matAsset, camera, target, distance);
                     DrawMesh(mesh.RlMesh, material, matBase);
                 }
 

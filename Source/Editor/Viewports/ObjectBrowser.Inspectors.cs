@@ -21,6 +21,11 @@ internal partial class ObjectBrowser {
             return;
         }
 
+        if (CollectionData.IsModel(path)) {
+            DrawModelAssetFromPath(path);
+            return;
+        }
+
         if (_assetInspectorByExtension.TryGetValue(ext, out var inspector))
             inspector(this, path);
     }

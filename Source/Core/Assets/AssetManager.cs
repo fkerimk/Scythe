@@ -22,6 +22,7 @@ internal static class AssetManager {
     private static readonly Dictionary<string, Asset>     PathLookup     = new();
     private static readonly Dictionary<Type, List<Asset>> TypeCache      = new();
     private static readonly Dictionary<string, ImportedAnimationTrackCacheEntry> ImportedAnimationTrackCache = new();
+    private static readonly HashSet<string>               FailedImports   = [];
     private static readonly ConcurrentQueue<Action>       PendingActions = new();
 #if !SCYTHE_RUNTIME_BUILD
     private static readonly Subject<string>               ImportRequests = new();
@@ -62,15 +63,17 @@ internal static class AssetManager {
             Assets.Clear();
             TypeCache.Clear();
             ImportedAnimationTrackCache.Clear();
+            FailedImports.Clear();
 
             var builtInPath = "";
             bool hasBuiltIn = PathUtil.GetPath("Collection", out builtInPath);
-            var builtInFiles = hasBuiltIn ? Directory.GetFiles(builtInPath, "*.*", SearchOption.AllDirectories).ToList() : new List<string>();
+            var builtInFiles = hasBuiltIn ? Directory.GetFiles(builtInPath, "*.*", SearchOption.AllDirectories).Where(IsVisibleAssetSourcePath).ToList() : new List<string>();
 
             var modPath = ScytheConfig.Current.Project;
             EnsureImportsRoot();
             var modFiles = Directory.Exists(modPath)
                 ? Directory.GetFiles(modPath, "*.*", SearchOption.AllDirectories)
+                           .Where(IsVisibleAssetSourcePath)
                            .Where(f => !f.Contains("/Assembly/") && !f.Contains("\\Assembly\\"))
                            .Where(f => !IsImportsPath(f))
                            .ToList()
@@ -244,6 +247,9 @@ internal static class AssetManager {
     private static void HandleFileChange(string file) {
 
         if (IsImportsPath(file)) return;
+        if (!IsVisibleAssetSourcePath(file)) return;
+
+        ClearTransientImportState(file);
 
         var normalized = NormalizeWatchPath(file);
         if (ShouldIgnoreChange(normalized)) return;
@@ -293,7 +299,9 @@ internal static class AssetManager {
     private static void HandleFileDelete(string file) {
 
         if (IsImportsPath(file)) return;
+        if (!IsVisibleAssetSourcePath(file)) return;
 
+        ClearTransientImportState(file);
         UnloadAsset(file);
     }
 
@@ -302,6 +310,7 @@ internal static class AssetManager {
         file = Path.GetFullPath(file);
 
         if (!File.Exists(file) && !AssetPaths.IsMaterial(file)) return;
+        if (!IsVisibleAssetSourcePath(file)) return;
         if (TryImportKnownAsset(file)) return;
 
         if (AssetPaths.IsJson(file)) {
@@ -350,6 +359,20 @@ internal static class AssetManager {
         yield return file;
     }
 
+    private static bool IsVisibleAssetSourcePath(string path) {
+
+        var fullPath = Path.GetFullPath(path);
+        var parts = fullPath.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+
+        foreach (var part in parts) {
+
+            if (string.IsNullOrWhiteSpace(part)) continue;
+            if (part.StartsWith(".", StringComparison.Ordinal)) return false;
+        }
+
+        return true;
+    }
+
     private static void CreateWatcher(string path, string filter, Action<string> onImport, Action<string> onUnload) {
 
         var watcher = new FileSystemWatcher(path, filter) { IncludeSubdirectories = true };
@@ -377,7 +400,10 @@ internal static class AssetManager {
         if (!File.Exists(newJson)) SafeExec.Try(() => JsonFile.WriteIndented(newJson, new ModelAsset.ModelSettings()));
 
         GetOrLoad<ModelAsset>(file);
-        GetOrLoad<AnimationAsset>(file);
+
+        var model = Get<ModelAsset>(file);
+        if (model is { Animations.Count: > 0 })
+            GetOrLoad<AnimationAsset>(file);
     }
 
     private static void ImportScript(string file) => GetOrLoad<ScriptAsset>(file);
@@ -414,15 +440,20 @@ internal static class AssetManager {
             return cached.Tracks;
 
         List<AnimationClip> tracks;
-        if (File.Exists(importedFile) && CompiledAssetCache.LoadModel(importedFile, out _, out _, out _, out _, out var compiledAnimations))
-            tracks = compiledAnimations;
-        else {
+        try {
+            if (File.Exists(importedFile) && CompiledAssetCache.LoadModel(importedFile, out _, out _, out _, out _, out var compiledAnimations))
+                tracks = compiledAnimations;
+            else {
 
 #if !SCYTHE_RUNTIME_BUILD
-            tracks = AssimpLoader.Load(file).Animations;
+                tracks = AssimpLoader.Load(file).Animations;
 #else
-            tracks = [];
+                tracks = [];
 #endif
+            }
+        } catch (Exception e) {
+            TraceLog(Raylib_cs.TraceLogLevel.Error, $"Failed to load animation tracks {file}: {e.Message}");
+            tracks = [];
         }
 
         ImportedAnimationTrackCache[cacheKey] = new ImportedAnimationTrackCacheEntry {
@@ -442,7 +473,22 @@ internal static class AssetManager {
         return $"{sourceTicks}:{importedTicks}:{jsonTicks}";
     }
 
+    private static string BuildFailedImportKey(string file, Type type) =>
+        $"{NormalizeLookupPath(file)}::{type.Name}";
+
+    private static void ClearTransientImportState(string file) {
+
+        ImportedAnimationTrackCache.Remove(Path.GetFullPath(file).Replace('\\', '/'));
+
+        var normalizedPath = NormalizeLookupPath(file);
+        var keysToRemove = FailedImports.Where(key => key.StartsWith(normalizedPath + "::", StringComparison.Ordinal)).ToList();
+        foreach (var key in keysToRemove) FailedImports.Remove(key);
+    }
+
     private static void GetOrLoad<T>(string file) where T : Asset, new() {
+
+        var loadKey = BuildFailedImportKey(file, typeof(T));
+        if (FailedImports.Contains(loadKey)) return;
 
         var key = $"{file.ToLowerInvariant()}::{typeof(T).Name}";
         var isNew = false;
@@ -454,7 +500,12 @@ internal static class AssetManager {
             isNew = true;
         }
 
-        if (!asset.IsLoaded && !asset.Load()) return;
+        if (!asset.IsLoaded && !asset.Load()) {
+            FailedImports.Add(loadKey);
+            return;
+        }
+
+        FailedImports.Remove(loadKey);
 
         AddToMaps<T>(file, asset);
         NormalizeInternalReferences(asset);

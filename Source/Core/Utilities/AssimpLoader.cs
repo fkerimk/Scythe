@@ -6,18 +6,17 @@ using Quaternion = System.Numerics.Quaternion;
 internal static partial class AssimpLoader {
 
     private static readonly AssimpContext Context = new();
+    private static readonly PostProcessSteps DefaultPostProcessSteps =
+        PostProcessSteps.Triangulate
+        | PostProcessSteps.FlipUVs
+        | PostProcessSteps.GenerateSmoothNormals
+        | PostProcessSteps.CalculateTangentSpace
+        | PostProcessSteps.LimitBoneWeights
+        | PostProcessSteps.SortByPrimitiveType;
 
     public static (List<AssimpMesh> Meshes, List<BoneInfo> Bones, ModelNode Root, Matrix4x4 GlobalInverse, List<AnimationClip> Animations) Load(string path) {
 
-        var scene = Context.ImportFile(
-            path,
-            PostProcessSteps.Triangulate
-            | PostProcessSteps.FlipUVs
-            | PostProcessSteps.GenerateSmoothNormals
-            | PostProcessSteps.CalculateTangentSpace
-            | PostProcessSteps.LimitBoneWeights
-            | PostProcessSteps.SortByPrimitiveType
-        );
+        var scene = ImportScene(path);
 
         if (scene == null || scene.SceneFlags.HasFlag(SceneFlags.Incomplete) || scene.RootNode == null)
             throw new Exception($"Assimp error: {path}");
@@ -42,6 +41,45 @@ internal static partial class AssimpLoader {
             globalInverse,
             animations
         );
+    }
+
+    private static Scene ImportScene(string path) {
+
+        var extension = Path.GetExtension(path).TrimStart('.').ToLowerInvariant();
+        var errors = new List<Exception>();
+
+        if (extension == "glb") {
+            var hintOrder = new[] { "gltf2", "glb" };
+            foreach (var hint in hintOrder)
+                if (TryImportSceneFromStream(path, hint, out var hintedScene, out var hintedError))
+                    return hintedScene;
+                else if (hintedError != null)
+                    errors.Add(hintedError);
+        }
+
+        try {
+            return Context.ImportFile(path, DefaultPostProcessSteps);
+        } catch (Exception e) {
+            errors.Add(e);
+        }
+
+        if (errors.Count == 1) throw errors[0];
+
+        throw new AggregateException($"Failed to import model {path}", errors);
+    }
+
+    private static bool TryImportSceneFromStream(string path, string formatHint, out Scene scene, out Exception? error) {
+
+        try {
+            using var stream = File.OpenRead(path);
+            scene = Context.ImportFileFromStream(stream, DefaultPostProcessSteps, formatHint);
+            error = null;
+            return true;
+        } catch (Exception e) {
+            scene = null!;
+            error = e;
+            return false;
+        }
     }
 
     private static AssimpMesh ProcessMesh(Assimp.Mesh mesh, List<BoneInfo> bones, Dictionary<string, List<int>> boneMapping) {
@@ -166,9 +204,8 @@ internal static partial class AssimpLoader {
                && Math.Abs(left.M44 - right.M44) < epsilon;
     }
 
-    private static Matrix4x4 ToNumerics(this Assimp.Matrix4x4 matrix) =>
-        new(matrix.A1, matrix.B1, matrix.C1, matrix.D1, matrix.A2, matrix.B2, matrix.C2, matrix.D2, matrix.A3, matrix.B3, matrix.C3, matrix.D3, matrix.A4, matrix.B4, matrix.C4, matrix.D4);
-
-    private static Vector3 ToNumerics(this Vector3D vector) => new(vector.X, vector.Y, vector.Z);
-    private static Quaternion ToNumerics(this Assimp.Quaternion quaternion) => new(quaternion.X, quaternion.Y, quaternion.Z, quaternion.W);
+    // Assimp matrices are effectively transposed relative to the System.Numerics convention used by the engine.
+    private static Matrix4x4 ToNumerics(this Matrix4x4 matrix) => Matrix4x4.Transpose(matrix);
+    private static Vector3 ToNumerics(this Vector3 vector) => vector;
+    private static Quaternion ToNumerics(this Quaternion quaternion) => quaternion;
 }
