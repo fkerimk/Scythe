@@ -47,34 +47,35 @@ internal class ShaderAsset : Asset {
         try {
 
             Shader = LoadShader(vsPath, fsPath);
+            Properties.Clear();
 
             // Map standard locations
-            var locAlbedo = GetShaderLocation(Shader, "albedo_map");
+            var locAlbedo = GetFirstLocation("albedo_map", "texture0");
             if (locAlbedo != -1) Shader.Locs[(int)ShaderLocationIndex.MapAlbedo] = locAlbedo;
 
-            var locNormal = GetShaderLocation(Shader, "normal_map");
+            var locNormal = GetFirstLocation("normal_map");
             if (locNormal != -1) Shader.Locs[(int)ShaderLocationIndex.MapNormal] = locNormal;
 
-            var locMetallic = GetShaderLocation(Shader, "metallic_map");
+            var locMetallic = GetFirstLocation("metallic_map");
             if (locMetallic != -1) Shader.Locs[(int)ShaderLocationIndex.MapMetalness] = locMetallic;
 
-            var locRoughness = GetShaderLocation(Shader, "roughness_map");
+            var locRoughness = GetFirstLocation("roughness_map");
             if (locRoughness != -1) Shader.Locs[(int)ShaderLocationIndex.MapRoughness] = locRoughness;
 
-            var locOcclusion = GetShaderLocation(Shader, "occlusion_map");
+            var locOcclusion = GetFirstLocation("occlusion_map");
             if (locOcclusion != -1) Shader.Locs[(int)ShaderLocationIndex.MapOcclusion] = locOcclusion;
 
-            var locEmission = GetShaderLocation(Shader, "emissive_map");
+            var locEmission = GetFirstLocation("emissive_map");
             if (locEmission != -1) Shader.Locs[(int)ShaderLocationIndex.MapEmission] = locEmission;
 
             // Map standard attributes
-            Shader.Locs[(int)ShaderLocationIndex.VertexPosition] = GetShaderLocation(Shader, "vertex_pos");
-            Shader.Locs[(int)ShaderLocationIndex.VertexTexcoord01] = GetShaderLocation(Shader, "vertex_tex_pos");
-            Shader.Locs[(int)ShaderLocationIndex.VertexNormal] = GetShaderLocation(Shader, "vertex_normal");
-            Shader.Locs[(int)ShaderLocationIndex.VertexTangent] = GetShaderLocation(Shader, "vertex_tangent");
-            Shader.Locs[(int)ShaderLocationIndex.VertexColor] = GetShaderLocation(Shader, "vertex_color");
+            Shader.Locs[(int)ShaderLocationIndex.VertexPosition] = GetFirstLocation("vertex_pos", "vertexPosition");
+            Shader.Locs[(int)ShaderLocationIndex.VertexTexcoord01] = GetFirstLocation("vertex_tex_pos", "vertexTexCoord");
+            Shader.Locs[(int)ShaderLocationIndex.VertexNormal] = GetFirstLocation("vertex_normal", "vertexNormal");
+            Shader.Locs[(int)ShaderLocationIndex.VertexTangent] = GetFirstLocation("vertex_tangent", "vertexTangent");
+            Shader.Locs[(int)ShaderLocationIndex.VertexColor] = GetFirstLocation("vertex_color", "vertexColor");
 
-            var locView = GetShaderLocation(Shader, "view_pos");
+            var locView = GetFirstLocation("view_pos", "viewPos", "cameraPos");
             if (locView != -1) Shader.Locs[(int)ShaderLocationIndex.VectorView] = locView;
 
             // Global defaults for tiling/offset
@@ -84,7 +85,7 @@ internal class ShaderAsset : Asset {
             if (locOffset != -1) SetShaderValue(Shader, locOffset, new Vector2(0.0f, 0.0f), ShaderUniformDataType.Vec2);
 
             // Cubemap for Skybox
-            var locEnv = GetShaderLocation(Shader, "environmentMap");
+            var locEnv = GetFirstLocation("environmentMap");
             if (locEnv != -1) SetShaderValue(Shader, locEnv, (int)MaterialMapIndex.Cubemap, ShaderUniformDataType.Int);
 
             ParseUniforms(vsPath);
@@ -120,7 +121,7 @@ internal class ShaderAsset : Asset {
         if (path == null || !System.IO.File.Exists(path)) return;
 
         var lines = System.IO.File.ReadAllLines(path);
-        var regex = new System.Text.RegularExpressions.Regex(@"uniform\s+(float|int|vec2|vec3|vec4|sampler2D|samplerCube)\s+(\w+);");
+        var regex = new System.Text.RegularExpressions.Regex(@"uniform\s+(float|int|bool|vec2|vec3|vec4|sampler2D|samplerCube|mat4)\s+(\w+)(?:\s*=\s*[^;]+)?\s*;");
 
         foreach (var line in lines) {
 
@@ -132,7 +133,7 @@ internal class ShaderAsset : Asset {
             var name = match.Groups[2].Value;
 
             // Skip standard uniforms
-            if (name.StartsWith("lights[") || name is "mvp" or "matModel" or "matNormal" or "view_pos" or "light_count" or "lightVP" or "shadowMap" or "shadow_light_index" or "shadow_strength" or "shadow_map_resolution" or "receive_shadows" or "shadow_bias" or "tiling" or "alpha_cutoff") continue;
+            if (name.StartsWith("lights[") || name is "mvp" or "matModel" or "matNormal" or "matProjection" or "matView" or "matProjectionInverse" or "matViewProjInv" or "matPrevViewProj" or "view_pos" or "viewPos" or "cameraPos" or "light_count" or "lightVP" or "shadowMap" or "shadow_light_index" or "shadow_strength" or "shadow_map_resolution" or "receive_shadows" or "shadow_bias" or "tiling" or "offset" or "alpha_cutoff" or "texture0" or "colDiffuse" or "textureSize" or "renderSize" or "renderWidth" or "renderHeight" or "resolution" or "time" or "depthTexture" or "historyTexture" or "jitter" or "ambient_color" or "ambient_intensity") continue;
 
             if (Properties.All(p => p.Name != name)) Properties.Add(new ShaderProperty { Name = name, Type = type });
         }
@@ -146,6 +147,17 @@ internal class ShaderAsset : Asset {
         _locations[name] = loc;
 
         return loc;
+    }
+
+    private int GetFirstLocation(params string[] names) {
+
+        foreach (var name in names) {
+
+            var loc = GetShaderLocation(Shader, name);
+            if (loc != -1) return loc;
+        }
+
+        return -1;
     }
 
     public override IEnumerable<string> GetWatchedFiles() {

@@ -37,6 +37,8 @@ internal static class Core {
     private static Texture2D _skyboxTexture;
     private static string _loadedSkyboxGuid = "";
 
+    public static bool IsRuntimePresentation => CommandLine.Runtime || IsPlaying;
+
     public static unsafe void Init() {
 
         var useInternalSplash = !CommandLine.NoSplash && !Splash.HasExternalHelper;
@@ -61,13 +63,7 @@ internal static class Core {
         // Setup Global PBR Uniforms
         var pbr = AssetManager.Get<ShaderAsset>("Collection/pbr.vs");
 
-        if (pbr != null) {
-
-            SetShaderValue(pbr.Shader, pbr.GetLoc("use_tex_albedo"), !CommandLine.Runtime ? OldConfig.Editor.PbrAlbedo : OldConfig.Runtime.PbrAlbedo, ShaderUniformDataType.Int);
-            SetShaderValue(pbr.Shader, pbr.GetLoc("use_tex_normal"), !CommandLine.Runtime ? OldConfig.Editor.PbrNormal : OldConfig.Runtime.PbrNormal, ShaderUniformDataType.Int);
-            SetShaderValue(pbr.Shader, pbr.GetLoc("use_tex_mra"), !CommandLine.Runtime ? OldConfig.Editor.PbrMra : OldConfig.Runtime.PbrMra, ShaderUniformDataType.Int);
-            SetShaderValue(pbr.Shader, pbr.GetLoc("use_tex_emissive"), !CommandLine.Runtime ? OldConfig.Editor.PbrEmissive : OldConfig.Runtime.PbrEmissive, ShaderUniformDataType.Int);
-        }
+        ApplyPresentationSettings();
 
         _shadowMap = LoadShadowmapRenderTexture(ShadowMapResolution, ShadowMapResolution);
 
@@ -364,6 +360,25 @@ internal static class Core {
 
     public static Color GetActiveBackgroundColor() => ActiveLevel?.BackgroundColor ?? Colors.Game;
 
+    public static void ApplyPresentationSettings() {
+
+        var pbr = AssetManager.Get<ShaderAsset>("Collection/pbr.vs");
+        if (pbr == null) return;
+
+        var useRuntimeSettings = IsRuntimePresentation;
+        var useAlbedo = useRuntimeSettings ? OldConfig.Runtime.PbrAlbedo : OldConfig.Editor.PbrAlbedo;
+        var useNormal = useRuntimeSettings ? OldConfig.Runtime.PbrNormal : OldConfig.Editor.PbrNormal;
+        var useMra = useRuntimeSettings ? OldConfig.Runtime.PbrMra : OldConfig.Editor.PbrMra;
+        var useEmissive = useRuntimeSettings ? OldConfig.Runtime.PbrEmissive : OldConfig.Editor.PbrEmissive;
+
+        SetShaderValue(pbr.Shader, pbr.GetLoc("use_tex_albedo"), useAlbedo, ShaderUniformDataType.Int);
+        SetShaderValue(pbr.Shader, pbr.GetLoc("use_tex_normal"), useNormal, ShaderUniformDataType.Int);
+        SetShaderValue(pbr.Shader, pbr.GetLoc("use_tex_metallic"), useMra, ShaderUniformDataType.Int);
+        SetShaderValue(pbr.Shader, pbr.GetLoc("use_tex_roughness"), useMra, ShaderUniformDataType.Int);
+        SetShaderValue(pbr.Shader, pbr.GetLoc("use_tex_occlusion"), useMra, ShaderUniformDataType.Int);
+        SetShaderValue(pbr.Shader, pbr.GetLoc("use_tex_emissive"), useEmissive, ShaderUniformDataType.Int);
+    }
+
     public static unsafe void ApplyLevelVisualSettings() {
 
         if (ActiveLevel == null) {
@@ -545,9 +560,13 @@ internal static class Core {
         // Hierarchy Sync & Visuals (World Matrices + Cartoon Bounce) his pass settles the physical truth and prepares the visual state for rendering.
         SyncHierarchy(ActiveLevel.Root);
 
-        // Update global pbr parameters after everything is settled
+        ApplyViewPosition(ActiveCamera);
+    }
+
+    public static void ApplyViewPosition(Camera3D? camera) {
+
         var pbr = AssetManager.Get<ShaderAsset>("Collection/pbr.vs");
-        if (pbr != null) SetShaderValue(pbr.Shader, pbr.GetLoc("view_pos"), ActiveCamera?.Position ?? Vector3.Zero, ShaderUniformDataType.Vec3);
+        if (pbr != null) SetShaderValue(pbr.Shader, pbr.GetLoc("view_pos"), camera?.Position ?? Vector3.Zero, ShaderUniformDataType.Vec3);
     }
 
     private static void RefreshPlayModeAfterScriptHotReload() {
@@ -823,6 +842,7 @@ internal static class Core {
             var renderCamera = ActiveCamera;
 
             if (renderCamera != null) {
+                ApplyViewPosition(renderCamera);
                 BeginMode3D(renderCamera.Raylib);
                 PostProcessing.ApplyJitter(renderCamera);
                 LastProjectionMatrix = Rlgl.GetMatrixProjection();

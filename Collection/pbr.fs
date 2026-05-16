@@ -117,7 +117,8 @@ float geom_smith(float n_dot_v, float n_dot_l, float roughness) {
 
 vec4 compute_pbr() {
 
-    vec4 albedo = texture(albedo_map, vec2(frag_tex_pos.x * tiling.x + offset.x, frag_tex_pos.y * tiling.y + offset.y));
+    vec2 uv = vec2(frag_tex_pos.x * tiling.x + offset.x, frag_tex_pos.y * tiling.y + offset.y);
+    vec4 albedo = use_tex_albedo == 1 ? texture(albedo_map, uv) : vec4(1.0);
     albedo = vec4(pow(albedo.rgb, vec3(2.2)), albedo.a);
     albedo *= vec4(pow(albedo_color.rgb, vec3(2.2)), albedo_color.a);
     
@@ -125,15 +126,15 @@ vec4 compute_pbr() {
     float roughness = clamp(roughness_value, 0.04, 1.0);
     float ao = clamp(aoValue, 0.0, 1.0);
     
-    if (use_tex_metallic == 1) metallic = clamp(texture(metallic_map, vec2(frag_tex_pos.x * tiling.x + offset.x, frag_tex_pos.y * tiling.y + offset.y)).r + metallic_value, 0.0, 1.0);
-    if (use_tex_roughness == 1) roughness = clamp(texture(roughness_map, vec2(frag_tex_pos.x * tiling.x + offset.x, frag_tex_pos.y * tiling.y + offset.y)).r + roughness_value, 0.04, 1.0);
-    if (use_tex_occlusion == 1) ao = clamp(texture(occlusion_map, vec2(frag_tex_pos.x * tiling.x + offset.x, frag_tex_pos.y * tiling.y + offset.y)).r + aoValue - 1.0, 0.0, 1.0);
+    if (use_tex_metallic == 1) metallic = clamp(texture(metallic_map, uv).r + metallic_value, 0.0, 1.0);
+    if (use_tex_roughness == 1) roughness = clamp(texture(roughness_map, uv).r + roughness_value, 0.04, 1.0);
+    if (use_tex_occlusion == 1) ao = clamp(texture(occlusion_map, uv).r + aoValue - 1.0, 0.0, 1.0);
 
     vec3 n = normalize(frag_normal);
 
     if (use_tex_normal == 1) {
 
-        vec3 normalSample = texture(normal_map, vec2(frag_tex_pos.x * tiling.x + offset.x, frag_tex_pos.y * tiling.y + offset.y)).rgb;
+        vec3 normalSample = texture(normal_map, uv).rgb;
         if (is_directx_normal == 1) normalSample.g = 1.0 - normalSample.g;
         normalSample = normalize(normalSample * 2.0 - 1.0);
         normalSample = mix(vec3(0.0, 0.0, 1.0), normalSample, normalValue);
@@ -142,11 +143,11 @@ vec4 compute_pbr() {
 
     vec3 v = normalize(view_pos - frag_pos);
 
-    vec3 emissive = vec3(0);
+    vec3 emissive = emissive_color.rgb * emissive_intensity;
 
     if (use_tex_emissive == 1) {
 
-        emissive = texture(emissive_map, vec2(frag_tex_pos.x * tiling.x + offset.x, frag_tex_pos.y * tiling.y + offset.y)).g * emissive_color.rgb * emissive_intensity;
+        emissive *= texture(emissive_map, uv).g;
     }
 
     vec3 base_refl = mix(vec3(0.04), albedo.rgb, metallic);

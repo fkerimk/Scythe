@@ -7,7 +7,7 @@ internal static class Window {
 
     public static void UpdateFps() {
 
-        var targetFps = !CommandLine.Runtime ? OldConfig.Editor.FpsLock : OldConfig.Runtime.FpsLock;
+        var targetFps = Core.IsRuntimePresentation ? OldConfig.Runtime.FpsLock : OldConfig.Editor.FpsLock;
 
         if (targetFps == -1) targetFps = Screen.RefreshRate;
 
@@ -20,7 +20,7 @@ internal static class Window {
 
     public static void DrawFps(System.Numerics.Vector2 pos) {
 
-        if (!CommandLine.Runtime ? !OldConfig.Editor.DrawFps : !OldConfig.Runtime.DrawFps) return;
+        if (Core.IsRuntimePresentation ? !OldConfig.Runtime.DrawFps : !OldConfig.Editor.DrawFps) return;
 
         var fpsText = GetFPS().ToString();
 

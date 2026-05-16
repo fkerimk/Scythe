@@ -6,38 +6,27 @@
     "albedo_map": "7b053332bc6345c897bbac635b62d18d",
     "normal_map": "d31bcdf2cbb7464aa0c6891db7a1779c",
     "occlusion_map": "88b06dd3181543a8885fc8ee25eb4ae0",
-    "roughness_map": "783f5707393c4291a195d2d687341937"
+    "roughness_map": "783f5707393c4291a195d2d687341937",
+    "emissive_map": "",
+    "metallic_map": ""
   },
   "TexturePaths": {
     "albedo_map": "Blocks/ToyBlocks/ToyBlocksColor.png",
     "normal_map": "Blocks/ToyBlocks/ToyBlocksNormal.png",
     "occlusion_map": "Blocks/ToyBlocks/ToyBlocksAO.png",
-    "roughness_map": "Blocks/ToyBlocks/ToyBlocksRoughnes.png"
+    "roughness_map": "Blocks/ToyBlocks/ToyBlocksRoughnes.png",
+    "emissive_map": "",
+    "metallic_map": ""
   },
   "Floats": {
     "metallic_value": 0.0,
     "roughness_value": 1.0,
     "aoValue": 1.0,
-    "emissive_intensity": 1.0,
-    "normalValue": 1.0,
-    "use_tex_albedo": 1.0,
-    "use_tex_normal": 1.0,
-    "use_tex_mra": 1.0,
-    "use_tex_emissive": 1.0,
-    "ambient_intensity": 0.0,
-    "use_tex_metallic": 1.0,
-    "use_tex_roughness": 1.0,
-    "use_tex_occlusion": 1.0,
-    "is_directx_normal": 1.0
+    "emissive_intensity": 0.0,
+    "normalValue": 1.0
   },
   "Ints": {
-    "is_directx_normal": 0,
-    "use_tex_albedo": 0,
-    "use_tex_normal": 0,
-    "use_tex_metallic": 0,
-    "use_tex_roughness": 0,
-    "use_tex_occlusion": 0,
-    "use_tex_emissive": 0
+    "is_directx_normal": 0
   },
   "Colors": {
     "albedo_color": {
@@ -47,12 +36,6 @@
       "A": 255
     },
     "emissive_color": {
-      "R": 255,
-      "G": 255,
-      "B": 255,
-      "A": 255
-    },
-    "ambient_color": {
       "R": 255,
       "G": 255,
       "B": 255,

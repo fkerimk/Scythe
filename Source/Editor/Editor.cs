@@ -271,6 +271,7 @@ internal static unsafe class Editor {
 
             // 3D Pass
             if (Core.GameCamera != null) {
+                Core.ApplyViewPosition(Core.GameCamera);
                 BeginMode3D(Core.GameCamera.Raylib);
                 PostProcessing.ApplyJitter(Core.GameCamera);
                 Core.LastProjectionMatrix = GetMatrixProjection();
@@ -298,6 +299,7 @@ internal static unsafe class Editor {
             FreeCam.Loop(EditorRender);
 
             Camera.ApplySettings(_editorCamera, 0.01f, 2000.0f);
+            Core.ApplyViewPosition(_editorCamera);
             BeginMode3D(_editorCamera.Raylib);
             Core.LastProjectionMatrix = GetMatrixProjection();
             Core.LastViewMatrix = GetMatrixModelview();
@@ -413,6 +415,11 @@ internal static unsafe class Editor {
         if (!Core.IsPlaying) {
             // Isolate editor state
             _editorLevelRef = Core.ActiveLevel;
+            var selectedPaths = CaptureSelectedObjectPaths();
+            LevelBrowser.DragObject = null;
+            LevelBrowser.DragTarget = null;
+            Picking.DragSource = null;
+            Picking.DragTarget = null;
 
             Core.IsPlaying = true;
             Core.RuntimeInputEnabled = true;
@@ -427,6 +434,8 @@ internal static unsafe class Editor {
             Core.OpenLevels[Core.ActiveLevelIndex] = CloneLevelForPlayMode(_editorLevelRef);
             Core.SetActiveLevel(Core.ActiveLevelIndex, clearHistory: false);
             Core.Load();
+            RestoreSelectedObjectPaths(selectedPaths);
+            Core.ApplyPresentationSettings();
             BackgroundScripts.Initialize();
 
             if (mouseCenter.HasValue && IsCursorHidden())
@@ -435,12 +444,17 @@ internal static unsafe class Editor {
             Notifications.Show("Play Mode Started");
         } else {
             // Stop play mode
+            var selectedPaths = CaptureSelectedObjectPaths();
             Core.IsPlaying = false;
             Core.RuntimeInputEnabled = true;
             EditorUnlockedCursor = false;
             EnableCursor();
             ShowCursor();
             BackgroundScripts.Shutdown();
+            LevelBrowser.DragObject = null;
+            LevelBrowser.DragTarget = null;
+            Picking.DragSource = null;
+            Picking.DragTarget = null;
 
             // Re-init physics to clear runtime bodies
             Physics.Init();
@@ -452,6 +466,8 @@ internal static unsafe class Editor {
 
                 // Force reload rigidbodies because Physics World was reset
                 ReloadPhysics(_editorLevelRef.Root);
+                RestoreSelectedObjectPaths(selectedPaths);
+                Core.ApplyPresentationSettings();
 
                 _editorLevelRef = null;
             }
@@ -460,6 +476,54 @@ internal static unsafe class Editor {
         }
 
         Core.ActiveCamera = Core.IsPlaying ? Core.GameCamera : _editorCamera;
+    }
+
+    private static List<string> CaptureSelectedObjectPaths() {
+
+        return LevelBrowser.SelectedObjects
+            .Select(GetObjectPath)
+            .Where(path => !string.IsNullOrWhiteSpace(path))
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+    }
+
+    private static void RestoreSelectedObjectPaths(IEnumerable<string> paths) {
+
+        LevelBrowser.SelectObject(null);
+
+        foreach (var path in paths) {
+
+            var obj = FindObjectByPath(path);
+            if (obj != null) LevelBrowser.SelectObject(obj, multiSelect: true);
+        }
+    }
+
+    private static string GetObjectPath(Obj obj) {
+
+        var names = new Stack<string>();
+        var current = obj;
+
+        while (current.Parent != null) {
+            names.Push(current.Name);
+            current = current.Parent;
+        }
+
+        return string.Join("/", names);
+    }
+
+    private static Obj? FindObjectByPath(string path) {
+
+        var level = Core.ActiveLevel;
+        if (level == null || string.IsNullOrWhiteSpace(path)) return null;
+
+        var current = level.Root;
+        foreach (var segment in path.Split('/', StringSplitOptions.RemoveEmptyEntries)) {
+
+            if (!current.ChildEntries.TryGetValue(segment, out var next)) return null;
+            current = next;
+        }
+
+        return current;
     }
 
     private static Level CloneLevelForPlayMode(Level source) {
