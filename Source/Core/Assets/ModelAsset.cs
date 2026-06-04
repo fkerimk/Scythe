@@ -42,7 +42,11 @@ internal class ModelAsset : Asset {
 
     public void ApplySettings() {
 
+        if (Materials == null || MaterialPaths == null) return;
+
         NormalizeReferences();
+
+        while (CachedMaterialAssets.Count < Materials.Length) CachedMaterialAssets.Add(null);
 
         for (var i = 0; i < Materials.Length; i++) {
 

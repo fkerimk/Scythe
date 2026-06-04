@@ -17,7 +17,7 @@ if (CommandLine.SplashHelper) {
 SetTraceLogLevel(TraceLogLevel.Error);
 Window.Show(width: 1280, height: 720, maximize: false, flags: [ConfigFlags.ResizableWindow]);
 
-if (!CommandLine.Runtime) CommandLine.NoSplash = false;
+if (!CommandLine.Runtime && !CommandLine.ProfileAssets) CommandLine.NoSplash = false;
 
 if (!BundleRuntime.IsActive) {
     PathUtil.ValidateFile("Scythe.json", out var scytheJson, "{}");
@@ -37,7 +37,7 @@ if (!BundleRuntime.IsActive) {
     }
 
     #if !SCYTHE_RUNTIME_BUILD
-    if (!CommandLine.Template) {
+    if (!CommandLine.Template && !CommandLine.ProfileAssets) {
         var selected = Launcher.Show();
         if (string.IsNullOrEmpty(selected)) return 0;
 
@@ -60,6 +60,14 @@ PathUtil.ValidateDir("Project", out _, true);
 
 if (!CommandLine.NoSplash)
     Splash.StartExternalHelper();
+
+if (CommandLine.ProfileAssets) {
+    AssetManager.Init();
+    AssetManager.UnloadAll();
+    Splash.StopExternalHelper();
+    if (IsWindowReady()) CloseWindow();
+    return 0;
+}
 
 #if SCYTHE_RUNTIME_BUILD
 Runtime.Show();

@@ -1370,7 +1370,7 @@ internal partial class ObjectBrowser : Viewport {
     };
 
 
-    private void DrawImportedAsset<TAsset>(string path, Action<TAsset> draw) where TAsset : Asset {
+    private void DrawImportedAsset<TAsset>(string path, Action<TAsset> draw) where TAsset : Asset, new() {
 
         var asset = AssetManager.GetOrImport<TAsset>(path);
         if (asset != null)

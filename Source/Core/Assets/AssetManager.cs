@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 #if !SCYTHE_RUNTIME_BUILD
@@ -9,6 +10,12 @@ using System.Reactive.Subjects;
 using static Raylib_cs.Raylib;
 
 internal static class AssetManager {
+    private sealed class AssetProfileEntry {
+        public string Path = "";
+        public string Type = "";
+        public long Milliseconds;
+    }
+
     private sealed class ImportedAnimationTrackCacheEntry {
         public string Signature = "";
         public List<AnimationClip> Tracks = [];
@@ -37,6 +44,9 @@ internal static class AssetManager {
 #endif
     private static BackgroundTask?                        _importTask;
     private static bool                                   _isInitializing;
+    private static readonly bool                          ProfileAssets = Environment.GetEnvironmentVariable("SCYTHE_PROFILE_ASSETS") == "1" || CommandLine.ProfileAssets;
+    private static readonly List<AssetProfileEntry>        ProfileEntries = [];
+    private static int                                    _loadDepth;
 
     public static bool IsInitializing => _isInitializing;
 
@@ -52,6 +62,7 @@ internal static class AssetManager {
     public static void Init() {
 
         _isInitializing = true;
+        var initTimer = Stopwatch.StartNew();
 
         try {
             EnsureImportPipeline();
@@ -66,6 +77,7 @@ internal static class AssetManager {
             FailedImports.Clear();
 
             var builtInPath = "";
+            var scanTimer = Stopwatch.StartNew();
             bool hasBuiltIn = PathUtil.GetPath("Collection", out builtInPath);
             var builtInFiles = hasBuiltIn ? Directory.GetFiles(builtInPath, "*.*", SearchOption.AllDirectories).Where(IsVisibleAssetSourcePath).ToList() : new List<string>();
 
@@ -80,14 +92,16 @@ internal static class AssetManager {
                 : new List<string>();
 
             var totalFiles = builtInFiles.Concat(modFiles).ToList();
+            scanTimer.Stop();
+            ProfileLog($"scan builtIn={builtInFiles.Count} project={modFiles.Count} total={totalFiles.Count} in {scanTimer.ElapsedMilliseconds}ms");
             if (totalFiles.Count == 0) return;
 
-            var task = new BackgroundTask { Name = "Importing Assets", Status = "Working...", Progress = 0f };
+            var task = new BackgroundTask { Name = "Indexing Assets", Status = "Working...", Progress = 0f };
             lock (Tasks.ActiveTasks) Tasks.ActiveTasks.Add(task);
             Notifications.ShowTask(task);
 
             for (int i = 0; i < totalFiles.Count; i++) {
-                ImportFile(Path.GetFullPath(totalFiles[i]));
+                RegisterAssetMetadata(Path.GetFullPath(totalFiles[i]));
                 task.Progress = (float)(i + 1) / totalFiles.Count;
                 task.Status = Path.GetFileName(totalFiles[i]);
 
@@ -99,6 +113,8 @@ internal static class AssetManager {
             task.EndTime = DateTime.Now;
 
             FinalizeAssetGraph();
+            initTimer.Stop();
+            PrintAssetProfile(initTimer.ElapsedMilliseconds);
 
             if (hasBuiltIn) CreateWatcher(builtInPath, "*.*", HandleFileChange, HandleFileDelete);
             if (Directory.Exists(modPath)) CreateWatcher(modPath, "*.*", HandleFileChange, HandleFileDelete);
@@ -213,8 +229,11 @@ internal static class AssetManager {
             GuidLookup[BuildLookupKey(type, guid.ToLowerInvariant())] = asset;
     }
 
-    private static T? GetLoadedLookupAsset<T>(Dictionary<string, Asset> source, string key) where T : Asset =>
-        source.TryGetValue(key, out var asset) && asset is T { IsLoaded: true } typedAsset ? typedAsset : null;
+    private static T? GetLookupAsset<T>(Dictionary<string, Asset> source, string key, bool requireLoaded) where T : Asset {
+
+        if (!source.TryGetValue(key, out var asset) || asset is not T typedAsset) return null;
+        return !requireLoaded || typedAsset.IsLoaded ? typedAsset : null;
+    }
 
     private static ImportBinding[] CreateImportBindings() => [
         CreateImportBinding<LevelAsset>(AssetPaths.IsLevel, ImportLevel),
@@ -241,7 +260,7 @@ internal static class AssetManager {
             ["LevelAsset"] = CreatePickerBinding<LevelAsset>()
         };
 
-    private static PickerBinding CreatePickerBinding<T>() where T : Asset =>
+    private static PickerBinding CreatePickerBinding<T>() where T : Asset, new() =>
         new(() => GetNames<T>(), path => GetOrImport<T>(path)?.GUID ?? "");
 
     private static PickerBinding CreateAnimationPickerBinding() =>
@@ -329,6 +348,101 @@ internal static class AssetManager {
             var assetFile = file[..^5];
             if (File.Exists(assetFile)) ImportFile(assetFile);
         }
+    }
+
+    private static void RegisterAssetMetadata(string file) {
+
+        file = Path.GetFullPath(file);
+
+        if (!File.Exists(file) && !AssetPaths.IsMaterial(file)) return;
+        if (!IsVisibleAssetSourcePath(file)) return;
+        if (AssetPaths.IsJson(file)) return;
+
+        if (AssetPaths.IsLevel(file)) {
+            RegisterAsset<LevelAsset>(file, ReadGuidFromJson(file));
+            return;
+        }
+
+        if (AssetPaths.IsPrefab(file)) {
+            RegisterAsset<PrefabAsset>(file, ReadGuidFromJson(file));
+            return;
+        }
+
+        if (AssetPaths.IsMaterial(file)) {
+            RegisterAsset<MaterialAsset>(file, ReadMaterialGuid(file));
+            return;
+        }
+
+        if (AssetFilePatterns.IsTexture(file)) {
+            RegisterAsset<TextureAsset>(file, ReadSidecarGuid(file));
+            return;
+        }
+
+        if (AssetFilePatterns.IsModel(file)) {
+            var settings = ReadModelSettings(file);
+            RegisterAsset<ModelAsset>(file, settings.GUID);
+            RegisterAsset<AnimationAsset>(file, settings.AnimationGUID);
+            return;
+        }
+
+        if (AssetFilePatterns.IsScript(file)) {
+            RegisterAsset<ScriptAsset>(file, ReadSidecarGuid(file));
+            return;
+        }
+
+        if (AssetFilePatterns.IsShader(file))
+            RegisterAsset<ShaderAsset>(file, ReadSidecarGuid(file));
+    }
+
+    private static void RegisterAsset<T>(string file, string guid) where T : Asset, new() {
+
+        var key = $"{file.ToLowerInvariant()}::{typeof(T).Name}";
+
+        if (!Assets.TryGetValue(key, out var asset)) {
+            asset = new T { File = file, GUID = guid };
+            Assets[key] = asset;
+        } else {
+            asset.File = file;
+            if (!string.IsNullOrWhiteSpace(guid)) asset.GUID = guid;
+        }
+
+        AddToMaps<T>(file, asset);
+    }
+
+    private static string ReadSidecarGuid(string file) {
+
+        var jsonPath = file + ".json";
+        if (!File.Exists(jsonPath)) return "";
+
+        return JsonFile.ReadOrDefault(jsonPath, new AssetSidecarData()).GUID ?? "";
+    }
+
+    private static string ReadGuidFromJson(string file) {
+
+        try {
+            var json = JObject.Parse(File.ReadAllText(file));
+            return json["GUID"]?.Value<string>() ?? "";
+        } catch {
+            return "";
+        }
+    }
+
+    private static string ReadMaterialGuid(string file) {
+
+        try {
+            var data = JsonConvert.DeserializeObject<MaterialAsset.MaterialData>(File.ReadAllText(file));
+            return data?.GUID ?? "";
+        } catch {
+            return "";
+        }
+    }
+
+    private static ModelAsset.ModelSettings ReadModelSettings(string file) {
+
+        var jsonPath = file + ".json";
+        if (!File.Exists(jsonPath)) return new ModelAsset.ModelSettings();
+
+        return JsonFile.ReadOrDefault(jsonPath, new ModelAsset.ModelSettings());
     }
 
     private static void UnloadAsset(string file) {
@@ -508,6 +622,7 @@ internal static class AssetManager {
     }
 
     private static void GetOrLoad<T>(string file) where T : Asset, new() {
+        var profileTimer = ProfileAssets ? Stopwatch.StartNew() : null;
 
         var loadKey = BuildFailedImportKey(file, typeof(T));
         if (FailedImports.Contains(loadKey)) return;
@@ -522,19 +637,58 @@ internal static class AssetManager {
             isNew = true;
         }
 
-        if (!asset.IsLoaded && !asset.Load()) {
-            FailedImports.Add(loadKey);
-            return;
+        if (!asset.IsLoaded) {
+            _loadDepth++;
+            try {
+                if (!asset.Load()) {
+                    FailedImports.Add(loadKey);
+                    return;
+                }
+            } finally {
+                _loadDepth--;
+            }
         }
 
         FailedImports.Remove(loadKey);
 
         AddToMaps<T>(file, asset);
-        NormalizeInternalReferences(asset);
-        SyncDependentComponentReferences(asset);
-        RefreshDependentAssets(asset);
+        if (_loadDepth == 0) {
+            NormalizeInternalReferences(asset);
+            SyncDependentComponentReferences(asset);
+            RefreshDependentAssets(asset);
 
-        if (!isNew) ReloadDependentComponents(asset);
+            if (!isNew) ReloadDependentComponents(asset);
+        }
+
+        if (profileTimer != null) {
+            profileTimer.Stop();
+            ProfileEntries.Add(new AssetProfileEntry {
+                Path = file,
+                Type = typeof(T).Name,
+                Milliseconds = profileTimer.ElapsedMilliseconds
+            });
+        }
+    }
+
+    [Conditional("DEBUG")]
+    private static void ProfileLog(string message) {
+        if (!ProfileAssets) return;
+        Console.WriteLine($"[AssetProfile] {message}");
+    }
+
+    private static void PrintAssetProfile(long totalMs) {
+        if (!ProfileAssets) return;
+
+        Console.WriteLine($"[AssetProfile] init total {totalMs}ms, loaded {ProfileEntries.Count} assets");
+
+        foreach (var group in ProfileEntries.GroupBy(e => e.Type).OrderByDescending(g => g.Sum(e => e.Milliseconds))) {
+            var total = group.Sum(e => e.Milliseconds);
+            var count = group.Count();
+            Console.WriteLine($"[AssetProfile] type {group.Key}: {total}ms over {count} assets");
+        }
+
+        foreach (var entry in ProfileEntries.OrderByDescending(e => e.Milliseconds).Take(25))
+            Console.WriteLine($"[AssetProfile] slow {entry.Milliseconds}ms {entry.Type} {GetStoredPath(entry.Path)}");
     }
 
     private static void AddToMaps<T>(string file, Asset asset) {
@@ -577,20 +731,30 @@ internal static class AssetManager {
 
     public static T? Get<T>(string? name) where T : Asset {
 
+        return GetLookup<T>(name, requireLoaded: true);
+    }
+
+    private static T? GetRegistered<T>(string? name) where T : Asset {
+
+        return GetLookup<T>(name, requireLoaded: false);
+    }
+
+    private static T? GetLookup<T>(string? name, bool requireLoaded) where T : Asset {
+
         if (string.IsNullOrEmpty(name)) return null;
 
         var assetType = typeof(T);
         var req = NormalizeLookupValue(name);
 
-        var guidAsset = GetLoadedLookupAsset<T>(GuidLookup, BuildLookupKey(assetType, req));
+        var guidAsset = GetLookupAsset<T>(GuidLookup, BuildLookupKey(assetType, req), requireLoaded);
         if (guidAsset != null) return guidAsset;
 
-        var pathAsset = GetLoadedLookupAsset<T>(PathLookup, BuildLookupKey(assetType, req));
+        var pathAsset = GetLookupAsset<T>(PathLookup, BuildLookupKey(assetType, req), requireLoaded);
         if (pathAsset != null) return pathAsset;
 
         if (req.Contains(':') || req.StartsWith('/')) return null;
 
-        return GetLoadedLookupAsset<T>(PathLookup, BuildLookupKey(assetType, GetBuiltInLookupPath(name)));
+        return GetLookupAsset<T>(PathLookup, BuildLookupKey(assetType, GetBuiltInLookupPath(name)), requireLoaded);
     }
 
     public static string NormalizeReference<T>(string? value) where T : Asset {
@@ -598,20 +762,28 @@ internal static class AssetManager {
         if (string.IsNullOrWhiteSpace(value)) return "";
 
         var asset = Get<T>(value);
-        return asset?.GUID ?? value;
+        asset ??= GetRegistered<T>(value);
+        return string.IsNullOrWhiteSpace(asset?.GUID) ? value : asset.GUID;
     }
 
-    public static string? GetGuid<T>(string? value) where T : Asset => Get<T>(value)?.GUID;
+    public static string? GetGuid<T>(string? value) where T : Asset => (Get<T>(value) ?? GetRegistered<T>(value))?.GUID;
 
-    public static string? GetPath<T>(string? value) where T : Asset => Get<T>(value)?.File;
+    public static string? GetPath<T>(string? value) where T : Asset => (Get<T>(value) ?? GetRegistered<T>(value))?.File;
 
-    public static T? GetOrImport<T>(string? path) where T : Asset {
+    public static T? GetOrImport<T>(string? path) where T : Asset, new() {
 
         if (string.IsNullOrWhiteSpace(path)) return null;
 
         var asset = Get<T>(path);
         asset ??= FindMovedAssetFallback<T>(path);
         if (asset != null) return asset;
+
+        var registered = GetRegistered<T>(path) ?? FindMovedAssetFallback<T>(path, requireLoaded: false);
+        if (registered != null) {
+            GetOrLoad<T>(registered.File);
+            asset = Get<T>(registered.File) ?? Get<T>(registered.GUID);
+            if (asset != null) return asset;
+        }
 
         EnsureImported(path);
         asset = Get<T>(path);
@@ -871,11 +1043,18 @@ internal static class AssetManager {
         return full.Replace('\\', '/');
     }
 
-    public static T? ResolveReference<T>(ref string guid, ref string path) where T : Asset {
+    public static T? ResolveReference<T>(ref string guid, ref string path) where T : Asset, new() {
 
         var asset = Get<T>(guid) ?? Get<T>(path);
-        asset ??= FindMovedAssetFallback<T>(path);
+        asset ??= GetRegistered<T>(guid) ?? GetRegistered<T>(path);
+        asset ??= FindMovedAssetFallback<T>(path, requireLoaded: false);
         if (asset == null) return null;
+
+        if (!asset.IsLoaded) {
+            GetOrLoad<T>(asset.File);
+            asset = Get<T>(asset.File) ?? Get<T>(asset.GUID);
+            if (asset == null) return null;
+        }
 
         guid = asset.GUID;
         path = GetStoredPath(asset.File);
@@ -918,7 +1097,7 @@ internal static class AssetManager {
 
     public static IEnumerable<T> GetAll<T>() where T : Asset => !TypeCache.TryGetValue(typeof(T), out var list) ? [] : list.Cast<T>();
 
-    private static T? FindMovedAssetFallback<T>(string? path) where T : Asset {
+    private static T? FindMovedAssetFallback<T>(string? path, bool requireLoaded = true) where T : Asset {
 
         if (string.IsNullOrWhiteSpace(path) || !TypeCache.TryGetValue(typeof(T), out var list)) return null;
 
@@ -926,7 +1105,7 @@ internal static class AssetManager {
         if (string.IsNullOrWhiteSpace(fileName)) return null;
 
         var matches = list.Cast<T>()
-                          .Where(asset => asset.IsLoaded && string.Equals(Path.GetFileName(asset.File), fileName, StringComparison.OrdinalIgnoreCase))
+                          .Where(asset => (!requireLoaded || asset.IsLoaded) && string.Equals(Path.GetFileName(asset.File), fileName, StringComparison.OrdinalIgnoreCase))
                           .Take(2)
                           .ToList();
 
@@ -1189,12 +1368,14 @@ internal static class AssetManager {
 
         foreach (var texture in GetAll<TextureAsset>().ToList()) {
 
+            if (!texture.IsLoaded) continue;
             texture.InvalidateThumbnail();
             Preview.UpdateThumbnail(texture);
         }
 
         foreach (var material in GetAll<MaterialAsset>().ToList()) {
 
+            if (!material.IsLoaded) continue;
             if (material.NormalizeReferences()) material.Save();
             material.ApplyChanges(updateThumbnail: false);
             material.InvalidateThumbnail();
@@ -1203,6 +1384,7 @@ internal static class AssetManager {
 
         foreach (var model in GetAll<ModelAsset>().ToList()) {
 
+            if (!model.IsLoaded) continue;
             if (model.NormalizeReferences()) model.SaveSettings();
             model.ApplySettings();
             model.InvalidateThumbnail();
@@ -1210,11 +1392,13 @@ internal static class AssetManager {
         }
 
         foreach (var level in GetAll<LevelAsset>().ToList()) {
+            if (!level.IsLoaded) continue;
             level.InvalidateThumbnail();
             Preview.UpdateThumbnail(level);
         }
 
         foreach (var prefab in GetAll<PrefabAsset>().ToList()) {
+            if (!prefab.IsLoaded) continue;
             prefab.InvalidateThumbnail();
             Preview.UpdateThumbnail(prefab);
         }
@@ -1226,6 +1410,7 @@ internal static class AssetManager {
 
         foreach (var material in GetAll<MaterialAsset>().ToList()) {
 
+            if (!material.IsLoaded) continue;
             if (!material.Data.Textures.Values.Any(value => string.Equals(NormalizeReference< TextureAsset >(value), guid, StringComparison.OrdinalIgnoreCase))) continue;
 
             material.ApplyChanges();
@@ -1241,6 +1426,7 @@ internal static class AssetManager {
 
         foreach (var material in GetAll<MaterialAsset>().ToList()) {
 
+            if (!material.IsLoaded) continue;
             if (!string.Equals(NormalizeReference<ShaderAsset>(material.Data.Shader), guid, StringComparison.OrdinalIgnoreCase)) continue;
 
             material.ApplyChanges();
@@ -1256,6 +1442,7 @@ internal static class AssetManager {
 
         foreach (var model in GetAll<ModelAsset>().ToList()) {
 
+            if (!model.IsLoaded) continue;
             var usesMaterial = model.MaterialPaths.Any(value => string.Equals(NormalizeReference<MaterialAsset>(value), guid, StringComparison.OrdinalIgnoreCase));
             if (!usesMaterial) continue;
 

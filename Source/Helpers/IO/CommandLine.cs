@@ -5,6 +5,7 @@
     public static bool Template { get; set; }
     public static bool UnlockBuiltin { get; set; }
     public static bool SplashHelper { get; set; }
+    public static bool ProfileAssets { get; set; }
     public static string SplashSignalPath { get; private set; } = "";
     public static string SplashReadyPath { get; private set; } = "";
 
@@ -17,6 +18,7 @@
         Template = args.Contains("template");
         UnlockBuiltin = args.Contains("unlockbuiltin");
         SplashHelper = rawArgs.Contains("splashhelper", StringComparer.InvariantCultureIgnoreCase);
+        ProfileAssets = args.Contains("profileassets");
 
         for (var i = 0; i < rawArgs.Length - 1; i++) {
             if (!string.Equals(rawArgs[i], "splashsignal", StringComparison.InvariantCultureIgnoreCase)) continue;
