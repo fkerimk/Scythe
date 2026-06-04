@@ -8,12 +8,12 @@
         "PrefabPath": null,
         "Transform": {
           "Pos": {
-            "Y": -0.05
+            "Y": -0.45326942
           },
           "Scale": {
-            "X": 5.0,
+            "X": 84.20001,
             "Y": 0.1,
-            "Z": 5.0
+            "Z": 123.59996
           },
           "Rot": {
             "W": 1.0,
@@ -338,7 +338,7 @@
               "A": 255
             },
             "Intensity": 2.0,
-            "Range": 10.0,
+            "Range": 55.0,
             "ShadowStrength": 1.0,
             "$ComponentType": "Light"
           }
@@ -382,18 +382,18 @@
   },
   "EditorCamera": {
     "Position": {
-      "X": -6.184603,
-      "Y": 3.9136868,
-      "Z": -4.887891
+      "X": 0.43793386,
+      "Y": 3.4319358,
+      "Z": 10.056507
     },
     "Rotation": {
-      "X": -0.468833,
-      "Y": 0.9618046
+      "X": -0.03683442,
+      "Y": 6.7607784
     }
   },
   "GUID": "1a1ba6d01f0e4ddabcfa301ed352494d",
-  "Skybox": "465b2a89cb5945d487d669c1c2150492",
-  "SkyboxPath": "Built In/Skyboxes/Sky 13.png",
+  "Skybox": "cfe2839737884d16892b2577a3d80fb7",
+  "SkyboxPath": "Built In/Skyboxes/Sky 5.png",
   "SkyboxTint": {
     "R": 255,
     "G": 255,
