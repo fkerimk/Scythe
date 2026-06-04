@@ -185,14 +185,21 @@ internal class TextureAsset : Asset {
     public void ApplyTextureFilter() {
 
         if (!IsLoaded && Texture.Id == 0) return;
+        EnsureMipmaps();
         SetTextureFilter(Texture, GetTextureFilter(ImportSettings.TextureFilter));
+    }
+
+    private void EnsureMipmaps() {
+
+        if (Texture.Id == 0 || Texture.Mipmaps > 1) return;
+        GenTextureMipmaps(ref Texture);
     }
 
     private string GetDefaultFormat() => HasTransparentPixels ? "Png" : "Jpeg";
 
     private static TextureFilter GetTextureFilter(string filter) => filter switch {
         "Point" => TextureFilter.Point,
-        "Trilinear" => TextureFilter.Trilinear,
+        "Bilinear" or "Trilinear" => TextureFilter.Trilinear,
         "Anisotropic 4x" => TextureFilter.Anisotropic4X,
         "Anisotropic 8x" => TextureFilter.Anisotropic8X,
         "Anisotropic 16x" => TextureFilter.Anisotropic16X,
