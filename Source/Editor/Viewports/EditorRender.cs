@@ -30,12 +30,12 @@ internal class EditorRender() : Viewport("Render (Editor)") {
                     foreach (var relPath in settings.OpenLevels) {
 
                         var absPath = Path.Join(ScytheConfig.Current.Project, relPath);
-                        if (File.Exists(absPath)) Editor.OpenLevel(absPath);
+                        if (File.Exists(absPath)) Editor.OpenLevel(absPath, loadImmediately: false);
                     }
 
                     var activeLevelIndex = ResolveActiveLevelIndex(settings);
                     if (activeLevelIndex >= 0 && activeLevelIndex < Core.OpenLevels.Count)
-                        Core.SetActiveLevel(activeLevelIndex);
+                        Core.SetActiveLevel(activeLevelIndex, loadActive: false);
                 }
             );
         }

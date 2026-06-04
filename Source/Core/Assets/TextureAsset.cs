@@ -28,15 +28,6 @@ internal class TextureAsset : Asset {
         ImportedFileSize = 0;
         HasTransparentPixels = false;
 
-        var sourceImage = LoadImage(File);
-        if (sourceImage.Data != null) {
-
-            SourceWidth = sourceImage.Width;
-            SourceHeight = sourceImage.Height;
-            HasTransparentPixels = DetectTransparency(sourceImage);
-            UnloadImage(sourceImage);
-        }
-
         var jsonPath = File + ".json";
         if (System.IO.File.Exists(jsonPath)) {
 
@@ -56,6 +47,7 @@ internal class TextureAsset : Asset {
 
             if (string.IsNullOrWhiteSpace(meta.TextureImport.Format)) {
 
+                ReadSourceImageInfo(detectTransparency: true);
                 meta.TextureImport.Format = GetDefaultFormat();
                 changed = true;
             }
@@ -66,6 +58,7 @@ internal class TextureAsset : Asset {
 
         } else {
 
+            ReadSourceImageInfo(detectTransparency: true);
             GUID = System.Guid.NewGuid().ToString("N");
             var meta = new AssetSidecarData { GUID = GUID };
             meta.TextureImport.Format = GetDefaultFormat();
@@ -134,6 +127,17 @@ internal class TextureAsset : Asset {
         if (!AssetManager.IsInitializing) Preview.UpdateThumbnail(this);
 
         return true;
+    }
+
+    private unsafe void ReadSourceImageInfo(bool detectTransparency) {
+
+        var sourceImage = LoadImage(File);
+        if (sourceImage.Data == null) return;
+
+        SourceWidth = sourceImage.Width;
+        SourceHeight = sourceImage.Height;
+        if (detectTransparency) HasTransparentPixels = DetectTransparency(sourceImage);
+        UnloadImage(sourceImage);
     }
 
     public override void Unload() {

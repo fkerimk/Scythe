@@ -41,10 +41,10 @@ internal static unsafe class Editor {
 
     public static void OpenScript(string path) => throw new NotImplementedException(Ansi.ErrorMessage("Script editor"));
 
-    public static void OpenLevel(string path) {
+    public static void OpenLevel(string path, bool loadImmediately = true) {
 
         var name = CollectionData.GetLevelDisplayName(path);
-        Core.OpenLevel(name, path);
+        Core.OpenLevel(name, path, loadImmediately);
     }
 
     public static void CreateLevel(string path) {
@@ -594,7 +594,7 @@ internal static unsafe class Editor {
         }
 
         activeIndex = Math.Clamp(activeIndex, 0, Core.OpenLevels.Count - 1);
-        Core.SetActiveLevel(activeIndex, clearHistory: false);
+        Core.SetActiveLevel(activeIndex, clearHistory: false, loadActive: false);
     }
 
     private static void DisposeOpenLevels(IEnumerable<Level>? except = null) {

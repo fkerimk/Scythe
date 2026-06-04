@@ -167,7 +167,7 @@ internal static class Core {
         _velocityMap = LoadRenderTextureWithDepth(width, height);
     }
 
-    public static void OpenLevel(string name, string? path = null) {
+    public static void OpenLevel(string name, string? path = null, bool loadImmediately = true) {
 
         Level? level;
 
@@ -190,17 +190,17 @@ internal static class Core {
 
         if (existingIndex != -1) {
 
-            SetActiveLevel(existingIndex);
+            SetActiveLevel(existingIndex, loadActive: loadImmediately);
             ShouldFocusActiveLevel = true;
 
             return;
         }
 
         OpenLevels.Add(level);
-        SetActiveLevel(OpenLevels.Count - 1);
+        SetActiveLevel(OpenLevels.Count - 1, loadActive: false);
         ShouldFocusActiveLevel = true;
 
-        Load();
+        if (loadImmediately) Load();
     }
 
     public static bool SwitchLevel(string levelReference) {
@@ -273,7 +273,7 @@ internal static class Core {
             .FirstOrDefault();
     }
 
-    public static void SetActiveLevel(int index, bool clearHistory = true) {
+    public static void SetActiveLevel(int index, bool clearHistory = true, bool loadActive = true) {
 
         if (index < 0 || index >= OpenLevels.Count) return;
         if (ActiveLevelIndex != index)
@@ -308,6 +308,8 @@ internal static class Core {
             FreeCam.Rot = ActiveLevel.EditorCamera.Rotation;
         } else
             FreeCam.SetFromTarget(ActiveCamera);
+
+        if (loadActive) Load();
     }
 
     private static Camera3D? RootCamera(Obj obj) {
