@@ -163,7 +163,34 @@ internal class Model(Obj obj) : Component(obj) {
         Draw(shaderOverride: depth?.Shader);
     }
 
-    public void Draw(float? overrideAlphaCutoff = null, Shader? shaderOverride = null) {
+    public void DrawMotionVectors(Shader shader, Matrix4x4 prevViewProj) {
+
+        if (IsTransparent || AssetRef is not { IsLoaded: true }) return;
+
+        Draw(shaderOverride: shader, beforeDraw: (drawShader, matModel) => {
+            var prevModel = Obj.HasPrevVisualWorldMatrix ? Obj.PrevVisualWorldMatrix : Obj.VisualWorldMatrix;
+
+            if (Math.Abs(AssetRef.Settings.ImportScale - 1.0f) > 0.001f) {
+
+                var s = AssetRef.Settings.ImportScale;
+                prevModel.M11 *= s;
+                prevModel.M12 *= s;
+                prevModel.M13 *= s;
+                prevModel.M21 *= s;
+                prevModel.M22 *= s;
+                prevModel.M23 *= s;
+                prevModel.M31 *= s;
+                prevModel.M32 *= s;
+                prevModel.M33 *= s;
+            }
+
+            SetShaderValueMatrix(drawShader, GetShaderLocation(drawShader, "matPrevModel"), prevModel);
+            SetShaderValueMatrix(drawShader, GetShaderLocation(drawShader, "matPrevViewProj"), prevViewProj);
+            SetShaderValue(drawShader, GetShaderLocation(drawShader, "hasHistory"), Obj.HasPrevVisualWorldMatrix && PostProcessing.HasHistory ? 1 : 0, ShaderUniformDataType.Int);
+        });
+    }
+
+    public void Draw(float? overrideAlphaCutoff = null, Shader? shaderOverride = null, Action<Shader, Matrix4x4>? beforeDraw = null) {
 
         if (AssetRef is not { IsLoaded: true }) return;
 
@@ -225,11 +252,14 @@ internal class Model(Obj obj) : Component(obj) {
             }
 
             if (shaderOverride.HasValue) {
+                beforeDraw?.Invoke(shader, matModel);
                 var shadowMaterial = material;
                 shadowMaterial.Shader = shaderOverride.Value;
                 DrawMesh(mesh.RlMesh, shadowMaterial, matModel);
-            } else
+            } else {
+                beforeDraw?.Invoke(shader, matModel);
                 DrawMesh(mesh.RlMesh, material, matModel);
+            }
         }
     }
 

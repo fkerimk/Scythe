@@ -8,6 +8,7 @@ out vec4 finalColor;
 uniform sampler2D texture0;       // Current Frame (Jittered)
 uniform sampler2D depthTexture;   // Depth
 uniform sampler2D historyTexture; // Previous Frame (Accumulated)
+uniform sampler2D velocityTexture; // Screen-space currentUV - previousUV
 
 uniform mat4 matViewProjInv;      // Inverse of Current Jittered ViewProj
 uniform mat4 matPrevViewProj;     // Previous Jittered ViewProj
@@ -17,6 +18,7 @@ uniform vec2 jitter;              // Current Jitter
 uniform float blendFactor;
 uniform int varianceClip;
 uniform float scale;
+uniform int hasHistory;
 
 // Helper to linearize depth if needed, but we reconstruct position directly
 float GetDepth(vec2 uv) {
@@ -24,28 +26,32 @@ float GetDepth(vec2 uv) {
 }
 
 void main() {
-    
+
     // 1. Current Color
     vec3 color = texture(texture0, fragTexCoord).rgb;
-    
-    // 2. Reprojection
+
+    if (hasHistory == 0) {
+        finalColor = vec4(color, 1.0);
+        return;
+    }
+
+    // 2. Motion-vector reprojection
     float depth = texture(depthTexture, fragTexCoord).r;
-    
-    // Clip Space Position
-    // Depth is 0..1 in OpenGL/Raylib usually? Raylib uses OpenGL backend.
-    // If we assume standard GL depth:
-    vec4 clipPos = vec4(fragTexCoord.x * 2.0 - 1.0, (fragTexCoord.y * 2.0 - 1.0), depth * 2.0 - 1.0, 1.0);
-    
-    // Reconstruct World Position
-    vec4 worldPos = matViewProjInv * clipPos;
-    worldPos /= worldPos.w;
-    
-    // Project to Previous Clip Space
-    vec4 prevClip = matPrevViewProj * worldPos;
-    prevClip /= prevClip.w;
-    
-    // Convert to UV
-    vec2 prevUV = prevClip.xy * 0.5 + 0.5;
+
+    if (depth >= 0.9999) {
+        finalColor = vec4(color, 1.0);
+        return;
+    }
+
+    vec4 velocitySample = texture(velocityTexture, fragTexCoord);
+
+    if (velocitySample.a < 0.5) {
+        finalColor = vec4(color, 1.0);
+        return;
+    }
+
+    vec2 velocity = velocitySample.xy * 2.0 - 1.0;
+    vec2 prevUV = fragTexCoord - velocity;
     
     // 3. Sample History
     // Validate UV to avoid ghosting from outside screen
@@ -68,7 +74,7 @@ void main() {
 
     for(int x = -1; x <= 1; x++) {
         for(int y = -1; y <= 1; y++) {
-            vec2 sampleUv = fragTexCoord + vec2(float(x), float(y)) * texelSize;
+            vec2 sampleUv = clamp(fragTexCoord + vec2(float(x), float(y)) * texelSize, vec2(0.0), vec2(1.0));
             vec3 s = texture(texture0, sampleUv).rgb;
             minColor = min(minColor, s);
             maxColor = max(maxColor, s);
@@ -93,7 +99,7 @@ void main() {
         vec3 e_clip = 0.5 * (maxColor - minColor);
         
         vec3 v_clip = history - p_clip;
-        vec3 v_unit = v_clip.xyz / e_clip;
+        vec3 v_unit = v_clip.xyz / max(e_clip, vec3(0.0001));
         vec3 a_unit = abs(v_unit);
         float ma_unit = max(a_unit.x, max(a_unit.y, a_unit.z));
         
@@ -106,10 +112,10 @@ void main() {
         history = clamp(history, minColor, maxColor);
     }
     
-    // 5. Blend
-    // Dynamic blend factor? 
-    // If valid history, blend.
-    vec3 result = mix(history, color, blendFactor);
+    // 5. Blend. Fast pixels get less history so disocclusion trails decay quickly.
+    float velocityLen = length(velocity * vec2(textureSize(texture0, 0)));
+    float motionBlend = clamp(blendFactor + velocityLen * 0.015, blendFactor, 0.65);
+    vec3 result = mix(history, color, motionBlend);
     
     finalColor = vec4(result, 1.0);
 }

@@ -267,6 +267,7 @@ internal static unsafe class Editor {
             if (RuntimeRender.TexSize != RuntimeRender.TexTemp) {
                 UnloadRenderTexture(RuntimeRender.Rt);
                 RuntimeRender.Rt = Core.LoadRenderTextureWithDepth((int)RuntimeRender.TexSize.X, (int)RuntimeRender.TexSize.Y);
+                Core.EnsureRuntimeVelocityMap((int)RuntimeRender.TexSize.X, (int)RuntimeRender.TexSize.Y);
 
                 RuntimeRender.TexTemp = RuntimeRender.TexSize;
             }
@@ -302,8 +303,10 @@ internal static unsafe class Editor {
 
             EndTextureMode();
 
+            Core.RenderRuntimeVelocity(Core.GameCamera);
+
             // Post-Process Pass
-            PostProcessing.Apply(RuntimeRender.Rt);
+            PostProcessing.Apply(RuntimeRender.Rt, Core.RuntimeVelocityTexture);
 
             // 2D Pass
             BeginTextureMode(RuntimeRender.Rt);

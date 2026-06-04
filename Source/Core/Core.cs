@@ -31,6 +31,7 @@ internal static class Core {
     private static readonly List<TransparentDrawCall> TransparentRenderQueue = [];
 
     private static RenderTexture2D _shadowMap;
+    private static RenderTexture2D _velocityMap;
     private const int ShadowMapResolution = 4096;
 
     private static Raylib_cs.Model _skyboxModel;
@@ -156,6 +157,14 @@ internal static class Core {
         Rlgl.DisableFramebuffer();
 
         return target;
+    }
+
+    private static void EnsureVelocityMap(int width, int height) {
+
+        if (_velocityMap.Texture.Id != 0 && _velocityMap.Texture.Width == width && _velocityMap.Texture.Height == height) return;
+
+        if (_velocityMap.Texture.Id != 0) UnloadRenderTexture(_velocityMap);
+        _velocityMap = LoadRenderTextureWithDepth(width, height);
     }
 
     public static void OpenLevel(string name, string? path = null) {
@@ -820,6 +829,56 @@ internal static class Core {
         foreach (var child in obj.ChildEntries.Values.ToArray()) RenderHierarchy(child, is2D, isShadowPass);
     }
 
+    public static Texture2D RuntimeVelocityTexture => _velocityMap.Texture;
+
+    public static void EnsureRuntimeVelocityMap(int width, int height) => EnsureVelocityMap(width, height);
+
+    public static void RenderRuntimeVelocity(Camera3D? camera) {
+
+        if (camera == null) return;
+        EnsureVelocityMap(Math.Max(1, _velocityMap.Texture.Width), Math.Max(1, _velocityMap.Texture.Height));
+        RenderVelocity(_velocityMap, camera);
+    }
+
+    private static void RenderVelocity(RenderTexture2D target, Camera3D? camera) {
+
+        if (ActiveLevel == null || camera == null || target.Texture.Id == 0) return;
+
+        var velocity = AssetManager.GetOrImport<ShaderAsset>("Collection/velocity.vs");
+        if (velocity == null) return;
+
+        var prevViewProj = PostProcessing.PreviousViewProj;
+
+        BeginTextureMode(target);
+        ClearBackground(new Color(128, 128, 0, 0));
+        BeginMode3D(camera.Raylib);
+        PostProcessing.ApplyJitter(camera, false);
+        RenderVelocityHierarchy(ActiveLevel.Root, velocity.Shader, prevViewProj);
+        EndMode3D();
+        EndTextureMode();
+
+        CapturePrevVisualWorldMatrices(ActiveLevel.Root);
+    }
+
+    private static void RenderVelocityHierarchy(Obj obj, Shader shader, Matrix4x4 prevViewProj) {
+
+        foreach (var component in obj.ComponentEntries.Values)
+            if (component is Model { IsLoaded: true } model)
+                model.DrawMotionVectors(shader, prevViewProj);
+
+        foreach (var child in obj.ChildEntries.Values.ToArray())
+            RenderVelocityHierarchy(child, shader, prevViewProj);
+    }
+
+    private static void CapturePrevVisualWorldMatrices(Obj obj) {
+
+        obj.PrevVisualWorldMatrix = obj.VisualWorldMatrix;
+        obj.HasPrevVisualWorldMatrix = true;
+
+        foreach (var child in obj.ChildEntries.Values.ToArray())
+            CapturePrevVisualWorldMatrices(child);
+    }
+
     private static RenderTexture2D _mainRt;
 
     public static void Step() {
@@ -834,6 +893,8 @@ internal static class Core {
                 if (_mainRt.Texture.Id != 0) UnloadRenderTexture(_mainRt);
                 _mainRt = LoadRenderTextureWithDepth(GetScreenWidth(), GetScreenHeight());
             }
+
+            EnsureVelocityMap(_mainRt.Texture.Width, _mainRt.Texture.Height);
 
             // 3D Pass
             BeginTextureMode(_mainRt);
@@ -853,8 +914,10 @@ internal static class Core {
 
             EndTextureMode();
 
+            RenderVelocity(_velocityMap, renderCamera);
+
             // Post-Process Pass
-            PostProcessing.Apply(_mainRt);
+            PostProcessing.Apply(_mainRt, _velocityMap.Texture);
 
             // 2D Pass
             BeginTextureMode(_mainRt);
@@ -894,6 +957,7 @@ internal static class Core {
         if (ActiveLevel == null) return;
 
         UnloadRenderTexture(_shadowMap);
+        UnloadRenderTexture(_velocityMap);
         UnloadRenderTexture(_mainRt);
         UnloadSkyboxTexture();
         UnloadModel(_skyboxModel);

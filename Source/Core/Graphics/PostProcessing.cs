@@ -14,6 +14,10 @@ internal static class PostProcessing {
     private static Matrix4x4       _prevViewProj;
     private static int             _frameIndex;
     private static Vector2         _jitter;
+    private static bool            _hasHistory;
+
+    public static bool HasHistory => _hasHistory;
+    public static Matrix4x4 PreviousViewProj => _hasHistory ? _prevViewProj : Core.LastViewMatrix * Core.LastProjectionMatrix;
 
     public static void Init() {
 
@@ -44,7 +48,7 @@ internal static class PostProcessing {
         SetTextureWrap(_tempRt2.Texture, TextureWrap.Clamp);
     }
 
-    public static void Apply(RenderTexture2D target) {
+    public static void Apply(RenderTexture2D target, Texture2D? velocityTexture = null) {
 
         if (!_extReady) Init();
 
@@ -130,6 +134,7 @@ internal static class PostProcessing {
                 _historyRt = LoadRenderTexture(width, height);
                 SetTextureWrap(_historyRt.Texture, TextureWrap.Clamp);
                 SetTextureFilter(_historyRt.Texture, TextureFilter.Bilinear);
+                _hasHistory = false;
             }
 
             ApplyShader(
@@ -142,6 +147,7 @@ internal static class PostProcessing {
                     SetShaderValue(s, GetShaderLocation(s,       "blendFactor"),  settings.Taa.BlendFactor,          ShaderUniformDataType.Float);
                     SetShaderValue(s, GetShaderLocation(s,       "varianceClip"), settings.Taa.VarianceClip ? 1 : 0, ShaderUniformDataType.Int);
                     SetShaderValue(s, GetShaderLocation(s,       "scale"),        settings.Taa.Scale,                ShaderUniformDataType.Float);
+                    SetShaderValue(s, GetShaderLocation(s,       "hasHistory"),   _hasHistory ? 1 : 0,               ShaderUniformDataType.Int);
 
                     int historyLoc = GetShaderLocation(s, "historyTexture");
 
@@ -160,6 +166,15 @@ internal static class PostProcessing {
                         SetShaderValue(s, depthLoc, 1, ShaderUniformDataType.Int);
                         Rlgl.ActiveTextureSlot(0);
                     }
+
+                    int velocityLoc = GetShaderLocation(s, "velocityTexture");
+
+                    if (velocityLoc != -1 && velocityTexture.HasValue && velocityTexture.Value.Id != 0) {
+                        Rlgl.ActiveTextureSlot(3);
+                        Rlgl.EnableTexture(velocityTexture.Value.Id);
+                        SetShaderValue(s, velocityLoc, 3, ShaderUniformDataType.Int);
+                        Rlgl.ActiveTextureSlot(0);
+                    }
                 }
             );
 
@@ -170,6 +185,7 @@ internal static class PostProcessing {
             BeginTextureMode(_historyRt);
             DrawTextureRec(currentSource.Texture, new Rectangle(0, 0, width, -height), Vector2.Zero, Color.White);
             EndTextureMode();
+            _hasHistory = true;
         }
 
         if (settings.Bloom.Enabled) ApplyShader("bloom", (s) => SetShaderValue(s, GetShaderLocation(s, "intensity"), settings.Bloom.Intensity, ShaderUniformDataType.Float));
@@ -203,18 +219,20 @@ internal static class PostProcessing {
         }
     }
 
-    public static void ApplyJitter(Camera3D camera) {
+    public static void ApplyJitter(Camera3D camera, bool advanceFrame = true) {
 
         if (!Core.RenderSettings.PostProcessing.Taa.Enabled) return;
 
         var width  = GetScreenWidth();
         var height = GetScreenHeight();
 
-        // Halton Sequence (2, 3)
-        var jX = GetHalton(_frameIndex % 16 + 1, 2) - 0.5f;
-        var jY = GetHalton(_frameIndex % 16 + 1, 3) - 0.5f;
+        if (advanceFrame) {
+            // Halton Sequence (2, 3)
+            var jX = GetHalton(_frameIndex % 16 + 1, 2) - 0.5f;
+            var jY = GetHalton(_frameIndex % 16 + 1, 3) - 0.5f;
 
-        _jitter = new Vector2(jX * 2.0f / width, jY * 2.0f / height);
+            _jitter = new Vector2(jX * 2.0f / width, jY * 2.0f / height);
+        }
 
         var proj = Rlgl.GetMatrixProjection();
 
@@ -223,7 +241,7 @@ internal static class PostProcessing {
 
         Rlgl.SetMatrixProjection(proj);
 
-        _frameIndex++;
+        if (advanceFrame) _frameIndex++;
     }
 
     private static float GetHalton(int index, int baseVal) {
@@ -246,6 +264,7 @@ internal static class PostProcessing {
         if (_tempRt.Texture.Id    != 0) UnloadRenderTexture(_tempRt);
         if (_tempRt2.Texture.Id   != 0) UnloadRenderTexture(_tempRt2);
         if (_historyRt.Texture.Id != 0) UnloadRenderTexture(_historyRt);
+        _hasHistory = false;
         _shaders.Clear();
     }
 }
