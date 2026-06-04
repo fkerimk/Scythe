@@ -25,26 +25,26 @@
 
     <!-- Essential Core Packages -->
     <ItemGroup>
-        <PackageReference Include="Raylib-cs" Version="7.0.2" />
+        <PackageReference Include="Raylib-cs" Version="8.0.0" />
         <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
-        <PackageReference Include="Jitter2" Version="2.8.5" />
+        <PackageReference Include="Jitter2" Version="2.8.8" />
     </ItemGroup>
 
     <!-- Editor Only Packages -->
     <ItemGroup Condition="'$(ScytheRuntimeBuild)' != 'true'">
         <PackageReference Include="AssimpNetter" Version="6.0.4" />
-        <PackageReference Include="CliWrap" Version="3.10.1" />
+        <PackageReference Include="CliWrap" Version="3.10.2" />
         <PackageReference Include="DeepCloner" Version="0.10.4" />
-        <PackageReference Include="Scriban" Version="7.2.0" />
+        <PackageReference Include="Scriban" Version="7.2.3" />
         <PackageReference Include="MemoryPack" Version="1.21.4" />
         <PackageReference Include="rlImgui-cs" Version="3.2.0" />
         <PackageReference Include="NativeFileDialogNET" Version="2.0.2" />
-        <PackageReference Include="TextMateSharp" Version="2.0.3" />
-        <PackageReference Include="TextMateSharp.Grammars" Version="2.0.3" />
+        <PackageReference Include="TextMateSharp" Version="2.0.4" />
+        <PackageReference Include="TextMateSharp.Grammars" Version="2.0.4" />
         <PackageReference Include="CompareNETObjects" Version="4.84.0" />
         <PackageReference Include="JsonDiffPatch.Net" Version="2.5.0" />
         <PackageReference Include="JsonPath.Net" Version="3.0.2" />
-        <PackageReference Include="Magick.NET-Q8-AnyCPU" Version="14.13.0" />
+        <PackageReference Include="Magick.NET-Q8-AnyCPU" Version="14.13.1" />
         <PackageReference Include="Humanizer.Core" Version="3.0.10" />
         <PackageReference Include="Nito.AsyncEx" Version="5.1.2" />
         <PackageReference Include="System.Reactive" Version="6.1.0" />
