@@ -1,0 +1,45 @@
+{
+  "GUID": "7b3e2bc5660d405f8c6c0b3bff0afe05",
+  "Shader": "130640b64e604a7182ed64ef6f055bac",
+  "ShaderPath": "Built In/pbr.vs",
+  "Textures": {
+    "albedo_map": "98a0118efdd2447cb51e8ff07a6fe5b0"
+  },
+  "TexturePaths": {
+    "albedo_map": "gm_playboy_mansion/Texture_16.png"
+  },
+  "Floats": {
+    "metallic_value": 0.0,
+    "roughness_value": 0.5,
+    "aoValue": 1.0,
+    "emissive_intensity": 1.0,
+    "normalValue": 1.0
+  },
+  "Ints": {
+    "is_directx_normal": 0
+  },
+  "Colors": {
+    "albedo_color": {
+      "R": 255,
+      "G": 255,
+      "B": 255,
+      "A": 255
+    },
+    "emissive_color": {
+      "R": 0,
+      "G": 0,
+      "B": 0,
+      "A": 255
+    }
+  },
+  "Vectors": {
+    "tiling": {
+      "X": 1.0,
+      "Y": 1.0
+    },
+    "offset": {
+      "X": 0.0,
+      "Y": 0.0
+    }
+  }
+}
