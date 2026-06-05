@@ -88,16 +88,21 @@ internal static class BuildPipeline {
             using var prepDone = new System.Threading.ManualResetEventSlim(false);
 
             try {
-                task.Status = "Saving level...";
+                task.Status = "Preparing project...";
+                Exception? prepError = null;
                 Tasks.RunOnMainThread(() => {
                     try {
                         Core.SaveAllDirtyLevels();
                         AssetManager.Init();
+                        PrepareRuntimeAssetCaches(task);
+                    } catch (Exception e) {
+                        prepError = e;
                     } finally {
                         prepDone.Set();
                     }
                 });
                 prepDone.Wait();
+                if (prepError != null) throw prepError;
 
                 outputDirectory = NormalizeOutputDirectory(outputDirectory);
                 Directory.CreateDirectory(tempRoot);
@@ -167,6 +172,30 @@ internal static class BuildPipeline {
         ZipFile.CreateFromDirectory(bundleRoot, bundleZip, CompressionLevel.SmallestSize, includeBaseDirectory: false);
     }
 
+    private static void PrepareRuntimeAssetCaches(BackgroundTask task) {
+
+        var models = AssetManager.GetAll<ModelAsset>().ToList();
+        var textures = AssetManager.GetAll<TextureAsset>().ToList();
+        var total = models.Count + textures.Count;
+        var current = 0;
+
+        if (total == 0) return;
+
+        foreach (var model in models) {
+            task.Status = $"Preparing model cache {++current}/{total}: {Path.GetFileName(model.File)}";
+            task.Progress = (float)current / total;
+            if (AssetManager.GetOrImport<ModelAsset>(model.GUID) == null)
+                throw new InvalidOperationException($"Failed to prepare model cache: {AssetManager.GetStoredPath(model.File)}");
+        }
+
+        foreach (var texture in textures) {
+            task.Status = $"Preparing texture cache {++current}/{total}: {Path.GetFileName(texture.File)}";
+            task.Progress = (float)current / total;
+            if (AssetManager.GetOrImport<TextureAsset>(texture.GUID) == null)
+                throw new InvalidOperationException($"Failed to prepare texture cache: {AssetManager.GetStoredPath(texture.File)}");
+        }
+    }
+
     private static string PublishRuntime(string bundleZip, string publishDir, string runtimeId) {
 
         Directory.CreateDirectory(publishDir);
@@ -209,7 +238,7 @@ internal static class BuildPipeline {
             var isImport = file.Contains("/Imports/", StringComparison.OrdinalIgnoreCase) || file.Contains("\\Imports\\", StringComparison.OrdinalIgnoreCase);
             var isBuiltIn = file.Contains("/Collection/", StringComparison.OrdinalIgnoreCase) || file.Contains("\\Collection\\", StringComparison.OrdinalIgnoreCase);
             
-            if (!isImport && !isBuiltIn && (AssetFilePatterns.IsModel(file) || AssetFilePatterns.IsTexture(file) || AssetFilePatterns.IsScript(file))) {
+            if (!isImport && !isBuiltIn && (AssetFilePatterns.IsModel(file) || AssetFilePatterns.IsScript(file))) {
                 File.WriteAllBytes(destination, []);
             } else {
                 File.Copy(file, destination, overwrite: true);
