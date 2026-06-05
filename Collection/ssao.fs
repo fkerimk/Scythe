@@ -40,7 +40,7 @@ void main() {
     vec4 color = texture(texture0, fragTexCoord);
     float depth = texture(depthTexture, fragTexCoord).r;
     
-    if (depth >= 0.999) {
+    if (depth >= 0.999999) {
         finalColor = color * fragColor;
         return;
     }
