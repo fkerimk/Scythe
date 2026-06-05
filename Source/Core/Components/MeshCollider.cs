@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Numerics;
 using Jitter2.Collision.Shapes;
 using Jitter2.LinearMath;
@@ -10,7 +11,7 @@ internal class MeshCollider(Obj obj) : Component(obj) {
     public override Color LabelColor => Colors.GuiTypePhysics;
     public override string LabelIcon => Icons.FaCube;
 
-    [Label("Convex"), JsonProperty, RecordHistory]
+    [Label("Convex"), JsonProperty, RecordHistory, DefaultValue(true)]
     public bool Convex { get; set; } = true;
 
     [Label("Center"), JsonProperty, RecordHistory]

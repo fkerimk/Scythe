@@ -147,6 +147,8 @@ internal class Rigidbody(Obj obj) : Component(obj) {
             }
         }
 
+        var hasNonConvexMeshCollider = false;
+
         if (Obj.ComponentEntries.TryGetValue("MeshCollider", out var mesh)) {
 
             var meshCollider = (MeshCollider)mesh;
@@ -157,6 +159,8 @@ internal class Rigidbody(Obj obj) : Component(obj) {
             }
 
             if (meshCollider.Shapes.Count > 0) {
+                hasNonConvexMeshCollider = !meshCollider.Convex;
+
                 if (meshCollider.Center != Vector3.Zero) {
                     var scaledCenter = meshCollider.Center * scale;
                     foreach (var shape in meshCollider.Shapes)
@@ -168,12 +172,12 @@ internal class Rigidbody(Obj obj) : Component(obj) {
 
         Body.Position = Conversion.ToJitter(pos);
         Body.Orientation = Conversion.ToJitter(rot);
-        Body.MotionType = IsStatic ? MotionType.Static : MotionType.Dynamic;
+        Body.MotionType = IsStatic || hasNonConvexMeshCollider ? MotionType.Static : MotionType.Dynamic;
         Body.AffectedByGravity = Gravity;
         Body.Friction = Friction;
         Body.Restitution = Bounciness;
 
-        Body.SetMassInertia();
+        if (!hasNonConvexMeshCollider) Body.SetMassInertia();
 
         _lastSyncedPos = pos;
         _lastSyncedRot = rot;

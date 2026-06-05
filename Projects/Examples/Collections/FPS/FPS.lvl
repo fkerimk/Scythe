@@ -3,59 +3,12 @@
     "Name": "Root",
     "Children": [
       {
-        "Name": "Ground",
-        "Prefab": null,
-        "PrefabPath": null,
-        "Transform": {
-          "Pos": {
-            "Y": -0.45326942
-          },
-          "Scale": {
-            "X": 84.20001,
-            "Y": 0.1,
-            "Z": 123.59996
-          },
-          "Rot": {
-            "W": 1.0,
-            "IsIdentity": true
-          }
-        },
-        "Components": [
-          {
-            "GUID": "2cd053e9959f4b91ba52c0cb4d7826a6",
-            "Path": "Built In/Cube.fbx",
-            "Color": {
-              "R": 255,
-              "G": 255,
-              "B": 255,
-              "A": 255
-            },
-            "$ComponentType": "Model"
-          },
-          {
-            "Size": {
-              "X": 1.0,
-              "Y": 1.0,
-              "Z": 1.0
-            },
-            "$ComponentType": "BoxCollider"
-          },
-          {
-            "IsStatic": true,
-            "Gravity": false,
-            "Bounciness": 0.0,
-            "$ComponentType": "Rigidbody"
-          }
-        ],
-        "Children": []
-      },
-      {
         "Name": "Player",
         "Prefab": null,
         "PrefabPath": null,
         "Transform": {
           "Pos": {
-            "Y": 0.2
+            "Y": 1.2
           },
           "Scale": {
             "X": 1.0,
@@ -92,7 +45,8 @@
             "GUID": "39cae3f358b94660800ebb475efdcdf7",
             "Path": "FPS/PlayerMovement.cs",
             "Exposed": {
-              "_rigidbody": "{\"Path\":[{\"Name\":\"Player\",\"Occurrence\":0}],\"ComponentType\":\"Rigidbody\",\"ComponentOccurrence\":0,\"ScriptType\":null}"
+              "_rigidbody": "{\"Path\":[{\"Name\":\"Player\",\"Occurrence\":0}],\"ComponentType\":\"Rigidbody\",\"ComponentOccurrence\":0,\"ScriptType\":null}",
+              "_speed": "5.0"
             },
             "$ComponentType": "Script"
           },
@@ -346,7 +300,7 @@
         "Children": []
       },
       {
-        "Name": "Object",
+        "Name": "Map",
         "Prefab": null,
         "PrefabPath": null,
         "Transform": {
@@ -354,9 +308,9 @@
             "X": -89.999985
           },
           "Scale": {
-            "X": 1.0,
-            "Y": 1.0,
-            "Z": 1.0
+            "X": 1.25,
+            "Y": 1.25,
+            "Z": 1.25
           },
           "Rot": {
             "X": -0.7071067,
@@ -376,7 +330,13 @@
             "$ComponentType": "Model"
           },
           {
-            "Convex": true,
+            "IsStatic": true,
+            "Gravity": false,
+            "Bounciness": 0.0,
+            "$ComponentType": "Rigidbody"
+          },
+          {
+            "Convex": false,
             "$ComponentType": "MeshCollider"
           }
         ],
@@ -386,13 +346,13 @@
   },
   "EditorCamera": {
     "Position": {
-      "X": 18.828758,
-      "Y": 3.0650995,
-      "Z": 21.123142
+      "X": 1.0630673,
+      "Y": 2.071089,
+      "Z": 3.520228
     },
     "Rotation": {
-      "X": -0.1358348,
-      "Y": 10.471769
+      "X": -0.33983487,
+      "Y": 10.04877
     }
   },
   "GUID": "1a1ba6d01f0e4ddabcfa301ed352494d",
