@@ -126,6 +126,11 @@ internal static class PostProcessing {
             );
 
         // TAA
+        if (!settings.Taa.Enabled) {
+            _hasHistory = false;
+            _jitter = Vector2.Zero;
+        }
+
         if (settings.Taa.Enabled) {
 
             // Ensure History RT

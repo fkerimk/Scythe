@@ -20,15 +20,52 @@ uniform int varianceClip;
 uniform float scale;
 uniform int hasHistory;
 
-// Helper to linearize depth if needed, but we reconstruct position directly
-float GetDepth(vec2 uv) {
-    return texture(depthTexture, uv).r;
+vec3 RGBToYCoCg(vec3 c) {
+    return vec3(
+        c.r * 0.25 + c.g * 0.5 + c.b * 0.25,
+        c.r * 0.5 - c.b * 0.5,
+        -c.r * 0.25 + c.g * 0.5 - c.b * 0.25
+    );
+}
+
+vec3 YCoCgToRGB(vec3 c) {
+    return vec3(
+        c.x + c.y - c.z,
+        c.x + c.z,
+        c.x - c.y - c.z
+    );
+}
+
+vec3 ClipAABB(vec3 history, vec3 minColor, vec3 maxColor) {
+    vec3 center = 0.5 * (maxColor + minColor);
+    vec3 extent = 0.5 * (maxColor - minColor) + vec3(0.0001);
+    vec3 offset = history - center;
+    vec3 unit = abs(offset / extent);
+    float maxUnit = max(unit.x, max(unit.y, unit.z));
+
+    if (maxUnit > 1.0) {
+        return center + offset / maxUnit;
+    }
+
+    return history;
+}
+
+vec3 ResolveCurrent(vec2 uv, vec2 texelSize) {
+    vec3 center = texture(texture0, uv).rgb;
+    vec3 cross =
+        texture(texture0, uv + vec2(texelSize.x, 0.0)).rgb +
+        texture(texture0, uv - vec2(texelSize.x, 0.0)).rgb +
+        texture(texture0, uv + vec2(0.0, texelSize.y)).rgb +
+        texture(texture0, uv - vec2(0.0, texelSize.y)).rgb;
+
+    return center * 0.6 + cross * 0.1;
 }
 
 void main() {
+    vec2 texelSize = 1.0 / vec2(textureSize(texture0, 0));
 
     // 1. Current Color
-    vec3 color = texture(texture0, fragTexCoord).rgb;
+    vec3 color = ResolveCurrent(fragTexCoord, texelSize);
 
     if (hasHistory == 0) {
         finalColor = vec4(color, 1.0);
@@ -38,7 +75,7 @@ void main() {
     // 2. Motion-vector reprojection
     float depth = texture(depthTexture, fragTexCoord).r;
 
-    if (depth >= 0.9999) {
+    if (depth >= 0.999999) {
         finalColor = vec4(color, 1.0);
         return;
     }
@@ -61,61 +98,46 @@ void main() {
     }
     
     vec3 history = texture(historyTexture, prevUV).rgb;
-    
-    // 4. Neighborhood Clamping (To fix ghosting)
-    // 4. Neighborhood Sampling & Clamping
+	    
+    // 4. Neighborhood sampling and clipping.
     vec3 minColor = vec3(100.0);
     vec3 maxColor = vec3(-100.0);
-    
+	    
     vec3 m1 = vec3(0.0);
     vec3 m2 = vec3(0.0);
-    
-    vec2 texelSize = 1.0 / vec2(textureSize(texture0, 0));
-
+	
     for(int x = -1; x <= 1; x++) {
         for(int y = -1; y <= 1; y++) {
             vec2 sampleUv = clamp(fragTexCoord + vec2(float(x), float(y)) * texelSize, vec2(0.0), vec2(1.0));
-            vec3 s = texture(texture0, sampleUv).rgb;
+            vec3 s = RGBToYCoCg(texture(texture0, sampleUv).rgb);
             minColor = min(minColor, s);
             maxColor = max(maxColor, s);
-            
+	            
             m1 += s;
             m2 += s * s;
         }
     }
     
-    // Variance Clipping logic
+    history = RGBToYCoCg(history);
+    color = RGBToYCoCg(color);
+
     if (varianceClip > 0) {
-        
+	        
         vec3 mu = m1 / 9.0;
         vec3 sigma = sqrt(abs(m2 / 9.0 - mu * mu));
-        
-        minColor = mu - scale * sigma;
-        maxColor = mu + scale * sigma;
-        
-        // AABB Clipping (better than hard clamping for color consistency)
-        // Intersect the line from history to color with the AABB
-        vec3 p_clip = 0.5 * (maxColor + minColor);
-        vec3 e_clip = 0.5 * (maxColor - minColor);
-        
-        vec3 v_clip = history - p_clip;
-        vec3 v_unit = v_clip.xyz / max(e_clip, vec3(0.0001));
-        vec3 a_unit = abs(v_unit);
-        float ma_unit = max(a_unit.x, max(a_unit.y, a_unit.z));
-        
-        if (ma_unit > 1.0) {
-            history = p_clip + v_clip / ma_unit;
-        }
-        
+	        
+        float clipScale = max(scale, 1.25);
+        minColor = max(minColor, mu - clipScale * sigma);
+        maxColor = min(maxColor, mu + clipScale * sigma);
+        history = ClipAABB(history, minColor, maxColor);
     } else {
-        // Fallback to simple min/max
         history = clamp(history, minColor, maxColor);
     }
-    
+	    
     // 5. Blend. Fast pixels get less history so disocclusion trails decay quickly.
     float velocityLen = length(velocity * vec2(textureSize(texture0, 0)));
     float motionBlend = clamp(blendFactor + velocityLen * 0.015, blendFactor, 0.65);
-    vec3 result = mix(history, color, motionBlend);
-    
-    finalColor = vec4(result, 1.0);
+    vec3 result = YCoCgToRGB(mix(history, color, motionBlend));
+	    
+    finalColor = vec4(clamp(result, 0.0, 1.0), 1.0);
 }

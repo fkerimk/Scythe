@@ -165,6 +165,7 @@ internal static class Core {
 
         if (_velocityMap.Texture.Id != 0) UnloadRenderTexture(_velocityMap);
         _velocityMap = LoadRenderTextureWithDepth(width, height);
+        SetTextureFilter(_velocityMap.Texture, TextureFilter.Point);
     }
 
     public static void OpenLevel(string name, string? path = null, bool loadImmediately = true) {
