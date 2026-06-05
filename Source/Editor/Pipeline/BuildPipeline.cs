@@ -268,12 +268,43 @@ internal static class BuildPipeline {
             var isImport = file.Contains("/Imports/", StringComparison.OrdinalIgnoreCase) || file.Contains("\\Imports\\", StringComparison.OrdinalIgnoreCase);
             var isBuiltIn = file.Contains("/Collection/", StringComparison.OrdinalIgnoreCase) || file.Contains("\\Collection\\", StringComparison.OrdinalIgnoreCase);
             
-            if (!isImport && !isBuiltIn && (AssetFilePatterns.IsModel(file) || AssetFilePatterns.IsScript(file))) {
+            if (!isImport && !isBuiltIn && IsSourceAssetWithRuntimeImport(file)) {
                 File.WriteAllBytes(destination, []);
             } else {
                 File.Copy(file, destination, overwrite: true);
             }
         }
+    }
+
+    private static bool IsSourceAssetWithRuntimeImport(string file) {
+
+        if (AssetFilePatterns.IsModel(file)) {
+            var model = AssetManager.Get<ModelAsset>(file) ?? AssetManager.GetOrImport<ModelAsset>(file);
+            if (HasRuntimeImport(model)) return true;
+
+            var animation = AssetManager.Get<AnimationAsset>(file) ?? AssetManager.GetOrImport<AnimationAsset>(file);
+            return HasRuntimeImport(animation);
+        }
+
+        if (AssetFilePatterns.IsTexture(file)) {
+            var texture = AssetManager.Get<TextureAsset>(file) ?? AssetManager.GetOrImport<TextureAsset>(file);
+            return HasRuntimeImport(texture);
+        }
+
+        return false;
+    }
+
+    private static bool HasRuntimeImport(Asset? asset) =>
+        asset != null
+        && !string.IsNullOrWhiteSpace(asset.ImportedFile)
+        && File.Exists(asset.ImportedFile)
+        && IsProjectImportFile(asset.ImportedFile);
+
+    private static bool IsProjectImportFile(string file) {
+
+        var importsRoot = Path.GetFullPath(Path.Combine(ScytheConfig.Current.Project, "Imports"));
+        var full = Path.GetFullPath(file);
+        return full.StartsWith(importsRoot + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool ShouldIncludeProjectFile(string file, string outputDirectory) {
