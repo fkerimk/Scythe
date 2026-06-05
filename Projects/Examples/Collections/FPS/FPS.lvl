@@ -374,6 +374,10 @@
               "A": 255
             },
             "$ComponentType": "Model"
+          },
+          {
+            "Convex": true,
+            "$ComponentType": "MeshCollider"
           }
         ],
         "Children": []
@@ -382,13 +386,13 @@
   },
   "EditorCamera": {
     "Position": {
-      "X": 20.038433,
-      "Y": 2.000535,
-      "Z": 16.728739
+      "X": 18.828758,
+      "Y": 3.0650995,
+      "Z": 21.123142
     },
     "Rotation": {
-      "X": -0.2288348,
-      "Y": 9.103767
+      "X": -0.1358348,
+      "Y": 10.471769
     }
   },
   "GUID": "1a1ba6d01f0e4ddabcfa301ed352494d",

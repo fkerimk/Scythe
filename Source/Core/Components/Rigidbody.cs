@@ -147,6 +147,25 @@ internal class Rigidbody(Obj obj) : Component(obj) {
             }
         }
 
+        if (Obj.ComponentEntries.TryGetValue("MeshCollider", out var mesh)) {
+
+            var meshCollider = (MeshCollider)mesh;
+
+            if (!meshCollider.IsLoaded) {
+                if (meshCollider.Load())
+                    meshCollider.IsLoaded = true;
+            }
+
+            if (meshCollider.Shapes.Count > 0) {
+                if (meshCollider.Center != Vector3.Zero) {
+                    var scaledCenter = meshCollider.Center * scale;
+                    foreach (var shape in meshCollider.Shapes)
+                        Body.AddShape(new TransformedShape(shape, Conversion.ToJitter(scaledCenter)), MassInertiaUpdateMode.Preserve);
+                } else
+                    Body.AddShapes(meshCollider.Shapes, MassInertiaUpdateMode.Preserve);
+            }
+        }
+
         Body.Position = Conversion.ToJitter(pos);
         Body.Orientation = Conversion.ToJitter(rot);
         Body.MotionType = IsStatic ? MotionType.Static : MotionType.Dynamic;
