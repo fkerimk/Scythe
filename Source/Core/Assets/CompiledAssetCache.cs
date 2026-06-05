@@ -268,12 +268,13 @@ internal static partial class CompiledAssetCache {
 
         try {
             if (!TextureImportProcessor.Import(sourceFile, tempFile, settings))
-                return default;
+                return LoadTextureImageDirect(sourceFile, settings);
 
             var image = LoadImage(tempFile);
             if (image.Data != null) return image;
 
-            return LoadImageFromMagickFallback(tempFile, settings);
+            image = LoadImageFromMagickFallback(tempFile, settings);
+            return image.Data != null ? image : LoadTextureImageDirect(sourceFile, settings);
 
         } finally {
             try {
@@ -284,6 +285,15 @@ internal static partial class CompiledAssetCache {
 #else
         return default;
 #endif
+    }
+
+    private static unsafe Image LoadTextureImageDirect(string sourceFile, AssetSidecarData.TextureImportSettings settings) {
+
+        var image = LoadImage(sourceFile);
+        if (image.Data == null) return default;
+
+        ApplyTextureImportSettings(ref image, settings);
+        return image;
     }
 
 #if !SCYTHE_RUNTIME_BUILD

@@ -175,8 +175,9 @@ internal static class BuildPipeline {
     private static void PrepareRuntimeAssetCaches(BackgroundTask task) {
 
         var models = AssetManager.GetAll<ModelAsset>().ToList();
+        var animations = AssetManager.GetAll<AnimationAsset>().ToList();
         var textures = AssetManager.GetAll<TextureAsset>().ToList();
-        var total = models.Count + textures.Count;
+        var total = models.Count + animations.Count + textures.Count;
         var current = 0;
 
         if (total == 0) return;
@@ -184,17 +185,46 @@ internal static class BuildPipeline {
         foreach (var model in models) {
             task.Status = $"Preparing model cache {++current}/{total}: {Path.GetFileName(model.File)}";
             task.Progress = (float)current / total;
-            if (AssetManager.GetOrImport<ModelAsset>(model.GUID) == null)
+            var loadedModel = AssetManager.GetOrImport<ModelAsset>(model.GUID);
+            if (loadedModel == null)
                 throw new InvalidOperationException($"Failed to prepare model cache: {AssetManager.GetStoredPath(model.File)}");
+            if (!IsRuntimeModelCacheReady(loadedModel))
+                throw new InvalidOperationException($"Runtime model cache missing: {AssetManager.GetStoredPath(loadedModel.File)}");
+        }
+
+        foreach (var animation in animations) {
+            task.Status = $"Preparing animation cache {++current}/{total}: {Path.GetFileName(animation.File)}";
+            task.Progress = (float)current / total;
+            var loadedAnimation = AssetManager.GetOrImport<AnimationAsset>(animation.GUID);
+            if (loadedAnimation == null)
+                throw new InvalidOperationException($"Failed to prepare animation cache: {AssetManager.GetStoredPath(animation.File)}");
+            if (!IsRuntimeModelCacheReady(loadedAnimation))
+                throw new InvalidOperationException($"Runtime animation cache missing: {AssetManager.GetStoredPath(loadedAnimation.File)}");
         }
 
         foreach (var texture in textures) {
             task.Status = $"Preparing texture cache {++current}/{total}: {Path.GetFileName(texture.File)}";
             task.Progress = (float)current / total;
-            if (AssetManager.GetOrImport<TextureAsset>(texture.GUID) == null)
+            var loadedTexture = AssetManager.GetOrImport<TextureAsset>(texture.GUID);
+            if (loadedTexture == null)
                 throw new InvalidOperationException($"Failed to prepare texture cache: {AssetManager.GetStoredPath(texture.File)}");
+            if (!IsRuntimeTextureCacheReady(loadedTexture))
+                throw new InvalidOperationException($"Runtime texture cache missing: {AssetManager.GetStoredPath(loadedTexture.File)}");
         }
     }
+
+    private static bool IsRuntimeModelCacheReady(Asset asset) =>
+        string.Equals(Path.GetExtension(asset.ImportedFile), ".scymodel", StringComparison.OrdinalIgnoreCase)
+        && File.Exists(asset.ImportedFile);
+
+    private static bool IsRuntimeTextureCacheReady(TextureAsset texture) =>
+        IsBuiltInFile(texture.File)
+        || string.Equals(Path.GetExtension(texture.ImportedFile), ".stex", StringComparison.OrdinalIgnoreCase)
+        && File.Exists(texture.ImportedFile)
+        && CompiledAssetCache.TryReadTextureInfo(texture.ImportedFile, out _);
+
+    private static bool IsBuiltInFile(string file) =>
+        Path.GetFullPath(file).StartsWith(Path.GetFullPath(PathUtil.GetBuiltInCollectionRoot()), StringComparison.OrdinalIgnoreCase);
 
     private static string PublishRuntime(string bundleZip, string publishDir, string runtimeId) {
 
